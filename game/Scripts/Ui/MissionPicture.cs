@@ -32,6 +32,8 @@ public partial class MissionPicture : Control
     /// <summary>A remix's map (RemixMapPicture): its marks on the 640 x 480 sheet, lettered in Lee, and its title over them.</summary>
     public IReadOnlyList<(Vector2 At, string Label)> Marks { get; init; } = [];
     public string? Title { get; init; }
+    /// <summary>A remix map's routes (the convoy's), on the 640 x 480 sheet: dashed in ink.</summary>
+    public IReadOnlyList<Vector2[]> Routes { get; init; } = [];
     /// <summary>The key that closed it, to be acted on as usual.</summary>
     public required Action<InputEventKey> Closed { get; init; }
 
@@ -111,6 +113,15 @@ public partial class MissionPicture : Control
         DrawLine(n0 + new Vector2(0, -24) * s, n0 + new Vector2(-5, -16) * s, ink, Mathf.Max(1f, 1.5f * s));
         DrawLine(n0 + new Vector2(0, -24) * s, n0 + new Vector2(5, -16) * s, ink, Mathf.Max(1f, 1.5f * s));
         DrawString(Lee!, n0 + new Vector2(-24, -6) * s, "N", HorizontalAlignment.Left, -1, small, ink);
+        foreach (var route in Routes)
+            for (int i = 0; i + 1 < route.Length; i++)
+            {
+                var a = o + route[i] * s;
+                var b = o + route[i + 1] * s;
+                float len = a.DistanceTo(b), dash = 7 * s;
+                for (float d = 0; d < len; d += 2 * dash)
+                    DrawLine(a.Lerp(b, d / len), a.Lerp(b, Mathf.Min(1, (d + dash) / len)), ink, Mathf.Max(1f, 1.5f * s));
+            }
         foreach (var (at, label) in Marks)
         {
             var p = o + at * s;

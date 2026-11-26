@@ -1,0 +1,24 @@
+# T10's map (Highway 380 east to Tatum, a roadblock half way): coordinates read off the map (i76 remix map t10).
+base: t10
+hour: 21
+lot: [5690, 46790]                  # where T10 sends its tanks away to, south of the road
+gates: [gate]                       # T10's roadblock fence, opened at the start
+starts:
+  - {name: east_380, at: [6600, 47720], heading: 270}
+  - {name: before_roadblock, at: [5318, 47718], heading: 270}
+  - {name: tatum_road, at: [1500, 47640], heading: 90}
+nodes:
+  - {name: tatum, kinds: [hideout, home], at: [820, 47950]}
+  - {name: lure_loop, kinds: [pickup, hideout], at: [4100, 48650]}
+  - {name: billboard, kinds: [pickup], at: [2850, 47740]}
+  - {name: south_loop, kinds: [pickup, hideout], at: [3100, 47120]}
+  - {name: east_end, kinds: [home, hideout], at: [6900, 47720]}
+entries:
+  - {name: east, at: [[7050, 47720], [6950, 47720]]}
+  - {name: northeast, at: [[7440, 48600], [7440, 48400]]}
+  - {name: tatum_north, at: [[930, 48600], [930, 48400]]}
+  - {name: west, at: [[350, 47550], [335, 47760]]}
+  - {name: roadblock, at: [[3700, 47715], [3900, 47715]]}
+routes:
+  - {name: tatum, path: tatum, park: [4475, 47715], heading: 270, exit: [640, 47930]}
+  - {name: east_380, points: [[1265, 47855], [1900, 47440], [2500, 47720], [3830, 47715], [4500, 47715], [5300, 47718], [6000, 47720], [6900, 47720]], heading: 90}

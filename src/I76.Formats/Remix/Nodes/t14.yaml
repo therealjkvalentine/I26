@@ -1,0 +1,24 @@
+# T14's map (US 285 from the county line north past Spanner's truckstop): coordinates read off the map (i76 remix map t14).
+base: t14
+hour: 19
+lot: [8000, 40620]                  # the east end of the county road, past where any job goes
+starts:
+  - {name: county_line, at: [6800, 40580], heading: 270}
+  - {name: truckstop, at: [5385, 45180], heading: 180}
+  - {name: on_285, at: [5290, 43495], heading: 0}
+nodes:
+  - {name: truckstop, kinds: [home, hideout], at: [5420, 45180]}
+  - {name: roadside, kinds: [pickup], at: [5250, 42500]}
+  - {name: south_farm, kinds: [pickup, hideout], at: [6300, 40620]}
+  - {name: east_loop, kinds: [pickup, hideout], at: [6000, 46100]}
+  - {name: north_285, kinds: [hideout, pickup], at: [5200, 46900]}
+  - {name: county_line, kinds: [home], at: [6800, 40580]}
+entries:
+  - {name: county_east, at: [[7500, 40580], [7300, 40580]]}
+  - {name: north, at: [[5235, 48000], [5235, 47700]]}
+  - {name: west, at: [[4600, 44700], [4800, 44700]]}
+  - {name: bend, at: [[5600, 40580], [5800, 40580]]}
+  - {name: mid_285, at: [[5270, 42000], [5270, 42300]]}
+routes:
+  - {name: north_285, points: [[6025, 40580], [5815, 40580], [5650, 40580], [5270, 41100], [5270, 42295], [5295, 43600], [5295, 44130], [5375, 44775], [5400, 45150]], heading: 270}
+  - {name: up_from_spanner, points: [[5355, 45510], [5250, 46000], [5235, 47000], [5235, 48000]], heading: 0}

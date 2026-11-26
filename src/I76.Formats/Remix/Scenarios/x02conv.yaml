@@ -5,7 +5,7 @@ id: x02conv
 title: Levelland Run
 base: t02
 hour: 7
-start: {at: [8630, 45300], heading: 0}        # south of the crossroads, facing north up the road
+start: {at: [8735, 45370], heading: 340}      # south of the crossroads, facing north up the road
 places:
   levelland: [[8150, 49350]]                  # the convoy's exit: the end of the gang's road at Levelland
 objective:

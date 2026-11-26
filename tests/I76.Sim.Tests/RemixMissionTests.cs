@@ -123,7 +123,7 @@ public class RemixMissionTests
         var spec = RemixSpec.Parse(edited);
         Assert.NotEqual(RemixBuilder.Stamp(RemixSpec.Parse(one.Yaml), File.ReadAllBytes(install.FindMission(spec.Base)!)),
             RemixBuilder.Stamp(spec, File.ReadAllBytes(install.FindMission(spec.Base)!)));
-        Assert.Equal(specs.Count, RemixBuilder.Listed(dir).Count);
+        Assert.Equal(specs.Count, RemixBuilder.Listed(dir).Count(l => !l.Stem.StartsWith("xj", StringComparison.Ordinal)));   // (rolled jobs share the folder)
     }
 
     [Fact]
@@ -425,7 +425,7 @@ public class RemixMissionTests
         // the pursuers dead: lost (objective 1) after the quiet seconds, then the hideout wins
         var (w, ws) = Make("x10tail");
         var wh = w.Script!.Host;
-        Step(w, 20 * 6);
+        Step(w, 20 * 10);   // caught up: the lost clock runs from here
         foreach (var e in ws.Entities.Where(e => e.Vehicle is not null && e.Name.StartsWith("t10cp") && e.Order != I76.Sim.Fsm.AiOrder.Hide).ToList()) wh.Destroy(e);
         Step(w, 20 * 5);
         Assert.Equal(0, wh.Objectives.Flags[0] & Objectives.Succeeded);   // not yet: 12 quiet seconds
@@ -462,5 +462,61 @@ public class RemixMissionTests
         foreach (var e in ws.Entities.Where(e => e.Name is "t02fy01" or "t02fy03").ToList()) h.Destroy(e);
         Step(w, 20 * 10);
         Assert.True(w.Script.Result);
+    }
+
+    /// <summary>
+    /// The director: 200 seeds each roll a description the builder takes (its validation included) on the player's install, every
+    /// car of it a car file of the install; the same seed gives the same file; the four templates and every node table are used.
+    /// </summary>
+    [Fact]
+    public void TwoHundredRolledJobsAllBuild()
+    {
+        if (SnapshotRig.Install is not { } inst || Built() is null) return;
+        var install = new GameInstall(inst);
+        var vfs = new AssetVfs(install);
+        var tables = RemixNodes.Builtin();
+        Assert.True(tables.Count >= 5, $"{tables.Count} node tables");
+        var templates = new HashSet<string>();
+        var maps = new HashSet<string>();
+        var errors = new List<string>();
+        for (int seed = 1; seed <= 200; seed++)
+        {
+            var yaml = RemixDirector.ToYaml(RemixDirector.Roll(seed, tables));
+            Assert.Equal(yaml, RemixDirector.ToYaml(RemixDirector.Roll(seed, tables)));   // the same seed, the same file
+            var spec = RemixSpec.Parse(yaml);
+            Assert.Equal(seed, spec.Seed);
+            Assert.Contains($"Job {seed}", spec.Text.Objectives[0]);
+            templates.Add(spec.Objective.Template);
+            maps.Add(spec.Base);
+            foreach (var car in spec.Cars.Values)
+                if (!vfs.Exists(car.Vcf + ".vcf")) errors.Add($"seed {seed}: no car file {car.Vcf}");
+            try { RemixBuilder.Build(install, spec); }
+            catch (RemixError ex) { errors.Add($"seed {seed} ({spec.Base} {spec.Objective.Template}): {ex.Message}"); }
+        }
+        Assert.Empty(errors);
+        Assert.Equal(RemixDirector.Templates.Order(), templates.Order());
+        Assert.Equal(tables.Select(t => t.Base).Order(), maps.Order());
+        Assert.NotEqual(RemixDirector.ToYaml(RemixDirector.Roll(1, tables)), RemixDirector.ToYaml(RemixDirector.Roll(2, tables)));
+    }
+
+    /// <summary>A rolled job of each template plays: built, loaded into the sim and run half a minute with its script going.</summary>
+    [Fact]
+    public void RolledJobsOfEveryTemplateRun()
+    {
+        if (SnapshotRig.Install is not { } inst || Built() is not { } dir) return;
+        var install = new GameInstall(inst);
+        var seen = new HashSet<string>();
+        for (int seed = 1; seed <= 60 && seen.Count < RemixDirector.Templates.Length; seed++)
+        {
+            var spec = RemixDirector.Roll(seed, id: $"xj{seed}");
+            if (!seen.Add(spec.Objective.Template)) continue;
+            RemixBuilder.Build(install, spec).WriteTo(dir);
+            var (s, setup) = Make($"xj{seed}");
+            Assert.True(setup.Entities.Count(e => e.Vehicle is not null) > spec.Cars.Count, $"seed {seed}: its cars");
+            Step(s, 20 * 30);
+            Assert.True(s.Script!.Result is null or false, $"seed {seed}");
+            Assert.True(s.Script.Host.Objectives.Flags.Length >= 2, $"seed {seed}");
+        }
+        Assert.Equal(RemixDirector.Templates.Length, seen.Count);
     }
 }

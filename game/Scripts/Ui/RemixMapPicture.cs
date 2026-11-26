@@ -17,15 +17,15 @@ public static class RemixMapPicture
     private static readonly Rect2I Box = new(40, 56, 560, 392);
     /// <summary>The sheet's paper and the frame's ink.</summary>
     public static readonly Color Paper = Color.Color8(232, 222, 196), Ink = Color.Color8(40, 30, 18);
-    private static readonly Dictionary<string, (Texture2D, List<(Vector2, string)>, string?)?> Made = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>)?> Made = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The picture, its marks (where on the 640 x 480 sheet, and the label) and its title, or null when the mission is no remix or has no terrain.</summary>
-    public static (Texture2D Picture, List<(Vector2 At, string Label)> Marks, string? Title)? For(string? installRoot, string? mission, bool look1997)
+    /// <summary>The picture, its marks (where on the 640 x 480 sheet, and the label), its title and its routes (sheet points), or null when the mission is no remix or has no terrain.</summary>
+    public static (Texture2D Picture, List<(Vector2 At, string Label)> Marks, string? Title, List<Vector2[]> Lines)? For(string? installRoot, string? mission, bool look1997)
     {
         if (installRoot is null || mission is null || RemixMarks.For(mission) is not { } marks) return null;
         string key = $"{mission}:{look1997}";
         if (Made.TryGetValue(key, out var done)) return done;
-        (Texture2D, List<(Vector2, string)>, string?)? made = null;
+        (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>)? made = null;
         try
         {
             var install = new GameInstall(installRoot);
@@ -50,7 +50,9 @@ public static class RemixMapPicture
                             img.SetPixel(Box.Position.X * scale + x, Box.Position.Y * scale + y, under.Lerp(Color.Color8(ink[i], ink[i + 1], ink[i + 2]), a));
                         }
                     var at = sketch.StartsInBox.Select((p, k) => (new Vector2(Box.Position.X + p.X * Box.Size.X, Box.Position.Y + p.Y * Box.Size.Y), marks.Points[k].Label)).ToList();
-                    made = (ImageTexture.CreateFromImage(img), at, WorldSettings.ArenaName(msn)?.Trim().ToUpperInvariant());
+                    Vector2 Sheet(System.Numerics.Vector2 wpt) { var u = sketch.InBox(wpt); return new(Box.Position.X + u.X * Box.Size.X, Box.Position.Y + u.Y * Box.Size.Y); }
+                    var lines = marks.Lines.Select(l => l.Points.Select(Sheet).ToArray()).ToList();
+                    made = (ImageTexture.CreateFromImage(img), at, WorldSettings.ArenaName(msn)?.Trim().ToUpperInvariant(), lines);
                 }
             }
         }

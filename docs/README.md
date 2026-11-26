@@ -15,7 +15,7 @@ the rules of the project are in [../CHARTER.md](../CHARTER.md).
 | [map-editor.md](map-editor.md) | The in-game map editor: terrain brushes, undo, playtest, saving to `addon\`. |
 | [map-format-writing.md](map-format-writing.md) | Writing missions and terrain back in the original formats. |
 | [mission-scripts.md](mission-scripts.md) | Mission scripts as YAML source: the bytecode, the source form, the names sidecar, the CLI. |
-| [remix-missions.md](remix-missions.md) | Generated scenarios: a remix description, the generator, the objective templates, the shipped three. |
+| [remix-missions.md](remix-missions.md) | Generated scenarios: a remix description, the generator, the objective templates, the shipped five, the node tables and the director (RANDOM JOB). |
 
 ## Behaviour notes
 

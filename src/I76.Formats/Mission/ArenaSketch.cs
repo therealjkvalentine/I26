@@ -77,6 +77,11 @@ public sealed class ArenaSketch
         return Build((sx, sz) => ter.Height(sx, sz), marks, [.. marks, .. lines.SelectMany(l => l)], roads, boxW, boxH);
     }
 
+    private Func<Vector2, Vector2>? _toBox;
+
+    /// <summary>Where a world point (x, z) falls in the box, as fractions of its width and height (0,0 the top left).</summary>
+    public Vector2 InBox(Vector2 world) => _toBox!(world);
+
     /// <summary>Where each start (or mark) falls in the box, as fractions of its width and height (0,0 the top left).</summary>
     public IReadOnlyList<Vector2> StartsInBox => _starts;
 
@@ -126,7 +131,7 @@ public sealed class ArenaSketch
         m = Band(m, gw, gh);
         var soft = Blur(m, gw, gh, 0.7f);
         var rd = roads.Select(r => r.Select(ToGrid).ToArray()).Where(r => r.Length > 1).ToList();
-        return new ArenaSketch(boxW, boxH, soft, st, rd, (bx - ax) * S, (bz - az) * S);
+        return new ArenaSketch(boxW, boxH, soft, st, rd, (bx - ax) * S, (bz - az) * S) { _toBox = ToGrid };
     }
 
     /// <summary>The hatched band's width beside the floor, in grid cells (6 shell pixels), and how far its outer edge wanders either way.</summary>

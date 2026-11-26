@@ -402,8 +402,8 @@ public static class RemixTemplates
 
     /// <summary>
     /// Lose the tail (the design list's lose-the-tail, a "lost them" phase before home): pursuers teleported in behind an entry
-    /// (and sleepers that wake as the player passes) chase him. They are lost once nobody hostile has been within the lost radius
-    /// for the lost seconds (dead ones count as lost); they then give up, each parking where it is and chasing again only while
+    /// (and sleepers that wake as the player passes) chase him. Once they have caught up (or a minute has gone by without), they
+    /// are lost when nobody hostile has been within the lost radius for the lost seconds (dead ones count as lost); they then give up, each parking where it is and chasing again only while
     /// the player is within half that radius. The hideout counts only after that, with nobody within clear (default the lost
     /// radius); reaching it with an enemy that near fails: he led them home. Objectives: 1 lose them, 2 the hideout. Failures:
     /// 1 death, 2 left the map, then 3 too slow (with a deadline, from the start) and led them home (3 without a deadline, 4 with).
@@ -500,6 +500,7 @@ public static class RemixTemplates
                 steps:
                   - do: startTimer(quiet)
                   - wait_until: timeGreater(quiet, {{quietFrom}})
+                  - wait_until: isWithinEnemy(user, {{lost.Radius}}) || timeGreater(quiet, {{quietFrom + 60}})
                   - id: rx_near
                     wait_until: '!isWithinEnemy(user, {{lost.Radius}})'
                     then: startTimer(quiet)
@@ -540,7 +541,8 @@ public static class RemixTemplates
 
     /// <summary>
     /// Intercept a convoy (the design list's convoy ambush): the lead drives a route to its exit, the escorts keeping station
-    /// behind it; once alerted (the player within the alert radius, the lead or an escort shot, or the lead dead) the lead speeds
+    /// behind it; once alerted (the player within the alert radius, the lead or an escort shot (a bump among themselves is no
+    /// alert), or the lead dead) the lead speeds
     /// up and the escorts turn on the player. The lead reaching its exit fails. Objectives: 1 the lead dead, 2 the escorts dead
     /// (with kill_escorts). Failures: 1 death, 2 left the map, 3 the convoy got through.
     /// </summary>
@@ -575,7 +577,7 @@ public static class RemixTemplates
                       - startTimer(timer)
                   - wait_until: timeGreater(timer, {{cv.Delay}})
                     while_waiting: sit(car)
-                  - wait_until: alert == 1 || isAttacked(car) || isWithin(car, user, {{cv.Alert}})
+                  - wait_until: alert == 1 || isShot(car) || isWithin(car, user, {{cv.Alert}})
                     then: set(alert, 1)
                     while_waiting: goto(car, route, {{cv.Speed}})
                   - wait_until: isDead(user)
@@ -591,7 +593,7 @@ public static class RemixTemplates
                       - setSkill(car, {{o.Skill}}, {{o.Skill}})
                       - setAgg(car, {{o.Aggression}})
                       - startCar(car)
-                  - wait_until: alert == 1 || isAttacked(car) || isDead(lead)
+                  - wait_until: alert == 1 || isShot(car) || isDead(lead)
                     then: set(alert, 1)
                     while_waiting: follow(car, lead, user, 0, dx, dz)
                   - wait_until: isDead(user)

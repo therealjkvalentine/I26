@@ -1,0 +1,32 @@
+# T07's map (Highway 380 between two roadblocks, farms to the north): coordinates read off the map (i76 remix map t07).
+base: t07
+hour: 17
+lot: [100, 49300]                   # beside T07's police lot, off the play area
+gates: [gate1]                      # T07's east fence across 380, opened at the start as T07 does
+starts:
+  - {name: on_380, at: [2923, 48003], heading: 270}
+  - {name: east, at: [4400, 47930], heading: 270}
+  - {name: south_loop, at: [3755, 47300], heading: 0}
+nodes:
+  - {name: south_farm, kinds: [pickup, hideout], at: [3720, 47520]}
+  - {name: roadside, kinds: [pickup], at: [2120, 47960]}
+  - {name: north_farm, kinds: [pickup, hideout], at: [850, 49100]}
+  - {name: on_380, kinds: [home], at: [2923, 48003]}
+  - {name: east, kinds: [home, hideout], at: [4400, 47930]}
+entries:
+  - {name: jump1, path: jump1}
+  - {name: jump2, path: jump2}
+  - {name: north, at: [[866, 49134], [867, 49092]]}
+  - {name: ridge, at: [[1680, 48256], [1672, 48337]]}
+  - {name: east_380, at: [[5000, 47650], [4780, 47690]]}
+  - {name: loop, at: [[3300, 47050], [3325, 47200]]}
+clusters:
+  - name: farms
+    called: the farms
+    at: [1150, 48500]
+    radius: 350
+    objects: [{object: bhihous1}, {object: bhbarn1, nth: 0}, {object: ashack1, nth: 0}, {object: awatert1, nth: 0},
+              {object: bhhouse1, nth: 0}, {object: bhbarn1, nth: 1}, {object: bhhouse1, nth: 1}, {object: bhbarn1, nth: 2}]
+    entries: [jump1, jump2, north, ridge]
+routes:
+  - {name: west_380, points: [[5600, 47480], [5000, 47650], [4450, 47930], [4000, 47830], [3500, 47780], [3250, 47780], [3000, 47950], [2700, 48000], [2300, 47930], [1800, 47960], [1500, 47890]], heading: 300}

@@ -208,7 +208,7 @@ public sealed class RadioSpec
     public List<string> Trap { get; set; } = [];
     public List<string> Wave { get; set; } = [];
     public List<string> Win { get; set; } = [];
-    public IEnumerable<string> All => Start.Concat(Trap).Concat(Wave).Concat(Win).Distinct(StringComparer.OrdinalIgnoreCase);
+    [YamlIgnore] public IEnumerable<string> All => Start.Concat(Trap).Concat(Wave).Concat(Win).Distinct(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>

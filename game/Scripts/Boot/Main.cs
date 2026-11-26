@@ -700,7 +700,7 @@ public partial class Main : Node3D
 		var view = new MissionPicture
 		{
 			What = kind, Picture = pic, Objectives = objectives, Lee = lee,
-			Marks = remix?.Marks ?? [], Title = remix?.Title,
+			Marks = remix?.Marks ?? [], Title = remix?.Title, Routes = remix?.Lines ?? [],
 			// the art's pixels kept in both looks (the text is set at the window's scale); an upscale filtered smooth
 			TextureFilter = hd is null ? CanvasItem.TextureFilterEnum.Nearest : CanvasItem.TextureFilterEnum.LinearWithMipmaps,
 			Closed = k =>
