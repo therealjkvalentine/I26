@@ -54,15 +54,12 @@ varying float v_sway;
 varying vec2 v_vary;
 varying float v_tin;
 varying float v_tout;
-// the vertex where it rests in the plant's own frame (brush impacts: where a burnt plant's leaves are gone)
-varying vec3 v_rest;
 
 void vertex() {
 #if CURRENT_RENDERER == RENDERER_COMPATIBILITY
 	COLOR = CUSTOM1;
 #endif
 	vec3 origin = MODEL_MATRIX[3].xyz;
-	v_rest = VERTEX;
 	v_fade = 1.0 - smoothstep(fade_start, fade_end, distance(origin, MAIN_CAM_INV_VIEW_MATRIX[3].xyz));
 	vec2 dh = origin.xz - MAIN_CAM_INV_VIEW_MATRIX[3].xz;
 	float gd = length(dh);
@@ -121,6 +118,7 @@ void vertex() {
 			p.y = max(ny, 0.04 * s);
 			// burnt through (the scorch's last part, only where it burned): it sinks into a low charred remnant, splaying a little
 			float burnt = smoothstep(0.6, 1.0, b.b) * (1.0 - stiff);
+			p.xz -= (push + vec2(flutter)) * burnt;   // a charred remnant stands still in the wind (its burnt-out patches hold their place)
 			p.y *= 1.0 - 0.4 * burnt;
 			p.xz *= 1.0 + 0.12 * burnt;
 			VERTEX = origin + p;
@@ -155,9 +153,10 @@ void fragment() {
 	// the tier cross-fade: the incoming tier keeps the pixels the outgoing one gives up
 	if (dither < 1.0 - v_tin || dither >= 1.0 - v_tout) discard;
 	vec4 tex = texture(atlas, UV);
-	// burnt through (brush impacts): the leaves and blades gone in patches, the charred twigs left
+	// burnt through (brush impacts): the leaves and blades gone in patches of the world (no varying: nothing for the
+	// plants that never burned but this test), the charred twigs left
 	if (v_vary.y > 0.6 && UV2.y > 0.5) {
-		vec3 cell = floor(v_rest * 7.0);
+		vec3 cell = floor((INV_VIEW_MATRIX * vec4(VERTEX, 1.0)).xyz * 7.0);
 		if (fract(sin(dot(cell, vec3(12.9898, 78.233, 37.719))) * 43758.5453) < smoothstep(0.6, 1.0, v_vary.y) * 0.9) discard;
 	}
 	vec3 col = tex.rgb * COLOR.rgb * tint * (1.0 + 0.1 * v_vary.x);

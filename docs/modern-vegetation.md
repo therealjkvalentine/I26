@@ -501,8 +501,7 @@ reads; hidden with the plants in the 1997 look; shell.cfg `[port] brush_impacts=
   growing threefold; half as many while it only smoulders; it was 26 dark puffs up to 4 m across); embers only off a
   plant of u 0.15 or more, 1 to 5, 3.5 cm, drifting up at about 1 m/s for 1.6 s; a warm flickering light of energy
   0.5 + 0.6 u over 2.5 + 2 h / 1.2 m (it was 1.8 over 7 m). As it burns the plant chars toward black; burnt through (the
-  field's scorch over 0.6) its leaves and blades go in patches (`vegetation.gdshaderinc`, a 14 cm cell of the plant's
-  own frame each) and it sinks to 60 % of its height, splaying a little, leaving the charred twigs where it stood (it
+  field's scorch over 0.6) its leaves and blades go in patches (`vegetation.gdshaderinc`, a 14 cm cell of the world each, no varying, so a plant that never burned pays only that test) and it sinks to 60 % of its height, standing still in the wind, splaying a little, leaving the charred twigs where it stood (it
   was laid over sideways a third of the way, and stood up again green-black). The leaves follow `effects_size`; the
   smoke and flames are sized to the plant, and all of them follow `effects_brightness` and `effects_opacity`.
 
