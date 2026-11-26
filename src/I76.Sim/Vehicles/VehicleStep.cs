@@ -73,6 +73,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     {
         float throttle = v.Throttle;
         if (v.Handbrake != 0 || v.DriveState == 0) throttle = -1;
+        throttle = EngineOffThrottle(v, throttle);
         if (throttle < 0 && v.Unk_0xf4 != 0) throttle *= Specials.XAustBrakeScale;   // the X-Aust Brake: x2 is exact, as throttle + throttle
         var flags = v.Flags & ~(VehicleFlags)0x206;
         float speed = v.Speed;
@@ -263,6 +264,16 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     /// <param name="signsOnly">Only the type-4 sphere test (signs, pickups): for a car another model moves, whose solid contacts that model finds.</param>
     public void StaticContacts(Vehicle v, float frameDelta, bool signsOnly = false) => ObjectContacts(v, frameDelta, signsOnly);
 
+    /// <summary>
+    /// I26 (docs/deviations.md, "Accelerator with the engine off"): a car whose engine is off (the ignition key, cranking)
+    /// takes no throttle. The original gates only the drive force on the engine (DriveForce returns 0); the rest of the step
+    /// reads the pedal as it is, so accelerating while rolling against the gear faster than 1 m/s (back down a hill in drive,
+    /// forward in reverse) puts the car in the wheel-spin slide model with no drive at all (its steering then turns the
+    /// other way and the car spins), and a far car under 1 m/s creeps on instead of stopping. Braking is untouched.
+    /// </summary>
+    private static float EngineOffThrottle(Vehicle v, float throttle) =>
+        throttle > 0 && (v.Flags & VehicleFlags.EngineOn) == 0 ? 0 : throttle;
+
     /// <summary>The real frame delta, which the engine's smoothing uses (not the substep).</summary>
     public float FrameDelta { get; set; } = I76.Sim.Session.SimRate.R20.TickSeconds;
 
@@ -320,6 +331,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         bool tipped = Vector3.Dot(n, v.Rot.Up) < 0.1f;
         if (tipped || !(v.Handbrake == 0 && v.DriveState != 0)) throttle = -1f;
         if (throttle > -1e-4f && v.DriveState == 2) throttle = 0;
+        throttle = EngineOffThrottle(v, throttle);
         if (throttle < 0 && v.Unk_0xf4 != 0) throttle *= Specials.XAustBrakeScale;   // the X-Aust Brake: x2 is exact, as throttle + throttle
 
         var vel0 = v.Vel;
