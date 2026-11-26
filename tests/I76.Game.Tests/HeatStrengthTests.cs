@@ -90,10 +90,10 @@ public class HeatStrengthTests
     [Fact]
     public void TheRippleStaysLowOverTheFarRoad()
     {
-        // nothing near (the ground beside the car, the hood), full past 2.6 times 75 m, a little more far away
+        // nothing near (the ground beside the car, the hood), full past 400 m, a little more far away
         Assert.Equal(0f, HeatBand.Weight(-1f, 40f));
         Assert.Equal(0f, HeatBand.Weight(-0.5f, HeatBand.DefaultNear));
-        Assert.Equal(1f, HeatBand.Weight(-0.3f, 200f), 3);
+        Assert.Equal(1f, HeatBand.Weight(-0.3f, 400f), 3);
         Assert.True(HeatBand.Weight(-0.05f, 1500f) > 1.2f);
         Assert.True(HeatBand.Weight(-0.05f, 1500f) <= 1f + HeatBand.FarGain);
         // only rays near level: the far road's band, not a mesa's face or the sky over it

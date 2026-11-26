@@ -49,6 +49,33 @@ public class HeatGroundTests
     }
 
     [Fact]
+    public void ItStartsFarDownTheRoad()
+    {
+        // the owner: "it shouldn't show up as close as it currently is": from 200 m, full from 400 (section IJ's 75 and 195 put it by the nose)
+        Assert.Equal(200f, HeatBand.DefaultNear);
+        Assert.Equal(400f, HeatBand.DefaultFull);
+        // the mirage on paved asphalt only (the owner: "only asphalt reflects")
+        Assert.Equal(0f, HeatBand.MirageGroundShare);
+        Assert.Equal(HeatBand.DefaultNear, HeatTune.DefaultRoadNear);
+        foreach (float d in (float[])[30, 75, 150, 200]) Assert.Equal(0f, HeatBand.Surface(LevelAt(d), d, paved: 1));
+        Assert.True(HeatBand.Surface(LevelAt(250), 250, paved: 1) < 0.2f);   // eases in
+        Assert.True(HeatBand.Surface(LevelAt(300), 300, paved: 1) is > 0.3f and < 0.7f);
+        Assert.Equal(1f, HeatBand.Surface(LevelAt(400), 400, paved: 1), 3);
+        // the Developer panel's start and full distances move it
+        Assert.Equal(1f, HeatBand.Distance(160, near: 75, full: 150), 3);
+        Assert.Equal(0f, HeatBand.Distance(75, near: 75, full: 150));
+        try
+        {
+            HeatTune.RoadNear = 120; HeatTune.RoadFull = 260;
+            Assert.Contains("road from 120 m, full from 260 m", HeatTune.Line());
+            HeatTune.Reset();
+            Assert.Equal(200f, HeatTune.RoadNear);
+            Assert.Equal(400f, HeatTune.RoadFull);
+        }
+        finally { HeatTune.Reset(); }
+    }
+
+    [Fact]
     public void TheGrazingAngleIsBetweenTheRayAndTheSurface()
     {
         var up = Vector3.UnitY;

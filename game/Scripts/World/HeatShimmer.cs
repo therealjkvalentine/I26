@@ -44,7 +44,8 @@ public static class HeatSources
 /// <summary>
 /// The hot day's ripple (Fires + Road): how much the air low over the ground bends a ray, by the ray's angle to level and how far it goes
 /// before it meets something, where section IJ put it: low over the road and the ground beside it, far down the road. Nothing nearer than
-/// <see cref="DefaultNear"/> m, full from <see cref="FullAt"/> times that and 1.6 times by 2 km; rays within <see cref="DefaultBelowDeg"/>
+/// <see cref="DefaultNear"/> m, full from <see cref="DefaultFull"/> m and 1.6 times by 2 km (the owner: "it shouldn't show up as close as
+/// it currently is": section IJ's 75 m, full by 195, put the ripple on the ground beside the car's nose); rays within <see cref="DefaultBelowDeg"/>
 /// degrees under level and <see cref="DefaultAboveDeg"/> over it, full within a fifth of each (the over side a separate number only for the
 /// Developer panel; the default is the same band either side, as IJ's). The kernel does the same sums with the same numbers (HeatTune's,
 /// handed over each frame). The nudge is now an angle, <see cref="AmplitudeRad"/> at full, never under <see cref="MinPixels"/> pixels: IJ's
@@ -53,7 +54,7 @@ public static class HeatSources
 /// </summary>
 public static class HeatBand
 {
-    public const float DefaultNear = 75f, FullAt = 2.6f, DefaultAboveDeg = 1.72f, DefaultBelowDeg = 1.72f, FarGain = 0.6f, FarFrom = 400f, FarTo = 2000f;
+    public const float DefaultNear = 200f, DefaultFull = 400f, DefaultAboveDeg = 1.72f, DefaultBelowDeg = 1.72f, FarGain = 0.6f, FarFrom = 400f, FarTo = 2000f;
     /// <summary>The ripple's nudge at full strength, an angle (radians: about 0.15 degrees, about 2.4 px at 1080p), and its least, in pixels.</summary>
     public const float AmplitudeRad = 0.0026f, MinPixels = 1.8f;
     /// <summary>The ripple's cells: at most this many a radian up and down (about 0.2 degrees each; five times as wide), never under
@@ -68,8 +69,9 @@ public static class HeatBand
         return t * t * (3f - 2f * t);
     }
 
-    /// <summary>By how far the ray goes (m; the sky: <see cref="float.PositiveInfinity"/>): 0 inside <paramref name="near"/>, 1 from FullAt times it, 1.6 from 2 km.</summary>
-    public static float Distance(float dist, float near = DefaultNear) => Smooth(near, near * FullAt, dist) * (1f + FarGain * Smooth(FarFrom, FarTo, dist));
+    /// <summary>By how far the ray goes (m; the sky: <see cref="float.PositiveInfinity"/>): 0 inside <paramref name="near"/>, 1 from <paramref name="full"/>, 1.6 from 2 km.</summary>
+    public static float Distance(float dist, float near = DefaultNear, float full = DefaultFull) =>
+        Smooth(near, Math.Max(full, near + 1f), dist) * (1f + FarGain * Smooth(FarFrom, FarTo, dist));
 
     /// <summary>By the ray's angle to level (degrees, up positive): 1 near level, 0 past the band's edge.</summary>
     public static float Angle(float elevDeg, float aboveDeg = DefaultAboveDeg, float belowDeg = DefaultBelowDeg) =>
@@ -86,8 +88,8 @@ public static class HeatBand
     /// on what is not ground at all (a plant, a car's side, a wall: <paramref name="upY"/> under 0.85).
     /// </summary>
     public static float Surface(float grazeDeg, float dist, float paved, float upY = 1f, float pavedShare = PavedShare, float groundShare = GroundShare,
-        float bandDeg = DefaultBelowDeg, float near = DefaultNear) =>
-        (1f - Smooth(Core * bandDeg, bandDeg, grazeDeg)) * Smooth(0.85f, 0.95f, upY) * Share(paved, upY, pavedShare, groundShare) * Distance(dist, near);
+        float bandDeg = DefaultBelowDeg, float near = DefaultNear, float full = DefaultFull) =>
+        (1f - Smooth(Core * bandDeg, bandDeg, grazeDeg)) * Smooth(0.85f, 0.95f, upY) * Share(paved, upY, pavedShare, groundShare) * Distance(dist, near, full);
 
     /// <summary>The surface's share: paved road's, open ground's (less as the ground's normal leans, rough or rocky), mixed by the paved part.</summary>
     public static float Share(float paved, float upY, float pavedShare = PavedShare, float groundShare = GroundShare)
@@ -96,8 +98,8 @@ public static class HeatBand
         return pavedShare * p + groundShare * Smooth(0.9f, 0.99f, upY) * (1f - p);
     }
 
-    /// <summary>The surfaces' shares as shipped: paved road full, open flat ground half; the mirage off the road a quarter of the road's.</summary>
-    public const float PavedShare = 1f, GroundShare = 0.5f, MirageGroundShare = 0.25f;
+    /// <summary>The surfaces' shares as shipped: paved road full, open flat ground half; the mirage on paved asphalt only (none off the road: the owner).</summary>
+    public const float PavedShare = 1f, GroundShare = 0.5f, MirageGroundShare = 0f;
 
     /// <summary>The angle (degrees) between a view ray (unit) and a surface (unit normal): 0 skimming it, 90 straight on.</summary>
     public static float Graze(System.Numerics.Vector3 ray, System.Numerics.Vector3 normal) =>
@@ -116,8 +118,10 @@ public static class HeatTune
 
     /// <summary>The strengths (1 the shipped; I76_HEAT_SCALE times I76_HEAT_FIRE / ROAD / MIRAGE).</summary>
     public static float Fire = HeatShimmer.EnvGain("I76_HEAT_FIRE"), Road = HeatShimmer.EnvGain("I76_HEAT_ROAD"), Mirage = HeatShimmer.EnvGain("I76_HEAT_MIRAGE");
-    /// <summary>Where the road's ripple and the mirage start (m; the ripple full at HeatBand.FullAt times it, the mirage at 2).</summary>
-    public static float RoadNear = DefaultRoadNear;
+    /// <summary>Where the road's ripple and the mirage start and where they are full (m; I76_HEAT_NEAR and I76_HEAT_FULL start them elsewhere).</summary>
+    public static float RoadNear = EnvM("I76_HEAT_NEAR", DefaultRoadNear), RoadFull = EnvM("I76_HEAT_FULL", HeatBand.DefaultFull);
+    private static float EnvM(string name, float d) =>
+        float.TryParse(System.Environment.GetEnvironmentVariable(name), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v) && v > 0 ? v : d;
     /// <summary>The ripple's band (HeatBand): rays down to this many degrees under level and up to RippleAboveDeg over it (full within 0.3 of each).</summary>
     public static float RippleDeg = DefaultRippleDeg, RippleAboveDeg = DefaultRippleAboveDeg;
     /// <summary>The mirage's band: level ground seen under this many degrees (full under 0.3 of it).</summary>
@@ -142,13 +146,13 @@ public static class HeatTune
 
     /// <summary>The numbers in one line, to hand back ("heat tune: ...").</summary>
     public static string Line() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
-        $"heat tune: strength {HeatShimmer.Strength:0.##} ({HeatStrengthName()}); fire {Fire:0.##} road {Road:0.##} mirage {Mirage:0.##}; road from {RoadNear:0} m, ripple band {RippleDeg:0.##} deg under level and {RippleAboveDeg:0.##} over, mirage band {MirageDeg:0.##} deg; fire full to {FireFull:0} m, gone at {FireFar:0} m, column x{FireColumn:0.##}; {(ByGround ? $"by the ground: paved x{PavedShare:0.##}, open ground x{GroundShare:0.##}, mirage off road x{MirageGround:0.##}" : "band round level (IJ)")}; hot day: sun >= {HotDay.MinElevation:0} deg, warmth >= {HotDay.MinWarmth:0.###}, {(ForceHot is { } f ? (f ? "forced hot" : "forced not hot") : "found")}");
+        $"heat tune: strength {HeatShimmer.Strength:0.##} ({HeatStrengthName()}); fire {Fire:0.##} road {Road:0.##} mirage {Mirage:0.##}; road from {RoadNear:0} m, full from {RoadFull:0} m, ripple band {RippleDeg:0.##} deg under level and {RippleAboveDeg:0.##} over, mirage band {MirageDeg:0.##} deg; fire full to {FireFull:0} m, gone at {FireFar:0} m, column x{FireColumn:0.##}; {(ByGround ? $"by the ground: paved x{PavedShare:0.##}, open ground x{GroundShare:0.##}, mirage off road x{MirageGround:0.##}" : "band round level (IJ)")}; hot day: sun >= {HotDay.MinElevation:0} deg, warmth >= {HotDay.MinWarmth:0.###}, {(ForceHot is { } f ? (f ? "forced hot" : "forced not hot") : "found")}");
 
     /// <summary>Back to the shipped values (and the hooks').</summary>
     public static void Reset()
     {
         Fire = HeatShimmer.EnvGain("I76_HEAT_FIRE"); Road = HeatShimmer.EnvGain("I76_HEAT_ROAD"); Mirage = HeatShimmer.EnvGain("I76_HEAT_MIRAGE");
-        RoadNear = DefaultRoadNear; RippleDeg = DefaultRippleDeg; RippleAboveDeg = DefaultRippleAboveDeg; MirageDeg = DefaultMirageDeg;
+        RoadNear = EnvM("I76_HEAT_NEAR", DefaultRoadNear); RoadFull = EnvM("I76_HEAT_FULL", HeatBand.DefaultFull); RippleDeg = DefaultRippleDeg; RippleAboveDeg = DefaultRippleAboveDeg; MirageDeg = DefaultMirageDeg;
         FireFull = DefaultFireFull; FireFar = DefaultFireFar; FireColumn = 1f;
         HotDay.MinElevation = HotDay.DefaultMinElevation; HotDay.MinWarmth = HotDay.DefaultMinWarmth;
         ForceHot = EnvHot();
@@ -166,10 +170,10 @@ public static class HeatTune
 /// <item>Fires: each source a column rising from its flames; the ray's nearest point to the column's axis says how deep in it the pixel
 /// looks. The nudge is an angle (the same look at any resolution or render scale), fading out from 60 to 260 m, and only where the
 /// scene lies behind the column: the cockpit, a car in front, anything nearer is never bent, nor pulled into the bend.</item>
-/// <item>Road: by a hot day only, ground seen at a grazing angle, within about 1.7 degrees of its surface, from 75 m out, gets a fine
+/// <item>Road: by a hot day only, ground seen at a grazing angle, within about 1.7 degrees of its surface, from 200 m out (full from 400), gets a fine
 /// vertical ripple (HeatBand.Surface): full on paved road (HeatRoadMask), half on open flat ground, less on rough ground, none on
-/// plants, rock faces or ground seen steeply; level ground under about 2 degrees and from 75 m (full from 150 m), the mirage: the sky
-/// at the mirrored angle (the sky above whatever stands there) shows through, wavering, on paved road and a quarter as much off it.
+/// plants, rock faces or ground seen steeply; level ground under about 2 degrees and from 200 m (full from 400 m), the mirage: the asphalt
+/// fades toward the sky's colour, wavering, on paved asphalt only (no scene is looked up: no mesa or land shows in it).
 /// HeatTune.ByGround off gives back section IJ's band round level over any ground.</item>
 /// </list>
 /// The 3D view's own pass: the 2D dash and HUD are drawn after it, the mirrors and the weapon camera are other cameras and stay
@@ -550,7 +554,7 @@ public partial class HeatShimmer : Node3D
         Ubo[68] = 0f; Ubo[69] = MathF.Sin(Mathf.DegToRad(HeatTune.MirageDeg));
         Ubo[70] = HeatTune.FireFull; Ubo[71] = Math.Max(HeatTune.FireFar, HeatTune.FireFull + 1f);
         Ubo[72] = Math.Max(0.05f, HeatTune.RippleAboveDeg); Ubo[73] = Math.Max(0.05f, HeatTune.RippleDeg); Ubo[74] = Ripple[0]; Ubo[75] = Ripple[1];
-        Ubo[76] = Ripple[2]; Ubo[77] = Ripple[3]; Ubo[78] = Ripple[4]; Ubo[79] = 0f;
+        Ubo[76] = Ripple[2]; Ubo[77] = Ripple[3]; Ubo[78] = Ripple[4]; Ubo[79] = Math.Max(HeatTune.RoadFull, HeatTune.RoadNear + 1f);
         Ubo[80] = roadMask.X; Ubo[81] = roadMask.Y; Ubo[82] = roadMask.Z; Ubo[83] = roadMask.W;
         Ubo[84] = shares.X; Ubo[85] = shares.Y; Ubo[86] = shares.Z; Ubo[87] = shares.W;
         var sky = Sky; Ubo[88] = sky.R; Ubo[89] = sky.G; Ubo[90] = sky.B; Ubo[91] = 1f;
@@ -666,7 +670,7 @@ public partial class HeatShimmer : Node3D
             vec4 cam_right;
             vec4 tune;    // -, the sine of the mirage's band, the fires' full and gone (m): HeatTune
             vec4 band;    // the ripple's band over and under level (degrees), its nudge at full (radians), its least (px): HeatBand
-            vec4 cells;   // the ripple's cells: the most per radian, the fewest pixels each; the mirage's most per radian: HeatBand
+            vec4 cells;   // the ripple's cells: the most per radian, the fewest pixels each; the mirage's most per radian: HeatBand; where the road's band is full (m)
             vec4 road;    // the paved mask's corner from the floating origin (game X, Z), its size (m), by the ground (1): HeatRoadMask
             vec4 shares;  // the ripple's share on paved road and on open ground, the mirage's off the road: HeatBand
             vec4 skycol;  // the mission's sky (linear), when the mirrored direction meets no sky on the screen
@@ -700,7 +704,7 @@ public partial class HeatShimmer : Node3D
         }
 
         // HeatBand.Distance and Angle
-        float band_dist(float d, float near) { return smoothstep(near, near * 2.6, d) * (1.0 + 0.6 * smoothstep(400.0, 2000.0, d)); }
+        float band_dist(float d, float near) { return smoothstep(near, u.cells.w, d) * (1.0 + 0.6 * smoothstep(400.0, 2000.0, d)); }
         float band_angle(float e) { return e >= 0.0 ? 1.0 - smoothstep(0.2 * u.band.x, u.band.x, e) : 1.0 - smoothstep(0.2 * u.band.y, u.band.y, -e); }
 
         void main() {
@@ -744,7 +748,7 @@ public partial class HeatShimmer : Node3D
                 t_near = min(t_near, t);
             }
 
-            // a hot day: the air low over the ground bends what is seen through it from 75 m out (the far road and the ground beside it:
+            // a hot day: the air low over the ground bends what is seen through it from 200 m out (the far road and the ground beside it:
             // rays within 1.7 degrees of level; HeatBand), and level ground seen at a grazing angle shows the mirage
             float road = u.misc.z, mir = u.misc.w, mirage = 0.0;
             vec3 mcol = vec3(0.0);
@@ -793,26 +797,17 @@ public partial class HeatShimmer : Node3D
                 if (mir > 0.0 && !sky && dist > u.misc2.z) {
                     // level ground at a grazing angle (on paved road only, road only)
                     float level = smoothstep(0.95, 0.995, abs(nW.y));
-                    float mw = (1.0 - smoothstep(0.3 * u.tune.y, u.tune.y, sin_inc)) * level * smoothstep(u.misc2.z, u.misc2.z * 2.0, dist) * (only ? mix(u.shares.z, 1.0, paved) : 1.0);
+                    float mw = (1.0 - smoothstep(0.3 * u.tune.y, u.tune.y, sin_inc)) * level * smoothstep(u.misc2.z, u.cells.w, dist) * (only ? mix(u.shares.z, 1.0, paved) : 1.0);
                     if (u.cam_right.w == 2.0) { imageStore(color_out, p, vec4(1.0 - smoothstep(0.012, 0.04, sin_inc), level, smoothstep(u.misc2.z, u.misc2.z * 2.0, dist), 1.0)); return; }
                     if (mw > 0.0) {
-                        // the ray bent back up off the hot layer: what lies at the mirrored angle, if it is farther than the ground
-                        // a real road mirage is the sky: at the mirrored direction, or, where a mesa or the land stands there, the sky
-                        // straight above it on the screen (a few steps up), else the mission's sky
-                        vec4 c = u.viewproj * vec4(dirW.x, -dirW.y, dirW.z, 0.0);
-                        if (c.w > 0.0) {
-                            vec2 muv = clamp(c.xy / c.w * 0.5 + 0.5, vec2(0.0), vec2(1.0));
-                            mcol = u.skycol.rgb;
-                            for (int k = 0; k < 10; k++) {
-                                vec2 q = vec2(muv.x, muv.y - float(k * k) * 0.006);
-                                if (q.y <= 0.0) break;
-                                if (is_sky(texelFetch(depth_tex, clamp(ivec2(q * u.size.xy), ivec2(0), ivec2(u.size.xy) - 1), 0).r)) { mcol = texture(src, q).rgb; break; }
-                            }
-                            float kv = min(u.cells.z, u.misc2.y / 3.0);
-                            float fl = vnoise(vec3(dirW.x * kv * 0.3 + clock * 0.3, dirW.y * kv - clock * 2.5, dirW.z * kv * 0.3 + 9.1));
-                            // never quite a mirror: it wavers at any strength
-                            mirage = clamp(mw * mir * (0.4 + 0.4 * fl), 0.0, 0.6 + 0.35 * fl);
-                        }
+                        // a road mirage is the sky: asphalt faded toward the sky's colour (the mission's), by the grazing angle and the
+                        // distance, wavering; nothing of the scene is looked up, so no mesa or land ever shows in it (the owner: "only
+                        // asphalt reflects, faded to sky colour, with no real reflection tracing")
+                        mcol = u.skycol.rgb;
+                        float kv = min(u.cells.z, u.misc2.y / 3.0);
+                        float fl = vnoise(vec3(dirW.x * kv * 0.3 + clock * 0.3, dirW.y * kv - clock * 2.5, dirW.z * kv * 0.3 + 9.1));
+                        // never quite a mirror: it wavers at any strength
+                        mirage = clamp(mw * mir * (0.4 + 0.4 * fl), 0.0, 0.6 + 0.35 * fl);
                     }
                 }
             }
