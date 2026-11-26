@@ -1,0 +1,57 @@
+# Farm defence on Highway 380 (T07's map): raiders come for the three farmsteads T07 already has between its two roadblocks.
+# The pattern is the Nitro Pack's farm defence (P11), written fresh: random entries, random targets, lost when the farms are.
+# T07's own move is the trap: its east fence opens at the start and shuts behind you once you reach the farms; both roadblocks
+# open when the last raider dies.
+id: x07farm
+title: 380 Farm Raid
+base: t07
+hour: 17
+gates:
+  start: [gate1]                    # the highway fence opens (the stock script's first act)
+  trap: [gate1]                     # and shuts behind you at the farms
+  win: [gate1, gateblock]           # both roadblocks open at the end
+bind:                               # the farms' buildings, as T07 places them
+  house_a:  {object: bhihous1}
+  barn_a:   {object: bhbarn1, nth: 0}
+  shed_a:   {object: ashack1, nth: 0}
+  tower_a:  {object: awatert1, nth: 0}
+  house_b:  {object: bhhouse1, nth: 0}
+  barn_b:   {object: bhbarn1, nth: 1}
+  house_c:  {object: bhhouse1, nth: 1}
+  barn_c:   {object: bhbarn1, nth: 2}
+cars:                               # the raiders wait off the map, beside the stock police lot
+  raider1: {vcf: vccameo1, at: [260, 49350]}
+  raider2: {vcf: vfpalmn1, at: [300, 49350]}
+  raider3: {vcf: vcgcour1, at: [340, 49350]}
+  raider4: {vcf: vcmanta1, at: [380, 49350]}
+  raider5: {vcf: vcvan1,   at: [420, 49350]}
+  raider6: {vcf: vfpalmn2, at: [460, 49350]}
+places:
+  farms: [[1150, 48500]]            # the arrival zone
+  north: [[866, 49134], [867, 49092]]     # the farm road's north end
+  ridge: [[1680, 48256], [1672, 48337]]   # the dirt road over the ridge
+objective:
+  template: defend
+  defend: [house_a, barn_a, shed_a, tower_a, house_b, barn_b, house_c, barn_c]
+  entries: [jump1, jump2, north, ridge]   # T07's own wave entries (south of the farms) and two from the north and east
+  waves:                            # first contact about a minute in; two escalations by kills
+    - {cars: [raider1, raider2], at_seconds: 25}
+    - {cars: [raider3, raider4], at_kills: 2}
+    - {cars: [raider5, raider6], at_kills: 4}
+  arrive: {place: farms, radius: 350, seconds: 150}
+  retarget: 20
+  skill: 2
+radio:
+  trap: [gdsta14]                   # trouble at the farms
+  wave: [12sgc08, 07sgc23]          # each later wave
+  win: [gdsgc32, 10sta06]           # the last of them; clean
+text:
+  objectives:
+    - Get to the farms north of 380 before the raiders do.
+    - Keep the farms standing.
+    - Take out all six raiders.
+  failures:
+    - You should be more careful... try to stay alive.
+    - You can't just leave the farms to them.
+    - The farms are burning. Nothing left to save.
+    - Too late. The raiders got there first.

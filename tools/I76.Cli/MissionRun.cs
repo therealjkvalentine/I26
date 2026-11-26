@@ -12,6 +12,7 @@ namespace I76.Cli;
 ///
 ///   i76 run MISSION [SECONDS] [--skip-at S] [--player-at X,Z[,YAW][@S][;...]] [--hurt NAME@S[:AMOUNT][;...]]
 ///           [--record FILE] [--replay FILE] [--motion FILE] [--new-game-plus LAP] [--smart-ai LIST] [--solid-cliffs] [--track FILE]
+///           [--kill NAME@S[;...]] [--destroy NAME@S[;...]] [--wreck NAME@S[;...]]
 ///
 /// --skip-at presses the skip key (isKeypress) from that mission second on.
 /// --record writes the player's input and the state hash of every tick (InputTrace); --replay drives the player's car
@@ -133,6 +134,15 @@ public static class MissionRun
         int di = args.IndexOf("--destroy");
         var destroys = di >= 0 ? args[di + 1].Split(';').Select(d => d.Split('@')).Where(d => d.Length == 2)
             .Select(d => (Name: d[0], At: float.Parse(d[1], CultureInfo.InvariantCulture))).ToList() : [];
+        // --kill NAME@S[;...]: at mission second S the first live car whose name contains NAME is destroyed (the script's destroy's way)
+        int kli = args.IndexOf("--kill");
+        var kills = kli >= 0 ? args[kli + 1].Split(';').Select(d => d.Split('@')).Where(d => d.Length == 2)
+            .Select(d => (Name: d[0], At: float.Parse(d[1], CultureInfo.InvariantCulture))).ToList() : [];
+        // --wreck NAME@S[;...]: at mission second S the first live structure whose name contains NAME is shot to pieces: every node,
+        // then the root, takes a round larger than its hit points (gunfire's way: the script's destroy leaves a type 2 root standing)
+        int wki = args.IndexOf("--wreck");
+        var wrecks = wki >= 0 ? args[wki + 1].Split(';').Select(d => d.Split('@')).Where(d => d.Length == 2)
+            .Select(d => (Name: d[0], At: float.Parse(d[1], CultureInfo.InvariantCulture))).ToList() : [];
         var orders = new Dictionary<Entity, string>();
         var structHp = new Dictionary<I76.Sim.Collision.StaticObject, int[]>();
         var wpLists = new Dictionary<Entity, string>();
@@ -227,6 +237,26 @@ public static class MissionRun
                 Console.WriteLine($"{T()} destroyed {de.Name}");
                 destroys.RemoveAt(dk);
             }
+            for (int wk = wrecks.Count - 1; wk >= 0; wk--)
+            {
+                if (h.Now < wrecks[wk].At || setup.Entities.FirstOrDefault(e => e.Static is { Destroyed: false } && e.Name.Contains(wrecks[wk].Name)) is not { Static: { } ws } we) continue;
+                for (int nk = -1; nk < ws.Nodes.Count; nk++)
+                {
+                    int hp = nk < 0 ? ws.Hp : ws.Nodes[nk].Hp;
+                    var pk = new I76.Sim.Weapons.DamagePacket { Attacker = setup.World.Player, Mask = 2, Kind = I76.Sim.Damage.DamageKind.Round };
+                    pk.Ch[1] = hp + 1;
+                    setup.Damage.StructureSlot(ws, nk < 0 ? -1 : nk, pk);
+                }
+                Console.WriteLine($"{T()} wrecked {we.Name}{(ws.Destroyed ? "" : " (still standing)")}");
+                wrecks.RemoveAt(wk);
+            }
+            for (int kk = kills.Count - 1; kk >= 0; kk--)
+            {
+                if (h.Now < kills[kk].At || setup.Entities.FirstOrDefault(e => e.Vehicle is not null && !e.Dead && e.Name.Contains(kills[kk].Name)) is not { } ke) continue;
+                h.Destroy(ke);
+                Console.WriteLine($"{T()} kill {ke.Name}");
+                kills.RemoveAt(kk);
+            }
             if (moveAt >= 0 && h.Now >= moveAt)
             {
                 MovePlayer(); moveAt = -1; Console.WriteLine($"{T()} player moved"); pendingT = 30;
@@ -306,8 +336,10 @@ public static class MissionRun
             shots += setup.Combat.Events.Count(e => e is I76.Sim.Weapons.ShotFired);
             foreach (var sf in setup.Combat.Events.OfType<I76.Sim.Weapons.ShotFired>()) shotsBy[sf.Shooter] = shotsBy.GetValueOrDefault(sf.Shooter) + 1;
             if (Environment.GetEnvironmentVariable("I76_RUN_SHOTS") is not null)
+            {
                 foreach (var im in setup.Combat.Events.OfType<I76.Sim.Weapons.Impact>().Where(i => i.Victim == setup.World.Player)) Console.WriteLine($"{T()} hit on the player: {im.Effect}");
                 foreach (var sf in setup.Combat.Events.OfType<I76.Sim.Weapons.ShotFired>()) Console.WriteLine($"{T()} shot: {h.Of(sf.Shooter)?.Name} {sf.Weapon.Def.Name} -> {(setup.Combat.RadarTarget.GetValueOrDefault(sf.Shooter) is { } rt ? h.Of(rt)?.Name : "-")}");
+            }
             // I76_RUN_STRUCT=NAME[,NAME]: every change to a watched structure's root or node HP, with what hit it this tick
             if (Environment.GetEnvironmentVariable("I76_RUN_STRUCT") is { } stw)
                 foreach (var se in setup.Entities.Where(e => e.Static is not null && stw.Split(',').Any(e.Name.Contains)))

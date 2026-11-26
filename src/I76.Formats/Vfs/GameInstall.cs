@@ -50,6 +50,17 @@ public sealed class GameInstall
     /// </summary>
     public static string? SessionMapDir { get; set; }
 
+    /// <summary>
+    /// The port's: the folder of the missions the remix generator wrote (user://remix in the game, docs/remix-missions.md), searched
+    /// for missions after <see cref="MapDir"/> and before the install's own folders, and for their files (the .npt) in
+    /// <see cref="AssetVfs"/>, where they only add names. Process-wide; never a folder of the install itself.
+    /// </summary>
+    public static string? UserMissionDir { get; set; }
+
+    /// <summary>A file in <see cref="UserMissionDir"/> by case-insensitive name, or null.</summary>
+    public static string? InUserMissionDir(string name) =>
+        UserMissionDir is { } d && Directory.Exists(d) ? Directory.EnumerateFiles(d).FirstOrDefault(f => Path.GetFileName(f).Equals(name, StringComparison.OrdinalIgnoreCase)) : null;
+
     /// <summary>This install's downloaded-map folder (<see cref="SessionMapDir"/> when it was opened, unless set); null: none.</summary>
     public string? MapDir { get; init; } = SessionMapDir is { } d && Directory.Exists(d) ? d : null;
 
@@ -129,6 +140,8 @@ public sealed class GameInstall
         string[] names = IsMissionFile(name) ? [name] : [.. MissionExtensions.Select(e => name + e)];
         foreach (var n in names)
             if (InMapDir(n) is { } dl) return dl;
+        foreach (var n in names)
+            if (InUserMissionDir(n) is { } um) return um;
         foreach (var n in names)
             if ((Resolve("addon", n) ?? Resolve("miss16", n)) is { } p) return p;
         foreach (var n in names)

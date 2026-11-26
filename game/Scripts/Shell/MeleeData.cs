@@ -16,8 +16,8 @@ public sealed class MeleeData
 {
     public static readonly (string Name, string Msn)[] Arenas = I76.Formats.Mission.MissionTitles.BaseArenas;
 
-    /// <summary>In list order, which is not file order.</summary>
-    public static readonly (string Name, string Msn)[] Scenarios = I76.Formats.Mission.MissionTitles.BaseScenarios;
+    /// <summary>In list order, which is not file order; then the port's generated remix scenarios (RemixScenarios, docs/remix-missions.md).</summary>
+    public static (string Name, string Msn)[] Scenarios => RemixScenarios.Scenarios;
 
     public static string[] DriverNames => I76.Formats.Shell.MeleeDrivers.Names;
 
