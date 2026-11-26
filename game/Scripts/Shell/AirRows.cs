@@ -1,7 +1,7 @@
 namespace I76.Game.Shell;
 
 /// <summary>
-/// Graphic Detail's Haze, Glow and Reflections (the port's, Effects, the modern look only; each Off by default, so the picture is
+/// Graphic Detail's Haze, Glow and Reflections (the port's, World and Effects pages, the modern look only; each Off by default, so the picture is
 /// today's until a player picks one): the words, the file's keys and the rules, apart from the engine (EnvExtras applies them).
 /// </summary>
 public static class AirRows

@@ -57,7 +57,7 @@ The doc also gives the full recipe of the packs shared in testing: the cockpit b
 the cockpit and the cars (`tex-world-8x/`, 2.9 GB, no frame-time cost) and the menu art's tools, with every model's source and
 licence (two are non-commercial: a pack made with them is for your own use).
 
-Graphic Detail's Advanced page then has **World Textures** (1997 or 4x) and **Car & Dash Textures** (1997, 4x, or 8x with an 8x
+Graphic Detail then has **World Textures** (1997 or 4x, on its World page) and **Car & Dash Textures** (1997, 4x, or 8x with an 8x
 pack) rows ([docs/playing.md](docs/playing.md), HD textures); 1997 on both (shell.cfg's `[port] world_textures=1997` and
 `car_textures=1997`), or the 1997 look (F12), draws the originals.
 

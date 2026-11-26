@@ -408,7 +408,7 @@ public sealed partial class EscapeMenu : Control
         // the sheet's rows over its lines down to the entries' (a blank line, the entries, the frame-rate line under them: GraphicsLayout)
         var sheetPlace = GraphicsLayout.Pad(GraphicsPages.Sheet, sheetRow - 1, Settings.MenuFps);
         ScrollIfOver(_graphics, [.. _graphics.Items], sheetPlace);
-        for (int p = GraphicsPages.Advanced; p < GraphicsPages.Names.Length; p++)
+        for (int p = GraphicsPages.FirstPage; p < GraphicsPages.Names.Length; p++)
         {
             var page = new Screen { Key = $"graphics{p}", Art = "grxdet1", Title = GraphicsPages.Names[p], Parent = _graphics };
             int row = 1, pg = p;
@@ -420,7 +420,7 @@ public sealed partial class EscapeMenu : Control
             page.Items.Add(DoneButton());
             page.Items.Add(CancelButton());
             _graphicsPages.Add(page);
-            _graphics.Items.Add(Action(GraphicsPages.Names[p] + "...", sheetPlace.Entries[p - GraphicsPages.Advanced], () => Switch(page)));
+            _graphics.Items.Add(Action(GraphicsPages.Names[p] + "...", sheetPlace.Entries[p - GraphicsPages.FirstPage], () => Switch(page)));
         }
         _graphics.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, GraphicsPages.Sheet, sheetOffered); Live?.Invoke(Settings); _fps.Changed(); Switch(_graphics); } } });
         // the frame rate measured behind the pad, on the last line of the sheet and of each page ([port] menu_fps)

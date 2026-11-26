@@ -118,8 +118,10 @@ public static class MenuTips
         ["Restore"] = "Restore: the keyboard's and the mouse's defaults (a pad's are on its own screen).",
         ["Restore Defaults"] = "Restore defaults: the mouse's settings and buttons back to their defaults.",
 
-        ["Advanced..."] = GraphicsHelp.AdvancedEntry,
-        ["Effects..."] = GraphicsHelp.EffectsEntry,
+        ["Display..."] = GraphicsHelp.Entries[GraphicsPages.Display],
+        ["World..."] = GraphicsHelp.Entries[GraphicsPages.World],
+        ["Car & Cockpit..."] = GraphicsHelp.Entries[GraphicsPages.CarCockpit],
+        ["Effects..."] = GraphicsHelp.Entries[GraphicsPages.Effects],
 
         // ---- the pages' buttons
         ["Reset"] = GraphicsHelp.Reset,

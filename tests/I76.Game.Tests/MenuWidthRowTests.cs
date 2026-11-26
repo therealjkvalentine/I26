@@ -38,12 +38,12 @@ public class MenuWidthRowTests
     }
 
     [Fact]
-    public void ItSitsOnAdvancedAfterTheTextureRowsAndResetPutsWideBack()
+    public void ItSitsLastOnDisplayAndResetPutsWideBack()
     {
-        var adv = GraphicsPages.Rows[GraphicsPages.Advanced];
-        Assert.Equal(Array.IndexOf(adv, GraphicsRow.CarTextures) + 1, Array.IndexOf(adv, GraphicsRow.MenuWidth));
+        var page = GraphicsPages.Rows[GraphicsPages.Display];
+        Assert.Equal(GraphicsRow.MenuWidth, page[^1]);
         var s = new ShellSettings { MenuWide = false };
-        GraphicsPages.Reset(s, GraphicsPages.Advanced);
+        GraphicsPages.Reset(s, GraphicsPages.Display);
         Assert.True(s.MenuWide);
         var t = new ShellSettings();
         GraphicsPages.Copy(GraphicsRow.MenuWidth, new ShellSettings { MenuWide = false }, t);

@@ -574,8 +574,8 @@ public sealed class AudioScreen : OverlayScreen
 
 /// <summary>
 /// Graphic Detail, overlay 5: record 9, the sixteen-byte graphics block. The sheet keeps the original's rows the port honours, in
-/// the original's order and words, the port's rows a player reaches for most under them and the entries for Advanced and Effects
-/// (<see cref="GraphicsPages"/>); a page is the same sheet with its name on the first line, its rows under it and a Back, each row
+/// the original's order and words and, under a blank line, the entries for the port's pages, Display, World, Car &amp; Cockpit and
+/// Effects (<see cref="GraphicsPages"/>); a page is the same sheet with its name on the first line, its rows under it and a Back, each row
 /// on its own ruled line (<see cref="GraphicsLayout"/>). Reset puts the page's rows back (the sheet's: the default profile, as the
 /// original's); Done and Cancel, on any page, save or restore every page. Every row has a tooltip (<see cref="GraphicsHelp"/>). A
 /// page whose rows overflowed its lines would scroll them (upstream's scrolling list, <see cref="ScrollRows{T}"/>, its mark past
@@ -630,7 +630,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
         // the pages' entries, each the whole line
         for (int k = 0; k < place.Entries.Length; k++)
         {
-            int page = GraphicsPages.Advanced + k;
+            int page = GraphicsPages.FirstPage + k;
             var entry = Add(200, LineY(place.Entries[k]), () => GraphicsPages.Names[page] + "...", () => Shell.Overlay(new GraphicsScreen { Page = page, Snapshot = _saved }), w: 262, h: 18);
             Tip(entry, () => GraphicsHelp.Entry(page), RowX0, RowX1, -2, LineH);
         }
@@ -798,7 +798,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 Row(r, line, "3D Garage", () => st.Garage3D ? "On" + mark : "Off", () => st.Garage3D = !st.Garage3D);
                 break;
             // the 1997 look: off, the original's 3D card or its software renderer (the shell keeps the look it started in; a change shows
-            // from the next start or mission), the first row of Advanced, with its palette grade for the modern look after it
+            // from the next start or mission), the first row of Display (its palette grade for the modern look is on Effects)
             case GraphicsRow.Look1997:
                 string[] modes = ["Off" + mark, "3D Card", "Software"];
                 Row(r, line, "1997 Mode", () => modes[!st.Look1997 ? 0 : st.SoftwareRenderer ? 2 : 1], () =>
@@ -818,28 +818,23 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
         return true;
     }
 
-    /// <summary>A page's live rows applied after Reset or Cancel put them back (a click applies its own); the sheet's bytes apply in a mission.</summary>
+    /// <summary>A page's live rows applied after Reset or Cancel put them back (a click applies its own); the graphics block's bytes apply in a mission.</summary>
     private void Apply(int page)
     {
         var st = Shell.Settings;
-        switch (page)
-        {
-            case GraphicsPages.Sheet:
-                I76.Game.Boot.WindowApplier.Apply(st);
-                I76.Game.FrameLimiter.Apply(st);
-                I76.Sim.Views.ViewFov.Apply(st.FieldOfView);
-                break;
-            case GraphicsPages.Advanced:
-                I76.Game.Assets.HdTextures.WorldSize = st.WorldTextures;
-                I76.Game.Assets.HdTextures.CarSize = st.CarTextures;
-                WideMenus.Enabled = st.MenuWide;
-                I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps);
-                I76.Game.Boot.RenderScale.Apply(st);
-                break;
-            case GraphicsPages.Effects:
-                I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss);
-                break;
-        }
+        foreach (var r in GraphicsPages.Rows[page])
+            switch (r)
+            {
+                case GraphicsRow.Resolution: I76.Game.Boot.WindowApplier.Apply(st); break;
+                case GraphicsRow.VSync or GraphicsRow.MaxFps: I76.Game.FrameLimiter.Apply(st); break;
+                case GraphicsRow.FieldOfView: I76.Sim.Views.ViewFov.Apply(st.FieldOfView); break;
+                case GraphicsRow.WorldTextures: I76.Game.Assets.HdTextures.WorldSize = st.WorldTextures; break;
+                case GraphicsRow.CarTextures: I76.Game.Assets.HdTextures.CarSize = st.CarTextures; break;
+                case GraphicsRow.MenuWidth: WideMenus.Enabled = st.MenuWide; break;
+                case GraphicsRow.ShowFps: I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps); break;
+                case GraphicsRow.RenderScale: I76.Game.Boot.RenderScale.Apply(st); break;
+                case GraphicsRow.HoodGloss: I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss); break;
+            }
     }
 
     private void Reset()

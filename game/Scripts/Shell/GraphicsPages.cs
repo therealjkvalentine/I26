@@ -1,6 +1,6 @@
 namespace I76.Game.Shell;
 
-/// <summary>A row of Graphic Detail: the original's rows the port honours (on the sheet, in the original's order) and the port's own (on the sheet under them, or on Advanced; the shell's sheet has them all, the in-game pad the ones a mission can take).</summary>
+/// <summary>A row of Graphic Detail: the original's rows the port honours (on the sheet, in the original's order) and the port's own (on the pages; the shell's sheet has them all, the in-game pad the ones a mission can take).</summary>
 public enum GraphicsRow
 {
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, Mirrors,
@@ -10,31 +10,34 @@ public enum GraphicsRow
 }
 
 /// <summary>
-/// Graphic Detail's pages (the port's): the sheet keeps the original's rows in the original's order and words (grxdet1.map: Screen
+/// Graphic Detail's pages (the port's): the sheet is the original's, its rows in the original's order and words (grxdet1.map: Screen
 /// Resolution, Monitor Brightness, Visibility Range, ..., Terrain Detail, ..., Shadow Detail, Ext. Instrum. Disp., Rear Mirror; the
 /// 1997 renderer's own detail rows are gone; Rear Mirror is Mirrors, the rear mirror and the port's door mirrors in one row,
-/// MirrorsRow), then the port's rows a player reaches for most (Anti-Aliasing, Field of View, VSync, Max FPS) and an entry for each
-/// page: Advanced (the look, 1997 Mode first, the texture packs, the mirrors' rate, render scale and start-up) and Effects (the modern
-/// look's extras in the world: plants, shadows, air, light, paint, smoke, heat). Each page fits one sheet without scrolling, with the
-/// frame-rate line under a blank line (<see cref="GraphicsLayout"/>); twenty rows on one scrolling sheet put the last ones out of
-/// sight and, on the in-game pad, over its buttons. A page is the same sheet with its name, its rows and a way back. The shell's
-/// sheet and the in-game pad build from this table, so a row sits on the same page in both, and Reset, Cancel and the shell's
-/// snapshot copy a page's rows through <see cref="Copy(int, ShellSettings, ShellSettings)"/>. No engine here: the tests check the
-/// table, the layout and the copies without one.
+/// MirrorsRow), then under a blank line an entry for each of the port's pages, by what a row changes: Display (the look and the
+/// frame: 1997 Mode, anti-aliasing, render scale, the frame rate, the renderer, the menus' width), World (the world's textures, plants,
+/// shadows, ambient occlusion, reflections, haze), Car &amp; Cockpit (the view, the car's and the dash's textures, the paint, the
+/// mirrors' rate, the 3D garage) and Effects (the modern look's grade and its effects: palette grade, crash blur, glow, smoke
+/// lighting, heat shimmer). Each page fits one sheet without scrolling, with room to spare and the frame-rate line under a blank
+/// line (<see cref="GraphicsLayout"/>). (One Advanced page held every port row from round 5; at twenty rows it scrolled on the main
+/// menu and its last rows were drawn over the in-game pad's buttons.) A page is the same sheet with its name, its rows and a way
+/// back. The shell's sheet and the in-game pad build from this table, so a row sits on the same page in both, and Reset, Cancel and
+/// the shell's snapshot copy a page's rows through <see cref="Copy(int, ShellSettings, ShellSettings)"/>. No engine here: the tests
+/// check the table, the layout and the copies without one.
 /// </summary>
 public static class GraphicsPages
 {
-    public const int Sheet = 0, Advanced = 1, Effects = 2;
-    public static readonly string[] Names = ["Graphic Detail", "Advanced", "Effects"];
-    /// <summary>Each page's rows in order; the sheet's start with the original's, as the original has them.</summary>
+    public const int Sheet = 0, Display = 1, World = 2, CarCockpit = 3, Effects = 4;
+    /// <summary>The first of the port's pages (the sheet's first entry).</summary>
+    public const int FirstPage = Display;
+    public static readonly string[] Names = ["Graphic Detail", "Display", "World", "Car & Cockpit", "Effects"];
+    /// <summary>Each page's rows in order; the sheet's are the original's, as the original has them.</summary>
     public static readonly GraphicsRow[][] Rows =
     [
-        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors,
-            GraphicsRow.AntiAliasing, GraphicsRow.FieldOfView, GraphicsRow.VSync, GraphicsRow.MaxFps],
-        [GraphicsRow.Look1997, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth,
-            GraphicsRow.MirrorRate, GraphicsRow.RenderScale, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.Garage3D],
-        [GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze, GraphicsRow.Glow,
-            GraphicsRow.HoodGloss, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
+        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors],
+        [GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
+        [GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
+        [GraphicsRow.FieldOfView, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.MirrorRate, GraphicsRow.Garage3D],
+        [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
     ];
 
     /// <summary>
@@ -42,25 +45,33 @@ public static class GraphicsPages
     /// </summary>
     public static readonly GraphicsRow[] PackRows = [GraphicsRow.WorldTextures, GraphicsRow.CarTextures, GraphicsRow.MenuWidth];
 
-    /// <summary>The original's rows: the sheet's first seven.</summary>
+    /// <summary>The original's rows: the sheet's seven.</summary>
     public const int OriginalRows = 7;
 
     /// <summary>Rows with a blank line over them on the shell's sheet (none).</summary>
     public static readonly GraphicsRow[] BlankBefore = [];
 
-    /// <summary>The graphics block's bytes that are a page's row, not the sheet's (none: Anti-Aliasing, +0x8, is the sheet's again).</summary>
-    public static readonly int[] PageBytes = [];
+    /// <summary>The graphics block's bytes that are a page's row, not the sheet's: Anti-Aliasing's (+0x8, the port's MSAA in a byte no screen of the original showed), Display's.</summary>
+    public static readonly int[] PageBytes = [0x8];
 
     /// <summary>The sheet's lines: fourteen, 23 px apart from y 118 on the shell's sheet, the pad's rows 1 to 14.</summary>
     public const int Lines = 14;
     /// <summary>
-    /// The sheet's first page entry: its line (0-based), a blank line under the sheet's rows where the sheet has one to give (the
-    /// shell's sheet's last line is the frame-rate estimate: its eleven rows and two entries fill the lines over it, so the entries
-    /// follow Max FPS directly; the in-game pad, without Screen Resolution, keeps the blank line).
+    /// The sheet's first page entry: its line (0-based), under a blank line under the sheet's rows where the sheet has one to give
+    /// (the shell's sheet's last line is the frame-rate estimate).
     /// </summary>
     public static int FirstEntryLine => Math.Min(Rows[Sheet].Length + 1, Lines - Rows.Length);
     /// <summary>A page on the shell's sheet: its name on the first line, its rows from the next; the pad prints the name over the art's title and starts its rows on row 1.</summary>
     public const int HeadingLine = 0, FirstRowLine = 1;
+
+    /// <summary>A page by its name's first word, any case ("car" for Car &amp; Cockpit; "advanced", the one page before them, is Display); -1 for none.</summary>
+    public static int PageNamed(string word)
+    {
+        if (string.Equals(word, "advanced", StringComparison.OrdinalIgnoreCase)) return Display;
+        for (int p = 0; p < Names.Length; p++)
+            if (string.Equals(Names[p].Split(' ')[0], word, StringComparison.OrdinalIgnoreCase)) return p;
+        return -1;
+    }
 
     public static int PageOf(GraphicsRow row)
     {
@@ -196,7 +207,7 @@ public static class GraphicsLayout
         if (page == GraphicsPages.Sheet)
         {
             int room = GraphicsPages.FirstEntryLine;
-            var entries = Enumerable.Range(GraphicsPages.FirstEntryLine, GraphicsPages.Names.Length - GraphicsPages.Advanced).ToArray();
+            var entries = Enumerable.Range(GraphicsPages.FirstEntryLine, GraphicsPages.Names.Length - GraphicsPages.FirstPage).ToArray();
             return new(0, Math.Min(rows, room), rows > room, entries, fps && entries[^1] < last ? last : -1);
         }
         int pageRoom = GraphicsPages.Lines - GraphicsPages.FirstRowLine - (fps ? 2 : 0);
@@ -209,7 +220,7 @@ public static class GraphicsLayout
     /// </summary>
     public static Place Pad(int page, int rows, bool fps)
     {
-        int entries = page == GraphicsPages.Sheet ? GraphicsPages.Names.Length - GraphicsPages.Advanced : 0;
+        int entries = page == GraphicsPages.Sheet ? GraphicsPages.Names.Length - GraphicsPages.FirstPage : 0;
         int room = PadRows - (fps ? 1 : 0) - (entries > 0 ? entries + 1 : 0);
         int shown = Math.Min(rows, room);
         return new(1, shown, rows > room, [.. Enumerable.Range(1 + shown + 1, entries)], fps ? PadRows : -1);
