@@ -574,7 +574,7 @@ public sealed class AudioScreen : OverlayScreen
 
 /// <summary>
 /// Graphic Detail, overlay 5: record 9, the sixteen-byte graphics block. The original has one sheet of rows; the fork's sheet holds
-/// only the entries for the pages, Display, World, Car &amp; Cockpit and Effects (<see cref="GraphicsPages"/>), each row, the original's
+/// 1997 Mode (the switch between the looks) and under a blank line the entries for the pages, Display, World, Car &amp; Cockpit and Effects (<see cref="GraphicsPages"/>), each row, the original's
 /// too, on its page; a page is the same sheet with its name on the first line, its rows under it and a Back, each row on its own
 /// ruled line (<see cref="GraphicsLayout"/>). Reset on a page puts its rows back; on the sheet every page's (the original's rows and
 /// the block to the default profile, as the original's Reset); Done and Cancel, on any page, save or restore every page. Every row
@@ -623,7 +623,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             if (Array.IndexOf(GraphicsPages.BlankBefore, r) >= 0) line++;
             if (PortRow(r, line)) line++;
         }
-        // the rows' lines (GraphicsLayout): on the sheet none (only the entries), on a page down to the blank line over the frame rate's;
+        // the rows' lines (GraphicsLayout): on the sheet 1997 Mode over a blank line and the entries, on a page down to the blank line over the frame rate's;
         // rows past them would scroll there
         var place = GraphicsLayout.Shell(Page, line - _firstLine, Shell.Settings.MenuFps);
         (List.Top, List.Shown) = (LineY(place.First), GraphicsLayout.Shell(Page, GraphicsPages.Lines, Shell.Settings.MenuFps).Shown);
@@ -802,7 +802,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 Row(r, line, "3D Garage", () => st.Garage3D ? "On" + mark : "Off", () => st.Garage3D = !st.Garage3D);
                 break;
             // the 1997 look: off, the original's 3D card or its software renderer (the shell keeps the look it started in; a change shows
-            // from the next start or mission), the first row of Display (its palette grade for the modern look is on Effects)
+            // from the next start or mission), the sheet's own row over the pages' entries (its palette grade for the modern look is on Effects)
             case GraphicsRow.Look1997:
                 string[] modes = ["Off" + mark, "3D Card", "Software"];
                 Row(r, line, "1997 Mode", () => modes[!st.Look1997 ? 0 : st.SoftwareRenderer ? 2 : 1], () =>

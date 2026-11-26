@@ -398,12 +398,15 @@ public sealed partial class EscapeMenu : Control
             Action("I'm a swinger", 13, () => Switch(_play)),
         ];
 
-        // Graphic Detail: an entry for each page (GraphicsPages: the original's rows on the pages they belong to, as the shell's sheet),
+        // Graphic Detail: 1997 Mode, then an entry for each page (GraphicsPages: the original's rows on the pages they belong to, as the shell's sheet),
         // each a pad of its own on the same art with the page's name as its title, offering the rows a mission can take (Screen
         // Resolution, Renderer, 3D Garage and Menu Width are the shell's alone). Each page's Done, Cancel and Reset are its own rows';
         // the sheet's Reset is every page's.
-        var sheetPlace = GraphicsLayout.Pad(GraphicsPages.Sheet, 0, Settings.MenuFps);
+        // the sheet's own row, 1997 Mode (applied on resume), over a blank row and the entries
+        int sheetRow = 1;
         List<GraphicsRow> allOffered = [];
+        foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); allOffered.Add(r); _rowOf[it] = r; }
+        var sheetPlace = GraphicsLayout.Pad(GraphicsPages.Sheet, sheetRow - 1, Settings.MenuFps);
         for (int p = GraphicsPages.FirstPage; p < GraphicsPages.Names.Length; p++)
         {
             var page = new Screen { Key = $"graphics{p}", Art = "grxdet1", Title = GraphicsPages.Names[p], Parent = _graphics };
