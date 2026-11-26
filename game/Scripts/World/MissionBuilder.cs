@@ -160,6 +160,8 @@ public sealed class MissionBuilder(AssetVfs vfs)
     /// <summary>The 1997 look's Software renderer's: <see cref="RoadTextures97"/> with a stock texture's slip repaired (the original's software path drew the 8-bit art).</summary>
     public Dictionary<int, RoadRaster.Tex?>? RoadTexturesSoftware { get; private set; }
     public List<RoadRaster.FlatTri>? RoadPieceTris { get; private set; }
+    /// <summary>The modern look's road quads (the roads and the gap fills, game frame), as its road layers are baked from them: Heat Shimmer's paved mask (HeatRoadMask).</summary>
+    public List<RoadRaster.FlatQuad>? RoadQuads { get; private set; }
     /// <summary>Whose ground face each of <see cref="RoadPieceTris"/> is (GroundDecals): its placement and part; null for a road piece's top.</summary>
     public List<(I76.Formats.Assembly.Placement P, string Part)?>? RoadPieceOwners { get; private set; }
 
@@ -839,6 +841,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         // RoadGaps); the 1997 look keeps them, as the original draws them: the few chunks they touch are baked twice
         var fills = RoadRaster.Flatten(RoadGaps.Fill(I76.Formats.Assembly.Roads.Segments(world.Mission, world.BilinearHeight), flat, pieceTris, world.BilinearHeight));
         RoadFills = fills.Count;
+        RoadQuads = [.. flat, .. fills];
         float chunkSize = TerrainNode.Chunk * 5f;
         bool Fills(int x0, int z0) => fills.Any(q => q.Max.X >= x0 * 5f && q.Max.Y >= z0 * 5f && q.Min.X < x0 * 5f + chunkSize && q.Min.Y < z0 * 5f + chunkSize);
         // (a map that fills the grid paints each chunk's layer as it streams in: LazyRoad, below)

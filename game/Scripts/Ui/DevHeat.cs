@@ -18,6 +18,9 @@ public static class DevHeat
         new("fire strength", 0, 4, 0.05f, () => HeatTune.Fire, v => HeatTune.Fire = v, "x"),
         new("road ripple strength", 0, 4, 0.05f, () => HeatTune.Road, v => HeatTune.Road = v, "x"),
         new("mirage strength", 0, 4, 0.05f, () => HeatTune.Mirage, v => HeatTune.Mirage = v, "x"),
+        new("ripple on paved road", 0, 1, 0.05f, () => HeatTune.PavedShare, v => HeatTune.PavedShare = v, "x"),
+        new("ripple on open ground", 0, 1, 0.05f, () => HeatTune.GroundShare, v => HeatTune.GroundShare = v, "x"),
+        new("mirage off the road", 0, 1, 0.05f, () => HeatTune.MirageGround, v => HeatTune.MirageGround = v, "x"),
         new("road band from", 10, 400, 5, () => HeatTune.RoadNear, v => HeatTune.RoadNear = v, " m"),
         new("ripple band under level", 0.2f, 8, 0.05f, () => HeatTune.RippleDeg, v => HeatTune.RippleDeg = v, " deg"),
         new("ripple band over level", 0.2f, 8, 0.05f, () => HeatTune.RippleAboveDeg, v => HeatTune.RippleAboveDeg = v, " deg"),
@@ -64,6 +67,10 @@ public static class DevHeat
         force.AddItem("hot day: found by the rule"); force.AddItem("hot day: forced on"); force.AddItem("hot day: forced off");
         force.Selected = HeatTune.ForceHot switch { true => 1, false => 2, null => 0 };
         force.ItemSelected += i => { HeatTune.ForceHot = i switch { 1 => true, 2 => false, _ => null }; HeatShimmer.Reevaluate(); Refresh(); };
+        // by the ground's grazing angle and surface (the shipped), or section IJ's band round level over any ground, to compare
+        var roadOnly = new CheckBox { Text = "by the ground", ButtonPressed = HeatTune.ByGround, FocusMode = Control.FocusModeEnum.None,
+            TooltipText = "On: the ripple by the angle between the view and the ground, full on paved road, the shares below elsewhere. Off: the band round level over any ground (section IJ's)." };
+        roadOnly.Toggled += on => { HeatTune.ByGround = on; Refresh(); };
         var print = new Button { Text = "Print & copy the numbers", FocusMode = Control.FocusModeEnum.None };
         print.Pressed += () =>
         {
@@ -77,11 +84,12 @@ public static class DevHeat
             HeatTune.Reset();
             foreach (var (k, s, v) in sliders) { s.SetValueNoSignal(k.Get()); v.Text = Show(k, k.Get()); }
             force.Selected = HeatTune.ForceHot switch { true => 1, false => 2, null => 0 };
+            roadOnly.SetPressedNoSignal(HeatTune.ByGround);
             Refresh();
             say("heat shimmer: the shipped values");
         };
         var row = DevScale.Sep(new HBoxContainer(), 6);
-        row.AddChild(force); row.AddChild(print); row.AddChild(reset);
+        row.AddChild(force); row.AddChild(roadOnly); row.AddChild(print); row.AddChild(reset);
         col.AddChild(row);
         HeatTune.Live = true;
         col.TreeExiting += () => HeatTune.Live = false;

@@ -76,6 +76,32 @@ public static class HeatBand
         elevDeg >= 0 ? 1f - Smooth(Core * aboveDeg, aboveDeg, elevDeg) : 1f - Smooth(Core * belowDeg, belowDeg, -elevDeg);
 
     public static float Weight(float elevDeg, float dist) => Angle(elevDeg) * Distance(dist);
+
+    /// <summary>
+    /// By the ground (HeatTune.ByGround, the default): the ripple on ground that runs nearly flat to the line of sight, by the angle
+    /// between the view ray and the surface (degrees; a level road or flat far ahead a fraction of a degree, a rise ahead or ground
+    /// seen from a hill several), full within a fifth of <paramref name="bandDeg"/> and gone past it, by distance as <see cref="Distance"/>,
+    /// and by the surface: <see cref="PavedShare"/> on paved road (<paramref name="paved"/>, HeatRoadMask), <see cref="GroundShare"/> on
+    /// open ground, less on rough or rocky ground (its normal from the depths leaning: full from 0.99 up, none under 0.9), and nothing
+    /// on what is not ground at all (a plant, a car's side, a wall: <paramref name="upY"/> under 0.85).
+    /// </summary>
+    public static float Surface(float grazeDeg, float dist, float paved, float upY = 1f, float pavedShare = PavedShare, float groundShare = GroundShare,
+        float bandDeg = DefaultBelowDeg, float near = DefaultNear) =>
+        (1f - Smooth(Core * bandDeg, bandDeg, grazeDeg)) * Smooth(0.85f, 0.95f, upY) * Share(paved, upY, pavedShare, groundShare) * Distance(dist, near);
+
+    /// <summary>The surface's share: paved road's, open ground's (less as the ground's normal leans, rough or rocky), mixed by the paved part.</summary>
+    public static float Share(float paved, float upY, float pavedShare = PavedShare, float groundShare = GroundShare)
+    {
+        float p = Math.Clamp(paved, 0f, 1f);
+        return pavedShare * p + groundShare * Smooth(0.9f, 0.99f, upY) * (1f - p);
+    }
+
+    /// <summary>The surfaces' shares as shipped: paved road full, open flat ground half; the mirage off the road a quarter of the road's.</summary>
+    public const float PavedShare = 1f, GroundShare = 0.5f, MirageGroundShare = 0.25f;
+
+    /// <summary>The angle (degrees) between a view ray (unit) and a surface (unit normal): 0 skimming it, 90 straight on.</summary>
+    public static float Graze(System.Numerics.Vector3 ray, System.Numerics.Vector3 normal) =>
+        MathF.Asin(Math.Clamp(MathF.Abs(System.Numerics.Vector3.Dot(ray, normal)), 0f, 1f)) * 180f / MathF.PI;
 }
 
 /// <summary>
@@ -100,6 +126,12 @@ public static class HeatTune
     public static float FireFull = DefaultFireFull, FireFar = DefaultFireFar, FireColumn = 1f;
     /// <summary>The hot day forced (true or false) or found (null; I76_HEAT_HOT=1|0 sets it).</summary>
     public static bool? ForceHot = EnvHot();
+    /// <summary>The ripple by the ground's grazing angle and its surface (HeatBand.Surface; the shipped), or, off, IJ's band round level
+    /// over any ground (to compare; I76_HEAT_BY_GROUND=0 starts so).</summary>
+    public static bool ByGround = EnvByGround();
+    private static bool EnvByGround() => System.Environment.GetEnvironmentVariable("I76_HEAT_BY_GROUND") != "0";
+    /// <summary>The surfaces' shares (HeatBand): the ripple on paved road and on open ground, the mirage off the road (a share of the road's).</summary>
+    public static float PavedShare = HeatBand.PavedShare, GroundShare = HeatBand.GroundShare, MirageGround = HeatBand.MirageGroundShare;
     /// <summary>The Developer panel's group is up: the pass runs while the game is paused, so a change shows at once.</summary>
     public static bool Live { get => _live; set { _live = value; HeatShimmer.Live(value); } }
     private static bool _live;
@@ -110,7 +142,7 @@ public static class HeatTune
 
     /// <summary>The numbers in one line, to hand back ("heat tune: ...").</summary>
     public static string Line() => string.Create(System.Globalization.CultureInfo.InvariantCulture,
-        $"heat tune: strength {HeatShimmer.Strength:0.##} ({HeatStrengthName()}); fire {Fire:0.##} road {Road:0.##} mirage {Mirage:0.##}; road from {RoadNear:0} m, ripple band {RippleDeg:0.##} deg under level and {RippleAboveDeg:0.##} over, mirage band {MirageDeg:0.##} deg; fire full to {FireFull:0} m, gone at {FireFar:0} m, column x{FireColumn:0.##}; hot day: sun >= {HotDay.MinElevation:0} deg, warmth >= {HotDay.MinWarmth:0.###}, {(ForceHot is { } f ? (f ? "forced hot" : "forced not hot") : "found")}");
+        $"heat tune: strength {HeatShimmer.Strength:0.##} ({HeatStrengthName()}); fire {Fire:0.##} road {Road:0.##} mirage {Mirage:0.##}; road from {RoadNear:0} m, ripple band {RippleDeg:0.##} deg under level and {RippleAboveDeg:0.##} over, mirage band {MirageDeg:0.##} deg; fire full to {FireFull:0} m, gone at {FireFar:0} m, column x{FireColumn:0.##}; {(ByGround ? $"by the ground: paved x{PavedShare:0.##}, open ground x{GroundShare:0.##}, mirage off road x{MirageGround:0.##}" : "band round level (IJ)")}; hot day: sun >= {HotDay.MinElevation:0} deg, warmth >= {HotDay.MinWarmth:0.###}, {(ForceHot is { } f ? (f ? "forced hot" : "forced not hot") : "found")}");
 
     /// <summary>Back to the shipped values (and the hooks').</summary>
     public static void Reset()
@@ -120,6 +152,7 @@ public static class HeatTune
         FireFull = DefaultFireFull; FireFar = DefaultFireFar; FireColumn = 1f;
         HotDay.MinElevation = HotDay.DefaultMinElevation; HotDay.MinWarmth = HotDay.DefaultMinWarmth;
         ForceHot = EnvHot();
+        ByGround = EnvByGround(); PavedShare = HeatBand.PavedShare; GroundShare = HeatBand.GroundShare; MirageGround = HeatBand.MirageGroundShare;
         HeatShimmer.Reevaluate();
     }
 }
@@ -133,9 +166,11 @@ public static class HeatTune
 /// <item>Fires: each source a column rising from its flames; the ray's nearest point to the column's axis says how deep in it the pixel
 /// looks. The nudge is an angle (the same look at any resolution or render scale), fading out from 60 to 260 m, and only where the
 /// scene lies behind the column: the cockpit, a car in front, anything nearer is never bent, nor pulled into the bend.</item>
-/// <item>Road: by a hot day only, the far ground seen within about 1.7 degrees of level, from 75 m out, gets a fine vertical ripple;
-/// level ground under about 2 degrees and from 75 m (full from 150 m), the mirage: the sky (or whatever lies farther) at the mirrored
-/// angle shows through, wavering.</item>
+/// <item>Road: by a hot day only, ground seen at a grazing angle, within about 1.7 degrees of its surface, from 75 m out, gets a fine
+/// vertical ripple (HeatBand.Surface): full on paved road (HeatRoadMask), half on open flat ground, less on rough ground, none on
+/// plants, rock faces or ground seen steeply; level ground under about 2 degrees and from 75 m (full from 150 m), the mirage: the sky
+/// at the mirrored angle (the sky above whatever stands there) shows through, wavering, on paved road and a quarter as much off it.
+/// HeatTune.ByGround off gives back section IJ's band round level over any ground.</item>
 /// </list>
 /// The 3D view's own pass: the 2D dash and HUD are drawn after it, the mirrors and the weapon camera are other cameras and stay
 /// unbent. Forward+ only (Compatibility: none). Off, nothing is gathered and the effect is not in the frame.
@@ -216,7 +251,7 @@ public partial class HeatShimmer : Node3D
         return $"{(HotDay ? "a hot day" : "not a hot day")}{(HeatTune.ForceHot is null ? "" : " (forced)")} (sun {m.Sun:0} deg, {(m.Day ? "day" : "night")}, palette warmth {(m.Warmth is { } w ? w.ToString("0.000") : "none")}{(World.HotDay.Snow(m.Ground) ? ", snow" : "")})";
     }
 
-    private const int MaxSources = 16, Header = 80, UboFloats = Header + MaxSources * 8;
+    private const int MaxSources = 16, Header = 92, UboFloats = Header + MaxSources * 8;
     /// <summary>Where the fires' bend is gone (it fades from FireFull), and where the road's ripple and mirage start (metres): the shipped, HeatTune's defaults.</summary>
     public const float FireFull = HeatTune.DefaultFireFull, FireFar = HeatTune.DefaultFireFar, RoadNear = HeatTune.DefaultRoadNear;
     /// <summary>The least angle either side of level the road's band takes (degrees): the mirage's mirrored sky, the nudge's reach.</summary>
@@ -233,10 +268,67 @@ public partial class HeatShimmer : Node3D
     private static Rect2 _rect;   // normalised to the view
     private static float _road, _mirage, _clock;
     private static Vector3 _right;
+    private static Vector4 _roadMask, _shares;   // the mask's corner from the floating origin (game X, Z), its size, by the ground (1); the surfaces' shares
+    /// <summary>The mission's sky, for a mirage whose mirrored direction meets no sky on the screen (MissionBuilder.SkyAverage).</summary>
+    public static Color Sky { get; set; } = new(0.7f, 0.7f, 0.75f);
+    private static Rid _maskRd;
+
+    /// <summary>The world's floating origin (game frame; DamageView's): a Godot position plus it is the game's.</summary>
+    public Func<System.Numerics.Vector3>? Origin { get; init; }
+
+    // the mission's roads (SetRoads) and the paved mask baked round the camera (HeatRoadMask)
+    private static IReadOnlyList<I76.Formats.Assembly.RoadRaster.FlatQuad>? _quads;
+    private static IReadOnlyList<I76.Formats.Assembly.RoadRaster.FlatTri>? _tris;
+    private static Func<int, I76.Formats.Assembly.RoadRaster.Tex?>? _paved;
+    private static System.Numerics.Vector2? _maskCorner;   // the baked square's, null: none yet (or no paved road in it)
+    private static System.Threading.Tasks.Task<(System.Numerics.Vector2 Corner, byte[]? Mask)>? _baking;
+    private ImageTexture? _maskTex, _blankTex;
+    private Rid _maskTexRd, _blankRd;
+
+    /// <summary>The mission's roads, as the terrain's road layers are baked from them (MissionBuilder): the mask is baked from these when the road shimmer first wants it.</summary>
+    public static void SetRoads(IReadOnlyList<I76.Formats.Assembly.RoadRaster.FlatQuad>? quads, IReadOnlyList<I76.Formats.Assembly.RoadRaster.FlatTri>? tris,
+        IReadOnlyDictionary<int, I76.Formats.Assembly.RoadRaster.Tex?>? textures)
+    {
+        _quads = quads; _tris = tris; _maskCorner = null; _baking = null;
+        if (quads is null || textures is null) { _paved = null; return; }
+        var cache = new System.Collections.Concurrent.ConcurrentDictionary<int, I76.Formats.Assembly.RoadRaster.Tex?>();
+        _paved = i => cache.GetOrAdd(i, k => textures.GetValueOrDefault(k) is { } t ? HeatRoadMask.PavedTexture(t) : null);
+    }
+
+    /// <summary>The paved mask round the camera (game X, Z): baked off the main thread when there is none or the camera has left its middle; true while one is up.</summary>
+    private bool MaskAround(float gx, float gz)
+    {
+        if (_baking is { IsCompleted: true } done)
+        {
+            _baking = null;
+            var (corner, mask) = done.Result;
+            if (mask is null) _maskCorner = null;
+            else
+            {
+                var img = Image.CreateFromData(HeatRoadMask.Res, HeatRoadMask.Res, false, Image.Format.R8, mask);
+                if (_maskTex is null) _maskTex = ImageTexture.CreateFromImage(img); else _maskTex.Update(img);
+                _maskTexRd = RenderingServer.TextureGetRdTexture(_maskTex.GetRid());
+                _maskCorner = corner;
+            }
+            _maskAt = corner;
+        }
+        var want = HeatRoadMask.CornerFor(gx, gz);
+        if (_baking is null && _quads is not null && _paved is not null && (_maskAt is not { } at || System.Numerics.Vector2.Distance(at, want) > HeatRoadMask.Recentre))
+        {
+            var (q, t, f) = (_quads, _tris, _paved);
+            _maskAt = want;   // not asked again while it bakes
+            _baking = System.Threading.Tasks.Task.Run(() => (want, HeatRoadMask.Bake(q, t, f, want)));
+        }
+        return _maskCorner is not null && _maskTex is not null;
+    }
+    private static System.Numerics.Vector2? _maskAt;
 
     public override void _Ready()
     {
         if (RenderingServer.GetCurrentRenderingMethod() != "forward_plus" || RenderingServer.GetRenderingDevice() is null) _supported = false;
+        _blankTex = ImageTexture.CreateFromImage(Image.CreateEmpty(1, 1, false, Image.Format.R8));
+        _blankRd = RenderingServer.TextureGetRdTexture(_blankTex.GetRid());
+        _maskAt = null; _maskCorner = null;
     }
 
     private static HeatShimmer? _node;
@@ -262,6 +354,14 @@ public partial class HeatShimmer : Node3D
     public override void _Process(double delta)
     {
         bool fires = FiresOn, road = RoadOn;
+        var camNow = GetViewport()?.GetCamera3D();
+        bool masked = false;
+        if (road && HeatTune.ByGround && camNow is not null)
+        {
+            var o = Origin?.Invoke() ?? default;
+            var g = camNow.GlobalPosition;
+            masked = MaskAround(g.X + o.X, -g.Z + o.Z);   // none (no paved road round here, or not yet baked): all of it open ground
+        }
         if (!fires && !road) { if (_effect.Enabled) _effect.Enabled = false; HeatSources.DropPoints(); return; }
         _time += delta;
         var cam = GetViewport().GetCamera3D();
@@ -278,7 +378,7 @@ public partial class HeatShimmer : Node3D
         int n = Math.Min(_all.Count, MaxSources);
         Rect2? rect = null;
         for (int i = 0; i < n; i++) rect = Union(rect, ColumnRect(cam, view, _all[i]));
-        if (road) rect = Union(rect, BandRect(cam, view));
+        if (road) rect = Union(rect, BandRect(cam, view, HeatTune.ByGround));
         if (rect is not { } r || r.Size.X <= 0 || r.Size.Y <= 0) { _effect.Enabled = false; return; }
         lock (Lock)
         {
@@ -296,6 +396,11 @@ public partial class HeatShimmer : Node3D
             _mirage = road ? HeatTune.Mirage * Strength : 0f;
             _clock = (float)(_time % 4096.0);
             _right = cam.GlobalTransform.Basis.X;
+            var org = Origin?.Invoke() ?? default;
+            _roadMask = masked && _maskCorner is { } mc ? new Vector4(org.X - mc.X, org.Z - mc.Y, HeatRoadMask.Size, HeatTune.ByGround ? 1f : 0f)
+                : new Vector4(-1e7f, -1e7f, HeatRoadMask.Size, HeatTune.ByGround ? 1f : 0f);
+            _shares = new Vector4(HeatTune.PavedShare, HeatTune.GroundShare, HeatTune.MirageGround, 0f);
+            _maskRd = masked ? _maskTexRd : _blankRd;
         }
         _effect.Enabled = true;
         if (Stats) Report(n, r);
@@ -307,7 +412,7 @@ public partial class HeatShimmer : Node3D
         ulong now = Time.GetTicksMsec();
         if (now - _statFrom < 2000) return;
         _statFrom = now;
-        GD.Print($"heat shimmer: {n} sources (of {_all.Count}), road {(RoadOn ? "on" : "off")}, rect {r.Position.X:0.00},{r.Position.Y:0.00} {r.Size.X:0.00}x{r.Size.Y:0.00}");
+        GD.Print($"heat shimmer: {n} sources (of {_all.Count}), road {(RoadOn ? "on" : "off")}{(HeatTune.ByGround ? $", paved mask {(_maskCorner is { } c ? $"at {c.X:0},{c.Y:0}" : "none")}" : "")}, rect {r.Position.X:0.00},{r.Position.Y:0.00} {r.Size.X:0.00}x{r.Size.Y:0.00}");
     }
 
     /// <summary>The effect in the camera's compositor, beside what is there (the smoke layer's); a camera without one gets one.</summary>
@@ -349,14 +454,16 @@ public partial class HeatShimmer : Node3D
     /// <summary>The band round the horizon the road shimmer and the mirage (and its mirrored sky) take, degrees over and under level: at least <see cref="BandDegrees"/>, across the view.</summary>
     private static float BandOver() => Math.Max(BandDegrees, Math.Max(HeatTune.RippleAboveDeg, HeatTune.MirageDeg) + 0.5f);
     private static float BandUnder() => Math.Max(BandDegrees, Math.Max(HeatTune.RippleDeg, HeatTune.MirageDeg) + 0.5f);
+    /// <summary>By the ground: a road or a flat climbing ahead or falling away is seen well off level and still at a grazing angle; this much either side (degrees).</summary>
+    public const float RoadBandDegrees = 6f;
 
-    private static Rect2? BandRect(Camera3D cam, Vector2 view)
+    private static Rect2? BandRect(Camera3D cam, Vector2 view, bool roadOnly = false)
     {
         var fwd = -cam.GlobalTransform.Basis.Z;
         float yaw = Mathf.Atan2(fwd.X, fwd.Z);
         float lo = float.MaxValue, hi = float.MinValue;
         for (int a = -8; a <= 8; a++)
-            foreach (float el in (float[])[-BandUnder(), BandOver()])
+            foreach (float el in roadOnly ? (float[])[-Math.Max(BandUnder(), RoadBandDegrees), Math.Max(BandOver(), RoadBandDegrees)] : [-BandUnder(), BandOver()])
             {
                 float az = yaw + a * 0.2f, e = Mathf.DegToRad(el);
                 var d = new Vector3(Mathf.Sin(az) * Mathf.Cos(e), Mathf.Sin(e), Mathf.Cos(az) * Mathf.Cos(e));
@@ -392,7 +499,7 @@ public partial class HeatShimmer : Node3D
 
     private static bool _failed;
     private static Rid _copyShader, _copyPipeline, _copySet;
-    private static Rid _shader, _pipeline, _linear, _nearest, _ubo, _tmp, _set, _setColor, _setDepth;
+    private static Rid _shader, _pipeline, _linear, _nearest, _ubo, _tmp, _set, _setColor, _setDepth, _setMask;
     private static Vector2I _tmpSize;
     private static long _tmpFormat = -1;
     private static readonly float[] Ubo = new float[UboFloats];
@@ -416,10 +523,10 @@ public partial class HeatShimmer : Node3D
         if (fmt.Format != RenderingDevice.DataFormat.R16G16B16A16Sfloat) { _failed = true; GD.PrintErr($"heat shimmer: the scene's colour is {fmt.Format}, not RGBA16F; off"); return; }
         if (!_tmp.IsValid || _tmpSize != size || (long)fmt.Format != _tmpFormat) MakeTmp(rd, size, fmt.Format);
 
-        Rect2 rn; int count; float road, mirage, clock; Vector3 right;
+        Rect2 rn; int count; float road, mirage, clock; Vector3 right; Vector4 roadMask, shares; Rid maskRd;
         lock (Lock)
         {
-            rn = _rect; count = _count; road = _road; mirage = _mirage; clock = _clock; right = _right;
+            rn = _rect; count = _count; road = _road; mirage = _mirage; clock = _clock; right = _right; roadMask = _roadMask; shares = _shares; maskRd = _maskRd;
             Array.Copy(Src, 0, Ubo, Header, MaxSources * 8);
         }
         var camT = scene.GetCamTransform();
@@ -444,16 +551,20 @@ public partial class HeatShimmer : Node3D
         Ubo[70] = HeatTune.FireFull; Ubo[71] = Math.Max(HeatTune.FireFar, HeatTune.FireFull + 1f);
         Ubo[72] = Math.Max(0.05f, HeatTune.RippleAboveDeg); Ubo[73] = Math.Max(0.05f, HeatTune.RippleDeg); Ubo[74] = Ripple[0]; Ubo[75] = Ripple[1];
         Ubo[76] = Ripple[2]; Ubo[77] = Ripple[3]; Ubo[78] = Ripple[4]; Ubo[79] = 0f;
+        Ubo[80] = roadMask.X; Ubo[81] = roadMask.Y; Ubo[82] = roadMask.Z; Ubo[83] = roadMask.W;
+        Ubo[84] = shares.X; Ubo[85] = shares.Y; Ubo[86] = shares.Z; Ubo[87] = shares.W;
+        var sky = Sky; Ubo[88] = sky.R; Ubo[89] = sky.G; Ubo[90] = sky.B; Ubo[91] = 1f;
+        if (!maskRd.IsValid) return;
         System.Buffer.BlockCopy(Ubo, 0, UboBytes, 0, UboFloats * 4);
         rd.BufferUpdate(_ubo, 0, UboFloats * 4, UboBytes);
 
         int cx0 = Math.Max(0, x0 - margin), cy0 = Math.Max(0, y0 - margin), cx1 = Math.Min(size.X, x1 + margin), cy1 = Math.Min(size.Y, y1 + margin);
 
-        if (!_set.IsValid || !rd.UniformSetIsValid(_set) || !_copySet.IsValid || !rd.UniformSetIsValid(_copySet) || color != _setColor || depth != _setDepth)
+        if (!_set.IsValid || !rd.UniformSetIsValid(_set) || !_copySet.IsValid || !rd.UniformSetIsValid(_copySet) || color != _setColor || depth != _setDepth || maskRd != _setMask)
         {
             if (_set.IsValid && rd.UniformSetIsValid(_set)) rd.FreeRid(_set);
             if (_copySet.IsValid && rd.UniformSetIsValid(_copySet)) rd.FreeRid(_copySet);
-            _setColor = color; _setDepth = depth;
+            _setColor = color; _setDepth = depth; _setMask = maskRd;
             // the scene's colour cannot be copied from (no copy-from usage): a kernel copies the rectangle aside
             var cin = new RDUniform { UniformType = RenderingDevice.UniformType.Image, Binding = 0 }; cin.AddId(color);
             var cout = new RDUniform { UniformType = RenderingDevice.UniformType.Image, Binding = 1 }; cout.AddId(_tmp);
@@ -462,7 +573,8 @@ public partial class HeatShimmer : Node3D
             var src = new RDUniform { UniformType = RenderingDevice.UniformType.SamplerWithTexture, Binding = 1 }; src.AddId(_linear); src.AddId(_tmp);
             var dep = new RDUniform { UniformType = RenderingDevice.UniformType.SamplerWithTexture, Binding = 2 }; dep.AddId(_nearest); dep.AddId(depth);
             var ubo = new RDUniform { UniformType = RenderingDevice.UniformType.UniformBuffer, Binding = 3 }; ubo.AddId(_ubo);
-            _uniforms = [img, src, dep, ubo];
+            var msk = new RDUniform { UniformType = RenderingDevice.UniformType.SamplerWithTexture, Binding = 4 }; msk.AddId(_linear); msk.AddId(maskRd);
+            _uniforms = [img, src, dep, ubo, msk];
             _set = rd.UniformSetCreate(_uniforms, _shader, 0);
         }
         if (!_set.IsValid || !_copySet.IsValid) { _failed = true; GD.PrintErr("heat shimmer: no uniform set (the scene's colour cannot be written by a kernel?); off"); return; }
@@ -544,6 +656,7 @@ public partial class HeatShimmer : Node3D
         layout(rgba16f, set = 0, binding = 0) uniform restrict writeonly image2D color_out;
         layout(set = 0, binding = 1) uniform sampler2D src;
         layout(set = 0, binding = 2) uniform sampler2D depth_tex;
+        layout(set = 0, binding = 4) uniform sampler2D road_mask;
         layout(set = 0, binding = 3, std140) uniform U {
             mat4 invproj; mat4 invview; mat4 viewproj;
             vec4 rect;    // the pixels to bend: x0, y0, x1, y1
@@ -554,6 +667,9 @@ public partial class HeatShimmer : Node3D
             vec4 tune;    // -, the sine of the mirage's band, the fires' full and gone (m): HeatTune
             vec4 band;    // the ripple's band over and under level (degrees), its nudge at full (radians), its least (px): HeatBand
             vec4 cells;   // the ripple's cells: the most per radian, the fewest pixels each; the mirage's most per radian: HeatBand
+            vec4 road;    // the paved mask's corner from the floating origin (game X, Z), its size (m), by the ground (1): HeatRoadMask
+            vec4 shares;  // the ripple's share on paved road and on open ground, the mirage's off the road: HeatBand
+            vec4 skycol;  // the mission's sky (linear), when the mirrored direction meets no sky on the screen
             vec4 src_pos[16];   // foot xyz, radius
             vec4 src_par[16];   // flames' top, column height, strength, seed
         } u;
@@ -576,6 +692,7 @@ public partial class HeatShimmer : Node3D
             return v.xyz / v.w;
         }
         bool is_sky(float d) { return u.misc2.x > 0.0 ? d <= 0.0 : d >= 1.0; }
+        vec3 view_px(ivec2 q) { return view_at((vec2(q) + 0.5) * u.size.zw, texelFetch(depth_tex, q, 0).r); }
         float dist_at(ivec2 p) {
             p = clamp(p, ivec2(0), ivec2(u.size.xy) - 1);
             float d = texelFetch(depth_tex, p, 0).r;
@@ -632,8 +749,35 @@ public partial class HeatShimmer : Node3D
             float road = u.misc.z, mir = u.misc.w, mirage = 0.0;
             vec3 mcol = vec3(0.0);
             if (road > 0.0 || mir > 0.0) {
-                float edeg = degrees(asin(clamp(dirW.y, -1.0, 1.0)));
-                float band = band_angle(edeg) * band_dist(dist, u.misc2.z);
+                bool only = u.road.w > 0.5;   // by the ground (HeatBand.Surface), else IJ's band round level
+                // the surface: its normal from the depths two texels either side (steadier far away than the next texel's), facing up
+                vec3 nW = vec3(0.0, 1.0, 0.0);
+                float sin_inc = 1.0, paved = only ? 0.0 : 1.0;
+                if (!sky && dist > u.misc2.z * 0.8) {
+                    ivec2 hi = ivec2(u.size.xy) - 1;
+                    vec3 vl = view_px(clamp(p - ivec2(2, 0), ivec2(0), hi)), vr = view_px(clamp(p + ivec2(2, 0), ivec2(0), hi));
+                    vec3 vd = view_px(clamp(p - ivec2(0, 2), ivec2(0), hi)), vu = view_px(clamp(p + ivec2(0, 2), ivec2(0), hi));
+                    nW = normalize(mat3(u.invview) * cross(vr - vl, vu - vd));
+                    if (nW.y < 0.0) nW = -nW;
+                    sin_inc = abs(dot(nW, dirW));
+                    if (only) {
+                        // paved road there (HeatRoadMask, game frame: Godot's X, minus its Z, plus the floating origin)
+                        vec3 wp = cam + dirW * dist;
+                        vec2 muv = (vec2(wp.x, -wp.z) + u.road.xy) / u.road.z;
+                        paved = all(greaterThan(muv, vec2(0.0))) && all(lessThan(muv, vec2(1.0))) ? textureLod(road_mask, muv, 0.0).r : 0.0;
+                    }
+                }
+                float band;
+                if (only) {
+                    // HeatBand.Surface: by the angle between the ray and the ground's surface, and the surface (paved, open, rough)
+                    float graze = degrees(asin(clamp(sin_inc, 0.0, 1.0)));
+                    float share = u.shares.x * paved + u.shares.y * smoothstep(0.9, 0.99, nW.y) * (1.0 - paved);
+                    band = (1.0 - smoothstep(0.2 * u.band.y, u.band.y, graze)) * smoothstep(0.85, 0.95, nW.y) * share * band_dist(dist, u.misc2.z);
+                    if (u.cam_right.w == 2.0) {
+                        if (!sky) imageStore(color_out, p, vec4(1.0 - smoothstep(0.2 * u.band.y, u.band.y, graze), paved, share * 0.8 * step(u.misc2.z * 0.8, dist), 1.0));
+                        return;
+                    }
+                } else band = band_angle(degrees(asin(clamp(dirW.y, -1.0, 1.0)))) * band_dist(dist, u.misc2.z);
                 if (u.cam_right.w == 2.0) band = 0.0;
                 if (band > 0.0 && road > 0.0) {
                     // cells taller than wide, rising and drifting: their size an angle (about 0.2 by 1 degree), never under three pixels
@@ -647,27 +791,27 @@ public partial class HeatShimmer : Node3D
                     t_near = min(t_near, u.misc2.z * 0.8);
                 }
                 if (mir > 0.0 && !sky && dist > u.misc2.z) {
-                    // level ground at a grazing angle (its normal from the next texels' depths)
-                    ivec2 px = min(p + ivec2(1, 0), ivec2(u.size.xy) - 1), py = min(p + ivec2(0, 1), ivec2(u.size.xy) - 1);
-                    vec3 vx = view_at((vec2(px) + 0.5) * u.size.zw, texelFetch(depth_tex, px, 0).r);
-                    vec3 vy = view_at((vec2(py) + 0.5) * u.size.zw, texelFetch(depth_tex, py, 0).r);
-                    vec3 nW = normalize(mat3(u.invview) * cross(vx - vpos, vy - vpos));
-                    float sin_inc = abs(dot(nW, dirW));
+                    // level ground at a grazing angle (on paved road only, road only)
                     float level = smoothstep(0.95, 0.995, abs(nW.y));
-                    float mw = (1.0 - smoothstep(0.3 * u.tune.y, u.tune.y, sin_inc)) * level * smoothstep(u.misc2.z, u.misc2.z * 2.0, dist);
+                    float mw = (1.0 - smoothstep(0.3 * u.tune.y, u.tune.y, sin_inc)) * level * smoothstep(u.misc2.z, u.misc2.z * 2.0, dist) * (only ? mix(u.shares.z, 1.0, paved) : 1.0);
                     if (u.cam_right.w == 2.0) { imageStore(color_out, p, vec4(1.0 - smoothstep(0.012, 0.04, sin_inc), level, smoothstep(u.misc2.z, u.misc2.z * 2.0, dist), 1.0)); return; }
                     if (mw > 0.0) {
                         // the ray bent back up off the hot layer: what lies at the mirrored angle, if it is farther than the ground
+                        // a real road mirage is the sky: at the mirrored direction, or, where a mesa or the land stands there, the sky
+                        // straight above it on the screen (a few steps up), else the mission's sky
                         vec4 c = u.viewproj * vec4(dirW.x, -dirW.y, dirW.z, 0.0);
                         if (c.w > 0.0) {
-                            vec2 muv = c.xy / c.w * 0.5 + 0.5;
-                            if (all(greaterThan(muv, vec2(0.0))) && all(lessThan(muv, vec2(1.0))) && dist_at(ivec2(muv * u.size.xy)) > dist) {
-                                float kv = min(u.cells.z, u.misc2.y / 3.0);
-                                float fl = vnoise(vec3(dirW.x * kv * 0.3 + clock * 0.3, dirW.y * kv - clock * 2.5, dirW.z * kv * 0.3 + 9.1));
-                                mcol = texture(src, muv).rgb;
-                                // never quite a mirror: it wavers at any strength
-                                mirage = clamp(mw * mir * (0.4 + 0.4 * fl), 0.0, 0.6 + 0.35 * fl);
+                            vec2 muv = clamp(c.xy / c.w * 0.5 + 0.5, vec2(0.0), vec2(1.0));
+                            mcol = u.skycol.rgb;
+                            for (int k = 0; k < 10; k++) {
+                                vec2 q = vec2(muv.x, muv.y - float(k * k) * 0.006);
+                                if (q.y <= 0.0) break;
+                                if (is_sky(texelFetch(depth_tex, clamp(ivec2(q * u.size.xy), ivec2(0), ivec2(u.size.xy) - 1), 0).r)) { mcol = texture(src, q).rgb; break; }
                             }
+                            float kv = min(u.cells.z, u.misc2.y / 3.0);
+                            float fl = vnoise(vec3(dirW.x * kv * 0.3 + clock * 0.3, dirW.y * kv - clock * 2.5, dirW.z * kv * 0.3 + 9.1));
+                            // never quite a mirror: it wavers at any strength
+                            mirage = clamp(mw * mir * (0.4 + 0.4 * fl), 0.0, 0.6 + 0.35 * fl);
                         }
                     }
                 }
