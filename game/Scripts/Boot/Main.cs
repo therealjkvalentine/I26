@@ -1198,10 +1198,12 @@ public partial class Main : Node3D
 		bool scriptAi = _opt.Ai == "script";
 		// Trip+'s rules (the play fork's; docs/deviations.md "Trip+"): the trip launch's, or a reopened bug report's state's; null for the original's
 		var tripPlus = TripPlusRules(roster is not null);
+		// the smarter opponents (the play fork's; docs/deviations.md "Smarter opponents"): a retry's or a reopened report's, else the settings'
+		var smartAi = SmartAiRule();
 		var setupJob = I76.Game.Boot.Beside.Run(() => I76.Sim.Missions.MissionSetup.Build(_builder.Vfs, w, _builder.Assembler!, requested, origin, script: scriptAi,
 			rand: new I76.Sim.Rng.CrtRand(randSeed), melee: roster,
 			// one player at one machine: the poems may come in any order (from the same seed, so a run repeats)
-			seed: unchecked((int)randSeed), tripPlus: tripPlus));
+			seed: unchecked((int)randSeed), tripPlus: tripPlus, smartAi: smartAi));
 		yield return setupJob;
 		var setup = setupJob.GetAwaiter().GetResult();
 		MissionBuilder.Trace("spawn: sim world set up");
@@ -1218,7 +1220,7 @@ public partial class Main : Node3D
 		{
 			// what the mission was built from, which its snapshots carry and a restore checks (docs/savestate.md)
 			Mission = (_opt.Mission ?? "").ToLowerInvariant(),
-			Car = string.IsNullOrEmpty(requested) ? null : requested, Script = _opt.Ai == "script", Melee = roster, TripPlus = tripPlus,
+			Car = string.IsNullOrEmpty(requested) ? null : requested, Script = _opt.Ai == "script", Melee = roster, TripPlus = tripPlus, SmartAi = smartAi,
 		};
 		string? installDir = _opt.Install, missionName = _opt.Mission ?? "";
 		I76.Sim.Session.SimSession session = null!;

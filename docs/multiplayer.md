@@ -1296,6 +1296,15 @@ the others' briefings (the owner: "cutscene skips for others once everyone is re
   last mission's ending); a skip ending the other's briefing only once she reached hers; an upstream player holding the skip until its
   inputs and never sent it; an upstream host ending nothing.
 
+### Smarter opponents (the play fork's)
+
+The port's rule (docs/deviations.md "Smarter opponents"; `SmartAi`): the computer cars' extra behaviours. In a network game it is the
+host's: the listen host's own `[port] smart_ai` (or `I76_SMART_AI`), `i26-server --smart-ai LIST` (`ServerOptions.SmartAi`). The server
+runs every computer car (the AI fill, the bots, a co-op mission's enemies) and a client's mirror is never stepped, so the rule needs
+nothing on the wire and no feature bit: a player on upstream's build or an older fork build sees the same cars. It is part of the
+session's build in every savestate; a host migration's options carry it, and a successor whose own options say otherwise takes the
+savestate's (`MeleeHost.RestoreMigrated`).
+
 ### Wrecks stay solid (the play fork's, `PeerFeatures.WrecksSolid`)
 
 The port's rule (docs/deviations.md "Wrecks stay solid"; `SimWorld.WrecksStaySolid`): a computer car's wreck goes on stopping the

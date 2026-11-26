@@ -13,7 +13,8 @@ public sealed partial class PathSearch
     internal static void AuditFields(SaveAudit a)
     {
         a.For<PathSearch>()
-            .Saved(nameof(Goal), nameof(Expansions), nameof(_all), nameof(_root), nameof(_start), nameof(_end), nameof(_sx), nameof(_sz))
+            .Saved(nameof(Goal), nameof(Expansions), nameof(_all), nameof(_root), nameof(_start), nameof(_end), nameof(_sx), nameof(_sz),
+                nameof(SlopeCost), nameof(FaceMargin), nameof(Blocked))
             .Derived("the key tree, rebuilt from the nodes' Seen flags", nameof(_seen))
             .Structural("the static world's bridge tree, the same for the rebuilt mission", nameof(_links));
         a.For<BridgeLinks>().Derived("the bridge tree, built from the static world's decks", "_tree");
@@ -37,6 +38,9 @@ public sealed partial class PathSearch
             w.Bool(n.Road); w.Bool(n.Link); w.Bool(n.Seen); w.Bool(n.Open); w.Int(Ref(n.L)); w.Int(Ref(n.R)); w.Int(n.Bal);
         }
         w.Int(Ref(_root)); w.Int(Ref(_start)); w.Int(Ref(_end));
+        // the smarter opponents' costs (format 29, the fork's)
+        w.Bool(SlopeCost); w.Bool(FaceMargin); w.Bool(Blocked is not null);
+        if (Blocked is { } b) { w.Int(b.X); w.Int(b.Z); }
     }
 
     internal static PathSearch Load(SaveReader r, BridgeLinks? links)
@@ -59,6 +63,8 @@ public sealed partial class PathSearch
             if (n.Seen && !s._seen.TryAdd(n.Key, n)) throw new SnapshotFormatException("a path search with a node twice");
         }
         s._root = At(r.Int()); s._start = At(r.Int()); s._end = At(r.Int());
+        s.SlopeCost = r.Bool(); s.FaceMargin = r.Bool();
+        s.Blocked = r.Bool() ? (r.Int(), r.Int()) : null;
         return s;
     }
 }

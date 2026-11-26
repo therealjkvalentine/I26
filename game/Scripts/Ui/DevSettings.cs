@@ -116,8 +116,8 @@ public static class DevSettings
     /// <summary>Keys on the panel for the developer's listening only, not in docs/playing.md's table (docs/dev-hooks.md has them): the shaker's dev-only sources.</summary>
     public static readonly string[] DevOnly = [.. I76.Formats.Input.TactileSources.DevOnly.Select(s => I76.Formats.Input.TactileSources.Keys[(int)s])];
 
-    /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, opentrack_path a path, not one of a few values.</summary>
-    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq", "opentrack_path", "fov_window", "fork_version", "host_bot_skill_difficulty", "turret_slew"];   // from fov_window: rows' keys (Field of View, the host form's Bot Skill, Play Options' Turrets) and the file's own step count
+    /// <summary>Keys of the table set by hand only, not stepped here: the EQs are curves of points, opentrack_path a path, smart_ai a list of words, not one of a few values.</summary>
+    public static readonly string[] HandSetOnly = ["tactile_eq", "game_eq", "movie_eq", "opentrack_path", "smart_ai", "fov_window", "fork_version", "host_bot_skill_difficulty", "turret_slew"];   // from fov_window: rows' keys (Field of View, the host form's Bot Skill, Play Options' Turrets) and the file's own step count
 
     public static readonly DevSetting[] All =
     [

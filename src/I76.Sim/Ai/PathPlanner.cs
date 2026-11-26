@@ -101,12 +101,22 @@ public sealed partial class PathSearch
         return 15f + (avoid && g.Impassable(x, z) ? 1e6f : 0f);
     }
 
+    /// <summary>
+    /// The smarter opponents' terrain costs (the play fork's, <see cref="Missions.SmartAi"/>; the original's search has none):
+    /// <see cref="SlopeCost"/> charges a steep step (Hill pursuit), <see cref="FaceMargin"/> a cell at the foot or rim of a face of
+    /// 60° or more (Ledge caution), and <see cref="Blocked"/> one cell (a car's stuck recovery) heavily. All off for the original's.
+    /// </summary>
+    public bool SlopeCost, FaceMargin;
+    /// <summary>A cell (grid x, z, multiples of 10) the search keeps off (<see cref="SlopeCost"/>'s summary), or null.</summary>
+    public (int X, int Z)? Blocked;
+
     /// <summary>The step onto <paramref name="to"/> from <paramref name="from"/>, ×√2 when both x and z differ (a bridge's far end too).</summary>
     private static double Cost(IGround g, Node to, Node from, bool avoid)
     {
         double c = StepCost(g, to.X, to.Z, avoid, out to.Road);
         return to.X != from.X && to.Z != from.Z ? c * Sqrt2 : c;
     }
+
 
     /// <summary>From the pool, or null when it is spent.</summary>
     private Node? Alloc(int x, int z, Node? parent)

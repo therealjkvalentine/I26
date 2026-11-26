@@ -124,6 +124,8 @@ public sealed partial class Ptable
     private void Tick(Entity e, Entity? target, int s)
     {
         S[s].Tick(e, target);
+        bool smart = SmartOn(e), back = smart && SmartSteer(e, target, s);
+        int s0 = s;
         for (int guard = 0; guard < 64; guard++)
         {
             int next = -1;
@@ -140,6 +142,7 @@ public sealed partial class Ptable
             }
             else host.Log("Ptable stack overflow");
         }
+        if (smart) SmartAfter(e, target, s0, back);
     }
 
     /// <summary>
@@ -176,7 +179,8 @@ public sealed partial class Ptable
     {
         var at = order == AiOrder.Follow ? (e.FollowFlag != 0 ? e.FollowRef : null) : target;
         if (at is null || at == e) return;
-        host.FireAt(e, at);
+        if (SmartOn(e)) SmartFire(e, at);
+        else host.FireAt(e, at);
     }
 
     // ---- the per-frame globals the game rolls after the FSM tick ----

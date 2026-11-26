@@ -322,6 +322,42 @@ public class HostMigrationTests(ITestOutputHelper output)
         Assert.True(host.Session.StateHash() == fresh.Session.StateHash(), FirstDifference(Body(host.Session), Body(fresh.Session)));
     }
 
+    /// <summary>
+    /// The smarter opponents are the host's rule and part of the session's build: a successor whose own settings differ restores the
+    /// host's savestate and goes on by the host's rule (the computer cars it runs now), exactly as the host's game would have.
+    /// </summary>
+    [Fact]
+    public void ASuccessorTakesTheHostsSmarterOpponents()
+    {
+        if (HostTests.InstallDir is not { } install) return;
+        var o = new ServerOptions { Install = install, Arena = "m01", Ai = 3, SmartAi = SmartAi.All };
+        var host = new MeleeHost(o);
+        Assert.Equal(SmartAi.All, host.Session.Build!.SmartAi);
+        var a = host.Join("a", "vppirna1.vcf", 0);
+        uint t = 0;
+        var log = new List<LoggedTick>();
+        void Tick()
+        {
+            t++;
+            a.Inputs.Add(new InputMessage(t, [new CarInput { Buttons = CarButtons.ThrottleUp }]));
+            host.Step();
+            var inputs = new CarInput[host.Session.Drivers.Max(d => d.Slot) + 1];
+            foreach (var d in host.Session.Drivers) inputs[d.Slot] = d.Input;
+            log.Add(new LoggedTick(host.Tick, inputs, false));
+        }
+        for (int k = 0; k < 200; k++) Tick();
+        var state = host.Session.Snapshot();
+        log.Clear();
+        for (int k = 0; k < 100; k++) Tick();
+        var fresh = new MeleeHost(o with { SmartAi = SmartAi.None });
+        fresh.RestoreMigrated(state);
+        Assert.Equal(SmartAi.All, fresh.Session.Build!.SmartAi);
+        Assert.Equal(SmartAi.All, fresh.Setup.Melee!.Host.SmartAi);
+        var (replayed, _) = fresh.ReplayMigrated(log, 0);
+        Assert.Equal(log.Count, replayed);
+        Assert.True(host.Session.StateHash() == fresh.Session.StateHash(), FirstDifference(Body(host.Session), Body(fresh.Session)));
+    }
+
     private static byte[] Body(SimSession s) =>
         (byte[])typeof(SimSession).GetMethod("SnapshotBody", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.Invoke(s, [false])!;
 

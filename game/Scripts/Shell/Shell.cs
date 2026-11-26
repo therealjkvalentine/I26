@@ -1546,6 +1546,14 @@ public sealed class ShellSettings
     public bool HeadTrackPosition { get; set; }
     /// <summary>Where opentrack is ([port] opentrack_path: the program, its folder or its .app; empty: the usual places, <see cref="I76.Game.OpenTrack.Find"/>).</summary>
     public string OpenTrackPath { get; set; } = "";
+    /// <summary>
+    /// The smarter opponents ([port] smart_ai, written only when set; docs/deviations.md "Smarter opponents"): the computer cars'
+    /// behaviours the original does not have, as written (names, groups or a number: <see cref="I76.Sim.Missions.SmartAiNames.Parse"/>);
+    /// empty, the original's AI. A rule of the simulation: offline the player's, in a network game the host's.
+    /// </summary>
+    public string SmartAiText { get; set; } = "";
+    /// <summary>The bits of <see cref="SmartAiText"/> (unknown words add none).</summary>
+    public I76.Sim.Missions.SmartAi SmartAi => I76.Sim.Missions.SmartAiNames.Parse(SmartAiText, out _);
     /// <summary>The Controls sheet's Opentrack Auto ([port] opentrack_auto, written only when on): a mission with Head Tracking on starts opentrack when none runs, and the game closes the one it started when it exits.</summary>
     public bool OpenTrackAuto { get; set; }
     /// <summary>The port's own: Graphic Detail's Log File (user://logs/godot.log; off). Godot reads it at start, so a change shows from the next start (<see cref="I76.Game.Boot.LogFile"/>).</summary>
@@ -2114,6 +2122,7 @@ public sealed class ShellSettings
         s.HeadTrackPosition = (bool)c.GetValue("port", "head_track_position", false);
         s.HeadTrackSource = I76.Game.HeadTrackSources.Parse((string)c.GetValue("port", "head_track_source", "auto"));
         s.OpenTrackPath = (string)c.GetValue("port", "opentrack_path", "");
+        s.SmartAiText = c.GetValue("port", "smart_ai", "").ToString();
         s.OpenTrackAuto = (bool)c.GetValue("port", "opentrack_auto", false);
         s.CoopOwnCar = (bool)c.GetValue("port", "coop_own_car", true);
         // no version step: absent, off (upstream's default; the fork's earlier default, the cap, was left out of the file, so an
@@ -2347,6 +2356,7 @@ public sealed class ShellSettings
         if (HeadTrackPosition) c.SetValue("port", "head_track_position", true);
         if (HeadTrackSource != I76.Game.HeadTrackSource.Auto) c.SetValue("port", "head_track_source", I76.Game.HeadTrackSources.Key(HeadTrackSource));
         if (OpenTrackPath.Length > 0) c.SetValue("port", "opentrack_path", OpenTrackPath);
+        if (SmartAiText.Length > 0) c.SetValue("port", "smart_ai", SmartAiText);
         if (OpenTrackAuto) c.SetValue("port", "opentrack_auto", true);
         if (!CoopOwnCar) c.SetValue("port", "coop_own_car", false);
         // always: upstream reads an absent key as off, a fork build from before upstream's default as the cap

@@ -34,6 +34,8 @@ public sealed record SessionBuild
     /// and a restore goes on under it (<see cref="SimSession.Restore"/>), so it is not a difference <see cref="Differs"/> refuses.
     /// </summary>
     public bool SolidCliffs { get; init; }
+    /// <summary>The smarter opponents' rule (the play fork's, <see cref="Missions.SmartAi"/>): none, the original's AI. Format 30.</summary>
+    public SmartAi SmartAi { get; init; }
 
     /// <summary>
     /// What identifies the install for a snapshot: the profile, the archive's size, and the mission file's and
@@ -73,6 +75,7 @@ public sealed record SessionBuild
         w.Bool(TripPlus is not null);   // format 28 (the fork's)
         if (TripPlus is { } tp) { w.Int(tp.Copies); w.Int(tp.SkillOffset); w.Int(tp.SalvageOffset); }
         w.Bool(SolidCliffs);   // format 29 (the fork's)
+        w.U32((uint)SmartAi);   // format 30 (the fork's)
     }
 
     internal static SessionBuild Read(SaveReader r)
@@ -99,7 +102,8 @@ public sealed record SessionBuild
         }
         I76.Sim.Trip.TripPlusRules? tripPlus = r.Bool() ? new(r.Int(), r.Int(), r.Int()) : null;
         bool solidCliffs = r.Bool();
-        return new SessionBuild { Mission = mission, Install = install, Car = car, Script = script, Melee = melee, Rules = rules, Coop = coop, TripPlus = tripPlus, SolidCliffs = solidCliffs };
+        var smart = (SmartAi)r.U32();
+        return new SessionBuild { Mission = mission, Install = install, Car = car, Script = script, Melee = melee, Rules = rules, Coop = coop, TripPlus = tripPlus, SolidCliffs = solidCliffs, SmartAi = smart };
     }
 
     /// <summary>No Trip+ rule: a build without them and one with all three at 0 play the same.</summary>
@@ -125,6 +129,7 @@ public sealed record SessionBuild
         if (Coop is { } cs && cs.ExtraEnemies != other.Coop!.ExtraEnemies) return $"the snapshot's co-op scaling is {cs.ExtraEnemies} extra, the session's {other.Coop.ExtraEnemies}";
         if (Coop is { } cr && cr.RollingStart != other.Coop!.RollingStart) return $"the snapshot's co-op Rolling Start is {(cr.RollingStart ? "on" : "off")}, the session's is not";
         if ((TripPlus ?? Off) != (other.TripPlus ?? Off)) return $"the snapshot's Trip+ rules are {Describe(TripPlus)}, the session's {Describe(other.TripPlus)}";
+        if (SmartAi != other.SmartAi) return $"the snapshot's smarter opponents are {SmartAiNames.Describe(SmartAi)}, the session's {SmartAiNames.Describe(other.SmartAi)}";
         return null;
     }
 }
@@ -139,7 +144,7 @@ public sealed record SnapshotHeader(int Version, SessionBuild Build, SimRate Rat
     /// The format's version. Any change to what a snapshot holds or how it is laid out bumps it; a snapshot of
     /// another version is refused (docs/savestate.md).
     /// </summary>
-    public const int CurrentVersion = 29;
+    public const int CurrentVersion = 30;
 
     public static SnapshotHeader Read(byte[] data)
     {

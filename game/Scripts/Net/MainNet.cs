@@ -79,6 +79,7 @@ public partial class Main
                 WrecksStaySolid = I76.Game.Shell.ShellSettings.Load().WrecksStaySolid,   // the host's own [port] wreck_solid (a co-op game's; every player must have the rule)
                 SolidCliffs = I76.Game.Shell.ShellSettings.Load().SolidCliffs,   // the host's own [port] solid_cliffs, the game's rule for everyone
                 IgnitionStaysOn = _opt.IgnitionStaysOn ?? I76.Game.Shell.ShellSettings.Load().IgnitionStaysOn,
+                SmartAi = SmartAiSetting(),   // the host's own (the server runs the AI)
             };
             if (_opt.Restrict is { Length: > 0 } spec)
             {

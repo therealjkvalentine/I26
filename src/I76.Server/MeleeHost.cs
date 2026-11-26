@@ -204,6 +204,11 @@ public sealed record ServerOptions
     /// prediction; a migrated game keeps the rule its savestate was made under.
     /// </summary>
     public bool SolidCliffs { get; init; }
+    /// The smarter opponents (the play fork's; docs/deviations.md "Smarter opponents"): the host's rule for its computer cars, the
+    /// network melee's AI fill, its bots and a co-op mission's enemies (the server runs the AI; a client's mirror never does). It is part
+    /// of the session's build, so a successor host takes it with the savestate. i26-server's --smart-ai, a listen host's [port] smart_ai.
+    /// </summary>
+    public SmartAi SmartAi { get; init; }
     /// <summary>Snapshots as deltas against the one each client acknowledged (protocol 13); off sends each in full (A/B, debugging).</summary>
     public bool DeltaSnapshots { get; init; } = true;
     /// <summary>Far cars sent less often (<see cref="Interest"/>; needs <see cref="DeltaSnapshots"/>); off sends every car every tick.</summary>
