@@ -142,13 +142,14 @@ public class NewGamePlusOfferTests
         Assert.False(e.Checkpoint);            // no snapshot: the mission starts from its beginning
         Assert.Equal(2, e.Lap);
         Assert.Equal("save007", e.Stem);
-        Assert.Equal("Scene 1. New Game+ Lap 2", Bookmarks.Row(e, s => s.Length, 1000));
+        Assert.Equal("Scene 1. New Game Plus", Bookmarks.Row(e, s => s.Length, 1000));
         Assert.True(Bookmarks.Row(e, s => s.Length, 1000).Length <= 26, "the row's room: the lap must not be cut");
         // loading it plays lap 2's rules (Bookmarks' Load: the trip's lap from the entry)
         var loaded = finished.OnLap(e.Lap);
         Assert.Equal(new TripPlusRules(1, -1, 4), loaded.Active);
         // the next lap's save after a lap-2 win
-        Assert.Equal("New Game+ Lap 3", NewGamePlus.BookmarkName(loaded.Won17().NextLap));
+        Assert.Equal("New Game Plus 2", NewGamePlus.BookmarkName(loaded.Won17().NextLap));
+        Assert.Equal("New Game Plus 3", NewGamePlus.BookmarkName(4));
     }
 
     [Fact]
@@ -164,11 +165,17 @@ public class NewGamePlusOfferTests
     [Fact]
     public void TheWordsFitTheReceiptAndSayWhatChanges()
     {
-        foreach (var line in NewGamePlus.OfferLines(2).Concat(NewGamePlus.NewTripLines(4))) Assert.True(line.Length <= 26, line);
+        foreach (var line in NewGamePlus.OfferLines(4).Concat(NewGamePlus.NewTripLines(4))) Assert.True(line.Length <= 26, line);
         var offer = string.Join(" ", NewGamePlus.OfferLines(2));
         Assert.Contains("NEW GAME PLUS", offer);
         Assert.Contains("CAR, PARTS, STOCK", offer);
         Assert.Contains("MORE ENEMIES", offer);
-        Assert.Equal("NEW GAME PLUS LAP 3", NewGamePlus.Banner(3));
+        // the first time round is plain New Game Plus; the second and third (internal laps 3, 4) are numbered
+        Assert.Equal("NEW GAME PLUS", NewGamePlus.Banner(2));
+        Assert.Equal("NEW GAME PLUS 2", NewGamePlus.Banner(3));
+        Assert.Equal("NEW GAME PLUS 3", NewGamePlus.Banner(4));
+        Assert.Equal("SAVE A NEW GAME PLUS?", NewGamePlus.OfferLines(2)[1]);
+        Assert.Equal("SAVE NEW GAME PLUS 2?", NewGamePlus.OfferLines(3)[1]);
+        Assert.DoesNotContain(NewGamePlus.OfferLines(2).Concat(NewGamePlus.NewTripLines(2)), l => l.Contains("LAP"));
     }
 }
