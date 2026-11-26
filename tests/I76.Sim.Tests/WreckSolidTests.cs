@@ -359,7 +359,7 @@ public class WreckSolidTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>Every car file of the install as the wreck, the rule on: the Piranha as the player's car and as a computer's.</summary>
-    [Fact]
+    // Runs as a separate class (WreckSolidShards.cs): xUnit runs one class's tests one after another.
     public void TheSweepOverEveryCarOfTheInstallWithWrecksStayingSolid()
     {
         if (InstallDir is null) return;
@@ -389,7 +389,7 @@ public class WreckSolidTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>Every car file of the install as the wreck, the player's car the Piranha.</summary>
-    [Fact]
+    // Runs as a separate class (WreckSolidShards.cs): xUnit runs one class's tests one after another.
     public void TheSweepOverEveryCarOfTheInstall()
     {
         if (InstallDir is null) return;
