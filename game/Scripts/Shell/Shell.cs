@@ -1449,6 +1449,11 @@ public sealed class ShellSettings
     /// </summary>
     public bool AmbientOcclusion { get; set; }
     /// <summary>
+    /// The port's own: the modern look's baked terrain shading (World/TerrainShade: the terrain's own sun shadows past the shadow map and
+    /// its sky occlusion), with Shadow Detail Low or High; [port] terrain_shading, written only when off. On unless the player chose.
+    /// </summary>
+    public bool TerrainShading { get; set; } = true;
+    /// <summary>
     /// Graphic Detail's Visibility Range (VisibilityRange): how far the world is drawn (I76.Formats.Imaging.DrawDistance: 0 the original's 600 m clip; 1 to
     /// 20 km; shell.cfg [port] draw_distance). Null while the file has no key: it follows the look, the original's in the 1997 look, 20 km in the modern one.
     /// </summary>
@@ -2004,6 +2009,7 @@ public sealed class ShellSettings
         s.Dash3D = (bool)c.GetValue("port", "dash_3d", true);
         // no version step: absent, off (Shadow Detail High turned SSAO on before the row; the row's default is off)
         s.AmbientOcclusion = (bool)c.GetValue("port", "ambient_occlusion", false);
+        s.TerrainShading = (bool)c.GetValue("port", "terrain_shading", true);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
         // [port] map_edge (Hide Map Edge Cliffs, withdrawn: docs/deviations.md) is no longer read, as any key this version does not know; Save drops it
@@ -2235,6 +2241,7 @@ public sealed class ShellSettings
         if (Look1997) c.SetValue("port", "look_1997", true);
         if (!Dash3D) c.SetValue("port", "dash_3d", false);
         if (AmbientOcclusion) c.SetValue("port", "ambient_occlusion", true);
+        if (!TerrainShading) c.SetValue("port", "terrain_shading", false);
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);
         if (PaletteGrade) c.SetValue("port", "palette_grade", true);
         if (CrashBlur != I76.Sim.Views.CrashBlurMode.On) c.SetValue("port", "crash_blur", I76.Sim.Views.CrashBlurMode.Word(CrashBlur));

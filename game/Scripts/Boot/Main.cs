@@ -861,6 +861,7 @@ public partial class Main : Node3D
 		_extInstruments = s.Graphics[0xe] != 0;
 		_shadowDetail = s.Graphics[0x6];
 		_ambientOcclusion = s.AmbientOcclusion;
+		_terrainShading = s.TerrainShading;
 		_terrainDetail = s.Graphics[0x2];
 		_antialias = s.Graphics[0x8];
 		MouseCamera.Apply(s);
@@ -898,7 +899,7 @@ public partial class Main : Node3D
 	// Graphic Detail's rows that trade the modern look's cost: Shadow Detail (+0x6: Off, Low, High), Terrain Detail
 	// (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x), Ambient Occlusion (the port's). The 1997 look ignores them.
 	private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 1, _vegetation = 1;
-	private bool _ambientOcclusion;
+	private bool _ambientOcclusion, _terrainShading = true;
 
 	/// <summary>
 	/// The modern look's quality settings (docs/perf/plan.md): Shadow Detail Low is the sun's shadow map in two splits to
@@ -927,6 +928,7 @@ public partial class Main : Node3D
 		MissionBuilder.Trace("quality: msaa, tweaks");
 		yield return null;
 		if (_builder?.Terrain is { } tc) tc.CasterReach = ShadowReach.CasterReach(_sun.DirectionalShadowMaxDistance);   // after the I76_SHADOW_DIST hook
+		World.TerrainShade.Set(World.TerrainShade.Wanted(_terrainShading, _shadowDetail), false, _sun.ShadowEnabled ? _sun.DirectionalShadowMaxDistance : 0f);
 		UpdateVegetation();
 	}
 
@@ -4036,6 +4038,7 @@ public partial class Main : Node3D
 		if (on && _builder is { FaithfulRoadsPending: true } roadsFor) { roadsFor.BakeFaithfulRoads(); MissionBuilder.Trace("look: 1997 roads"); }
 		_mode1997 = on;
 		I76.Game.World.ObjectLight.Set("i76_mode_1997", on);
+		I76.Game.World.TerrainShade.Set(I76.Game.World.TerrainShade.Wanted(_terrainShading, _shadowDetail), on, ShadowReach.For(_shadowDetail).Reach);
 		if (!sliced) _builder?.Terrain?.UseModern(!on);
 		else if (_builder?.Terrain is { } terrain)
 			foreach (var step in terrain.UseModernSteps(!on, SliceMs))
@@ -4961,6 +4964,7 @@ public partial class Main : Node3D
 		using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.Main);
 		if (_opt.ExportTextures is not null) return;   // --export-textures: nothing was built, the tree is quitting
 		FrameLimiter.Pace();
+		I76.Game.World.TerrainShade.Poll(delta);   // the baked terrain shading into its texture when its worker is done, eased in
 		StartErrors.Frame(GetTree());   // the start's engine errors, counted to a few seconds into the mission
 		UpdateMouseCapture();
 		// [port] wreck_solid follows the look in use and the key as they are now (F12, the Developer panel), between ticks

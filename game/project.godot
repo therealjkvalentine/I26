@@ -278,6 +278,18 @@ i76_terrain_tiers={
 "type": "float",
 "value": 1.0
 }
+i76_terrain_shade={
+"type": "sampler2D",
+"value": ""
+}
+i76_terrain_shade_rect={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+i76_terrain_shade_on={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
 i76_object_tint={
 "type": "vec3",
 "value": Vector3(1, 1, 1)

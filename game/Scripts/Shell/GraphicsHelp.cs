@@ -30,7 +30,7 @@ public static class GraphicsHelp
             : "Terrain detail: High (the default) adds the finest ground mesh near the car. About 1 ms, 6 % of a full-detail frame, over Low.",
         GraphicsRow.ShadowDetail => look1997
             ? "Shadow detail: the modern look's sun shadows (the 1997 look keeps the original's). No cost in the 1997 look."
-            : "Shadow detail: the sun's shadows. Low (the default) reaches 600 m, High 1500 m with finer shadows near you, Off none. About 8 % of a full-detail frame; High about 6 % more.",
+            : "Shadow detail: the sun's shadows. Low (the default) reaches 600 m, High 1500 m with finer shadows near you, Off none. About 8 % of a full-detail frame; High about 6 % more. Low and High also shade the land beyond with the hills' own shadows, made as the mission loads.",
         GraphicsRow.ExtInstruments => "Ext. instruments: the cockpit's panels (radar, damage, weapons) over the outside views; the [ key toggles them in play. Little cost.",
         GraphicsRow.Mirrors => look1997
             ? "Mirrors: the original's small rear mirror, to 100 m (Rear + Left and All draw it alone: the 1997 look paints the door mirrors, as the original). Little cost in the 1997 look."
