@@ -4,11 +4,11 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// Graphic Detail's pages (GraphicsPages): the sheet keeps the original's rows in the original's order, the port's most used under
-/// them, and every other port row on Advanced or Effects, each page fitting the sheet's lines without scrolling (GraphicsLayout, on
-/// the shell's sheet and the in-game pad); Reset puts back a page's own
-/// rows and no other's (the sheet's the original's whole block), and the snapshot Cancel restores from carries every row. Visibility
-/// Range, World Textures and Car &amp; Dash Textures, the rows over keys of their own. Without the engine.
+/// Graphic Detail's pages (GraphicsPages): the sheet holds only the pages' entries, every row (the original's too) on exactly one of
+/// Display, World, Car &amp; Cockpit and Effects, each page fitting the sheet's lines without scrolling (GraphicsLayout, on the shell's
+/// sheet and the in-game pad); Reset on a page puts back its own rows and no other's, the sheet's every page's (the original's whole
+/// block), and the snapshot Cancel restores from carries every row. Visibility Range, World Textures and Car &amp; Dash Textures, the
+/// rows over keys of their own. Without the engine.
 /// </summary>
 public class GraphicsPagesTests
 {
@@ -82,11 +82,41 @@ public class GraphicsPagesTests
         }
     }
 
-    /// <summary>The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain Resolution, Object Detail), Rear Mirror as Mirrors: the sheet is the original's.</summary>
+    /// <summary>
+    /// The original's grxdet1.map in order, without the 1997 renderer's own rows (Clouds, Horizon and Terrain Textures, Terrain
+    /// Resolution, Object Detail), Rear Mirror as Mirrors. The fork's sheet has no rows: each of the original's is on its page, leading
+    /// it in the original's order, but for Field of View, Car &amp; Cockpit's most used, first there.
+    /// </summary>
     [Fact]
-    public void TheSheetIsTheOriginalsRowsInTheirOrder() => Assert.Equal(
-        [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors],
-        GraphicsPages.Rows[GraphicsPages.Sheet]);
+    public void TheSheetHasOnlyTheEntriesAndTheOriginalsRowsLeadTheirPages()
+    {
+        Assert.Empty(GraphicsPages.Rows[GraphicsPages.Sheet]);
+        Assert.Equal([GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors],
+            GraphicsPages.Original);
+        Assert.Equal([GraphicsPages.Display, GraphicsPages.Display, GraphicsPages.World, GraphicsPages.World, GraphicsPages.World, GraphicsPages.CarCockpit, GraphicsPages.CarCockpit],
+            GraphicsPages.Original.Select(GraphicsPages.PageOf));
+        for (int p = GraphicsPages.FirstPage; p < GraphicsPages.Names.Length; p++)
+        {
+            var mine = GraphicsPages.Rows[p].Where(GraphicsPages.Original.Contains).ToArray();
+            Assert.Equal(GraphicsPages.Original.Where(mine.Contains), mine);
+            int lead = p == GraphicsPages.CarCockpit ? 1 : 0;
+            Assert.Equal(mine, GraphicsPages.Rows[p].Skip(lead).Take(mine.Length));
+        }
+    }
+
+    /// <summary>Related rows sit together: Shadow Detail over Terrain Shadows, Mirrors over Mirror Rate and Mirror Haze, Ambient Occlusion over Reflections (which needs it).</summary>
+    [Theory]
+    [InlineData(GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows)]
+    [InlineData(GraphicsRow.Mirrors, GraphicsRow.MirrorRate)]
+    [InlineData(GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze)]
+    [InlineData(GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections)]
+    [InlineData(GraphicsRow.Resolution, GraphicsRow.MonitorBrightness)]
+    public void RelatedRowsAreAdjacent(GraphicsRow a, GraphicsRow b)
+    {
+        int p = GraphicsPages.PageOf(a);
+        Assert.Equal(p, GraphicsPages.PageOf(b));
+        Assert.Equal(Array.IndexOf(GraphicsPages.Rows[p], a) + 1, Array.IndexOf(GraphicsPages.Rows[p], b));
+    }
 
     /// <summary>
     /// Four pages under the sheet, by what a row changes (one Advanced page of twenty rows until it outgrew the sheet; four pages
@@ -96,11 +126,11 @@ public class GraphicsPagesTests
     public void ThePagesAreDisplayWorldCarAndEffects()
     {
         Assert.Equal(["Graphic Detail", "Display", "World", "Car & Cockpit", "Effects"], GraphicsPages.Names);
-        Assert.Equal([GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
+        Assert.Equal([GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
             GraphicsPages.Rows[GraphicsPages.Display]);
-        Assert.Equal([GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
+        Assert.Equal([GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
             GraphicsPages.Rows[GraphicsPages.World]);
-        Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.Garage3D],
+        Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.CarCockpit]);
         Assert.Equal([GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
             GraphicsPages.Rows[GraphicsPages.Effects]);
@@ -111,19 +141,23 @@ public class GraphicsPagesTests
         Assert.Equal(-1, GraphicsPages.PageNamed("look"));
     }
 
-    /// <summary>The sheet's seven rows, a blank line, the four entries, a blank line, the frame rate; the pad (no Screen Resolution) the same a row lower, the frame rate on row 14.</summary>
+    /// <summary>The sheet: the four entries on its first lines (where the original's first rows were), the frame rate on the last; the pad's from row 1, the frame rate on row 14.</summary>
     [Fact]
-    public void TheSheetsEntriesSitUnderABlankLine()
+    public void TheSheetsEntriesTakeItsFirstLines()
     {
-        Assert.Equal(GraphicsPages.OriginalRows, GraphicsPages.Rows[GraphicsPages.Sheet].Length);
-        Assert.Equal(GraphicsPages.OriginalRows + 1, GraphicsPages.FirstEntryLine);
-        var shell = GraphicsLayout.Shell(GraphicsPages.Sheet, 7, fps: true);
-        Assert.Equal([8, 9, 10, 11], shell.Entries);
-        Assert.Equal(13, shell.Fps);
-        var pad = GraphicsLayout.Pad(GraphicsPages.Sheet, 6, fps: true);
-        Assert.Equal((6, false), (pad.Shown, pad.Scrolls));
-        Assert.Equal([8, 9, 10, 11], pad.Entries);
-        Assert.Equal(14, pad.Fps);
+        Assert.Equal(0, GraphicsPages.FirstEntryLine);
+        foreach (bool fps in new[] { true, false })
+        {
+            var shell = GraphicsLayout.Shell(GraphicsPages.Sheet, 0, fps);
+            Assert.Equal((0, false), (shell.Shown, shell.Scrolls));
+            Assert.Equal([0, 1, 2, 3], shell.Entries);
+            Assert.Equal(fps ? 13 : -1, shell.Fps);
+            var pad = GraphicsLayout.Pad(GraphicsPages.Sheet, 0, fps);
+            Assert.Equal((0, false), (pad.Shown, pad.Scrolls));
+            Assert.Equal([1, 2, 3, 4], pad.Entries);
+            Assert.Equal(fps ? 14 : -1, pad.Fps);
+            foreach (int r in pad.Entries) Assert.DoesNotContain(r, GraphicsLayout.PadButtons);
+        }
     }
 
     // ---- the layout: every page at every row count it can have, on both menus ----
@@ -180,8 +214,6 @@ public class GraphicsPagesTests
     [MemberData(nameof(PageCounts))]
     public void ThePadsRowsSitOnTheirOwnRows(int page, int rows, bool fps)
     {
-        // the pad's sheet has no Screen Resolution (the window is the shell's): one row fewer
-        if (page == GraphicsPages.Sheet && rows > GraphicsPages.Rows[GraphicsPages.Sheet].Length - 1) return;
         var place = GraphicsLayout.Pad(page, rows, fps);
         Assert.False(place.Scrolls, $"{GraphicsPages.Names[page]} with {rows} rows scrolls on the pad");
         var used = new List<int>();
@@ -204,7 +236,7 @@ public class GraphicsPagesTests
     [Theory]
     [InlineData(GraphicsPages.Display, 20, true)]
     [InlineData(GraphicsPages.World, 30, false)]
-    [InlineData(GraphicsPages.Sheet, 14, true)]
+    [InlineData(GraphicsPages.CarCockpit, 15, true)]
     public void RowsPastTheLinesScrollAndAllAreReachable(int page, int rows, bool fps)
     {
         foreach (var place in new[] { GraphicsLayout.Shell(page, rows, fps), GraphicsLayout.Pad(page, rows, fps) })
@@ -227,14 +259,19 @@ public class GraphicsPagesTests
         }
     }
 
-    /// <summary>The shell's page room with the frame-rate line (eleven rows) against each page's rows, all packs shown: three lines or more to spare on every page.</summary>
+    /// <summary>
+    /// The shell's page room with the frame-rate line (eleven rows; the pad's thirteen) against each page's rows, all packs shown, and
+    /// the rows coming (a Radar Sweep row on Car &amp; Cockpit, a smoke-linger row on Effects): every page fits with a line to spare.
+    /// </summary>
     [Fact]
     public void EachPageHasRoomToSpare()
     {
         int room = GraphicsLayout.Shell(GraphicsPages.Display, 99, fps: true).Shown;
         Assert.Equal(11, room);
+        Assert.Equal(13, GraphicsLayout.Pad(GraphicsPages.Display, 99, fps: true).Shown);
+        int[] coming = [0, 0, 0, 1, 1];
         for (int p = GraphicsPages.FirstPage; p < GraphicsPages.Names.Length; p++)
-            Assert.True(room - GraphicsPages.Rows[p].Length >= 3, $"{GraphicsPages.Names[p]} has {GraphicsPages.Rows[p].Length} rows");
+            Assert.True(room - GraphicsPages.Rows[p].Length - coming[p] >= 1, $"{GraphicsPages.Names[p]} has {GraphicsPages.Rows[p].Length} rows");
     }
 
     [Fact]
@@ -274,33 +311,62 @@ public class GraphicsPagesTests
         var defaults = new ShellSettings();
         GraphicsPages.Reset(s, page);
         foreach (var r in AllRows)
-            Assert.Equal(Read(r, GraphicsPages.PageOf(r) == page ? defaults : was), Read(r, s));
+            Assert.Equal(Read(r, page == GraphicsPages.Sheet || GraphicsPages.PageOf(r) == page ? defaults : was), Read(r, s));
     }
 
-    /// <summary>The sheet's Reset is the original's (the graphics block back to the default profile, the bytes no row shows too, but Anti-Aliasing's, Display's row) with its port rows: Screen Resolution back to Desktop and Visibility Range back to following the look.</summary>
+    /// <summary>
+    /// The sheet's Reset is every page's: the original's (the graphics block back to the default profile, the bytes no row shows too)
+    /// with every port row, Screen Resolution back to Desktop and Visibility Range back to following the look. A page's Reset leaves
+    /// the bytes no row shows alone.
+    /// </summary>
     [Fact]
-    public void TheSheetsResetIsTheDefaultProfile()
+    public void TheSheetsResetIsTheDefaultProfileAndEveryPage()
     {
         var s = Changed();
-        GraphicsPages.Reset(s, GraphicsPages.Sheet);
-        for (int i = 0; i < 16; i++) Assert.Equal(i == 0x8 ? Changed().Graphics[i] : ShellSettings.DefaultGraphics[i], s.Graphics[i]);
         GraphicsPages.Reset(s, GraphicsPages.Display);
+        Assert.Equal(ShellSettings.DefaultGraphics[0xc], s.Graphics[0xc]);
+        Assert.Equal(ShellSettings.DefaultGraphics[0x8], s.Graphics[0x8]);
+        Assert.Equal(Changed().Graphics[0x0], s.Graphics[0x0]);
+        Assert.Equal(Changed().Graphics[0x2], s.Graphics[0x2]);   // World's
+        GraphicsPages.Reset(s, GraphicsPages.Sheet);
         Assert.Equal(ShellSettings.DefaultGraphics, s.Graphics);
         Assert.Equal("", s.Resolution);
         Assert.Null(s.DrawDistanceChoice);
+        var defaults = new ShellSettings();
+        foreach (var r in AllRows) Assert.Equal(Read(r, defaults), Read(r, s));
     }
 
-    /// <summary>The in-game pad's sheet has no Screen Resolution (the window is the shell's): its Reset leaves the window alone.</summary>
+    /// <summary>Every byte of the graphics block is one row's or the sheet's: Copy and Reset touch each from one page.</summary>
     [Fact]
-    public void ThePadsSheetResetLeavesTheWindowAlone()
+    public void EachBlockByteHasOneOwner()
+    {
+        for (int i = 0; i < 16; i++)
+        {
+            var from = new ShellSettings();
+            from.Graphics[i] ^= 0x5a;
+            int owners = 0;
+            for (int p = 0; p < GraphicsPages.Names.Length; p++)
+            {
+                var to = new ShellSettings();
+                GraphicsPages.Copy(p, from, to);
+                if (to.Graphics[i] == from.Graphics[i]) owners++;
+            }
+            Assert.True(owners == 1, $"byte {i:x} copied by {owners} pages");
+        }
+    }
+
+    /// <summary>The in-game pad's sheet Reset is every pad's rows and the bytes no row shows, not the window, the renderer, the 3D garage or the menus' width (the pad does not show them; its Cancel could not put them back).</summary>
+    [Fact]
+    public void ThePadsSheetResetLeavesTheShellsRowsAlone()
     {
         var s = Changed();
-        var offered = GraphicsPages.Rows[GraphicsPages.Sheet].Where(r => r != GraphicsRow.Resolution).ToArray();
+        GraphicsRow[] shellOnly = [GraphicsRow.Resolution, GraphicsRow.Renderer, GraphicsRow.Garage3D, GraphicsRow.MenuWidth];
+        var offered = AllRows.Where(r => !shellOnly.Contains(r)).ToArray();
         GraphicsPages.Reset(s, GraphicsPages.Sheet, offered);
         Assert.Equal("1280x720", s.Resolution);
+        Assert.Equal(I76.Game.Boot.RendererChoice.OpenGL, s.Renderer);
         Assert.Null(s.DrawDistanceChoice);
-        Assert.Equal(ShellSettings.DefaultGraphics[0xc], s.Graphics[0xc]);
-        Assert.Equal(Changed().Graphics[0x8], s.Graphics[0x8]);   // Display's
+        Assert.Equal(ShellSettings.DefaultGraphics, s.Graphics);
     }
 
     [Fact]
@@ -389,8 +455,10 @@ public class GraphicsPagesTests
         Assert.False(s.AmbientOcclusion);
         GraphicsPages.CopyAll(snap, s);
         Assert.True(s.AmbientOcclusion);
-        // the sheet's Reset (Shadow Detail's own) leaves it alone: it is no longer Shadow Detail High's
-        GraphicsPages.Reset(s, GraphicsPages.Sheet);
+        // Display's Reset and Shadow Detail's leave it alone: it is no longer Shadow Detail High's
+        GraphicsPages.Reset(s, GraphicsPages.Display);
+        Assert.True(s.AmbientOcclusion);
+        GraphicsPages.Reset(s, GraphicsRow.ShadowDetail);
         Assert.True(s.AmbientOcclusion);
         GraphicsPages.Reset(s, GraphicsRow.AmbientOcclusion);
         Assert.False(s.AmbientOcclusion);

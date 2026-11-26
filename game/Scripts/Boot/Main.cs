@@ -4873,6 +4873,11 @@ public partial class Main : Node3D
 			.Select(p => (int.Parse(p[0]), p[1][1..].Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray()))
 			.Select(x => (x.Item1, new Vector2(x.Item2[0], x.Item2[1]))).ToList();
 
+		// I76_GAME_SHOTS="PATH@frame;...": the window saved at those frames of this clock (several menu pads in one run)
+		private readonly List<(int Frame, string Path)> _shots = (System.Environment.GetEnvironmentVariable("I76_GAME_SHOTS") ?? "")
+			.Split(';', System.StringSplitOptions.RemoveEmptyEntries).Select(e => (At: e.LastIndexOf('@'), Text: e))
+			.Where(x => x.At > 0 && int.TryParse(x.Text[(x.At + 1)..], out _)).Select(x => (int.Parse(x.Text[(x.At + 1)..]), x.Text[..x.At])).ToList();
+
 		private static (Key Key, int Mods)? ParseKey(string text)
 		{
 			var terms = text.Split('+');
@@ -4972,6 +4977,7 @@ public partial class Main : Node3D
 			// each key is down for one frame, so held-key checks see it too
 			foreach (var (f, u, k, m) in _keys.Where(e => e.Until == _n - 1)) Post(k, m, false);
 			foreach (var (f, u, k, m) in _keys.Where(e => e.Frame == _n)) Post(k, m, true);
+			foreach (var (f, path) in _shots.Where(e => e.Frame == _n)) { GetViewport().GetTexture().GetImage().SavePng(path); GD.Print($"game shot {path} at frame {_n}"); }
 			if (!GetTree().Paused || (Owner._menu is null && Owner._picture is null && Owner._dev is null)) return;
 			var o = Owner._opt;
 			if (o.Screenshot is not null && ++Owner._frames == System.Math.Max(o.QuitAfter, 10) - 2) GetViewport().GetTexture().GetImage().SavePng(o.Screenshot);

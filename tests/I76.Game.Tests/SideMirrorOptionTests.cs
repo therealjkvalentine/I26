@@ -104,8 +104,7 @@ public class SideMirrorOptionTests
     [Fact]
     public void TheRowIsTheOriginalsSeventhAndCopiesBothKeys()
     {
-        var sheet = GraphicsPages.Rows[GraphicsPages.Sheet];
-        Assert.Equal(GraphicsPages.OriginalRows - 1, Array.IndexOf(sheet, GraphicsRow.Mirrors));
+        Assert.Equal(6, Array.IndexOf(GraphicsPages.Original, GraphicsRow.Mirrors));
         var to = new ShellSettings();
         var from = new ShellSettings { SideMirrors = SideMirrorMode.Left };
         from.Graphics[0xd] = 1;

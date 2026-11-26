@@ -105,13 +105,13 @@ public static class GraphicsHelp
         return I76.Game.Assets.HdPacks.RowNote() is { Length: > 0 } n ? " " + n : "";
     }
 
-    /// <summary>The sheet's entries for the pages, by page (GraphicsPages; the sheet's own is unused).</summary>
+    /// <summary>The sheet's entries for the pages, by page (GraphicsPages; the sheet's own is unused): what each page holds, in its order.</summary>
     public static readonly string[] Entries =
     [
         "",
-        "Display: 1997 Mode, anti-aliasing, render scale, VSync and the frame rate limit, the frame counter, the renderer and the menus' width.",
-        "World: the world's textures, plants, terrain shadows, ambient occlusion, reflections and haze (the modern look's).",
-        "Car & Cockpit: the field of view, the car and dash textures, the paint's gloss, how often the mirrors are drawn and the 3D garage.",
+        "Display: the screen resolution and monitor brightness, 1997 Mode, anti-aliasing, render scale, VSync and the frame rate limit, the frame counter, the renderer and the menus' width.",
+        "World: how far you see, the terrain's detail, the shadows (the cars' and the terrain's), the world's textures, plants, ambient occlusion, reflections and haze.",
+        "Car & Cockpit: the field of view, the external instruments, the mirrors (which, how often drawn, their haze), the car and dash textures, the paint's gloss and the 3D garage.",
         "Effects: the modern look's palette grade, crash blur, glow, smoke lighting and heat shimmer.",
     ];
     public static string Entry(int page) => Entries[page];
@@ -131,6 +131,9 @@ public static class GraphicsHelp
 
     /// <summary>Reset on a page.</summary>
     public const string Reset = "Reset: this page's rows back to their defaults.";
+
+    /// <summary>Reset on the sheet: every page's.</summary>
+    public const string ResetAll = "Reset: every page's rows back to their defaults (the original's rows to its default profile).";
 
 /// <summary>A help line broken at spaces into lines no wider than <paramref name="width"/> (a word longer than that keeps a line of its own).</summary>
     public static List<string> Wrap(string text, Func<string, float> measure, float width)
