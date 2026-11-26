@@ -117,19 +117,45 @@ public class MirrorWarpTests
     }
 
     [Fact]
-    public void MirrorHazeIsSlightByDefaultAndReadsBack()
+    public void MirrorHazeIsLowByDefaultAndReadsBack()
     {
         Assert.Equal(MirrorHazeRow.Default, new ShellSettings().MirrorHaze);
         Assert.Equal(1, MirrorHazeRow.Default);
-        Assert.Equal(["Off", "Slight*", "More*"], MirrorHazeRow.Names);
-        for (int v = 0; v < 3; v++) Assert.Equal(v, MirrorHazeRow.Parse(MirrorHazeRow.Word(v)));
+        Assert.Equal(["Off", "Low*", "Med*", "High*"], MirrorHazeRow.Names);
+        for (int v = 0; v < 4; v++) Assert.Equal(v, MirrorHazeRow.Parse(MirrorHazeRow.Word(v)));
+        Assert.Equal(["off", null, "med", "high"], Enumerable.Range(0, 4).Select(MirrorHazeRow.Word));
         Assert.Null(MirrorHazeRow.Word(MirrorHazeRow.Default));   // the default is not written: a file from before takes it
         Assert.Equal(MirrorHazeRow.Default, MirrorHazeRow.Parse(""));
-        Assert.Equal((0f, 0f), (MirrorHazeRow.Of(0).Veil, MirrorHazeRow.Of(0).Blur));
-        Assert.True(MirrorHazeRow.Of(2).Veil > MirrorHazeRow.Of(1).Veil && MirrorHazeRow.Of(1).Veil > 0);
+        Assert.Equal(MirrorHazeRow.Default, MirrorHazeRow.Parse(null));
+        Assert.Equal(1, MirrorHazeRow.Parse("low"));
+        Assert.Equal(0, MirrorHazeRow.Parse("off"));
+        Assert.Equal(3, MirrorHazeRow.Parse("High"));
         var to = new ShellSettings();
         GraphicsPages.Copy(GraphicsRow.MirrorHaze, new ShellSettings { MirrorHaze = 0 }, to);
         Assert.Equal(0, to.MirrorHaze);
+        to.MirrorHaze = 3; MirrorHazeRow.Step(to);
+        Assert.Equal(0, to.MirrorHaze);   // High wraps to Off
+    }
+
+    [Fact]
+    public void MirrorHazeReadsTheFirstReleasesWordsForward()
+    {
+        // The first release had Off / Slight / More; Slight is today's Low, More today's High (the same veil and blur).
+        Assert.Equal(1, MirrorHazeRow.Parse("slight"));
+        Assert.Equal(3, MirrorHazeRow.Parse("more"));
+        Assert.Equal((0.012f, 0.35f), (MirrorHazeRow.Of(1).Veil, MirrorHazeRow.Of(1).Blur));
+        Assert.Equal((0.035f, 0.6f), (MirrorHazeRow.Of(3).Veil, MirrorHazeRow.Of(3).Blur));
+    }
+
+    [Fact]
+    public void MirrorHazeMedSitsBetweenLowAndHigh()
+    {
+        Assert.Equal((0f, 0f), (MirrorHazeRow.Of(0).Veil, MirrorHazeRow.Of(0).Blur));
+        var (lo, med, hi) = (MirrorHazeRow.Of(1), MirrorHazeRow.Of(2), MirrorHazeRow.Of(3));
+        Assert.InRange(med.Veil, 0.022f, 0.024f);   // about 2.3 %
+        Assert.True(lo.Veil < med.Veil && med.Veil < hi.Veil);
+        Assert.True(lo.Blur < med.Blur && med.Blur < hi.Blur);
+        Assert.Equal(MirrorHazeRow.Tint, med.Tint);
     }
 
     private static float Deg(float d) => d * MathF.PI / 180f;

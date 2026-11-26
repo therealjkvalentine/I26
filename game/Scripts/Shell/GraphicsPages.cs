@@ -7,7 +7,7 @@ public enum GraphicsRow
     AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
     RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer, TerrainShadows, MirrorHaze,
-    RadarSweep, SmokeLinger, HeatStrength, RoadDetail,
+    RadarSweep, SmokeLinger, HeatStrength, RoadDetail, MirrorAa,
 }
 
 /// <summary>
@@ -39,7 +39,7 @@ public static class GraphicsPages
         [GraphicsRow.Look1997],
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
         [GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.RoadDetail, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
-        [GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.RadarSweep, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
+        [GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.MirrorAa, GraphicsRow.RadarSweep, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
         [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer, GraphicsRow.HeatStrength],
     ];
 
@@ -160,6 +160,7 @@ public static class GraphicsPages
             case GraphicsRow.MirrorRate: t.MirrorRate = f.MirrorRate; break;
             case GraphicsRow.MirrorHaze: t.MirrorHaze = f.MirrorHaze; break;
             case GraphicsRow.RadarSweep: t.RadarSweep = f.RadarSweep; break;
+            case GraphicsRow.MirrorAa: t.MirrorAa = f.MirrorAa; break;
             case GraphicsRow.AntiAliasing: t.Graphics[0x8] = f.Graphics[0x8]; t.Smaa = f.Smaa; break;
             case GraphicsRow.VSync: t.VSync = f.VSync; break;
             case GraphicsRow.MaxFps: t.MaxFps = f.MaxFps; break;

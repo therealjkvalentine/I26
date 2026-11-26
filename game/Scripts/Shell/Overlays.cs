@@ -769,6 +769,10 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 if (!I76.Game.Assets.HdTextures.Installed) return false;
                 Row(r, line, "Radar Sweep", () => I76.Game.Sim.RadarSweepRow.Names[I76.Game.Sim.RadarSweepRow.Clamp(st.RadarSweep)], () => I76.Game.Sim.RadarSweepRow.Step(st));
                 break;
+            // [port] mirror_aa (MirrorAaRow): the modern look's mirror renders' anti-aliasing
+            case GraphicsRow.MirrorAa:
+                Row(r, line, "Mirror AA", () => I76.Game.Sim.MirrorAaRow.Names[I76.Game.Sim.MirrorAaRow.Clamp(st.MirrorAa)], () => I76.Game.Sim.MirrorAaRow.Step(st));
+                break;
             case GraphicsRow.AmbientOcclusion:
                 Row(r, line, "Ambient Occlusion", () => st.AmbientOcclusion ? "On" + mark : "Off", () => st.AmbientOcclusion = !st.AmbientOcclusion);
                 break;

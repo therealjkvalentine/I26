@@ -125,6 +125,7 @@ public static class DevSettings
         new("side_mirrors", ["off", "on" + M, "auto" + M, "left" + M], s => (int)s.SideMirrors, (s, v) => s.SideMirrors = (I76.Game.Sim.SideMirrorMode)v, DevWhen.Live),
         new("mirror_round", MirrorRoundNames, s => Nearest(MirrorRoundSteps, s.MirrorRound), (s, v) => s.MirrorRound = MirrorRoundSteps[v], DevWhen.Live),
         new("side_mirror_round", GlassRoundNames, s => Nearest(GlassRoundSteps, s.SideMirrorRound), (s, v) => s.SideMirrorRound = GlassRoundSteps[v], DevWhen.Live),
+        new("side_mirror_head", ["art", "turned" + M], s => s.SideMirrorHeadTurned ? 1 : 0, (s, v) => s.SideMirrorHeadTurned = v == 1, DevWhen.NextMission),
         new("side_mirror_rim_out", RimOutNames, s => Nearest(RimOutSteps, s.SideMirrorRimOut), (s, v) => s.SideMirrorRimOut = RimOutSteps[v], DevWhen.Live),
         new("mirror_fov", MirrorFovNames, s => Nearest(MirrorFovSteps, s.MirrorFov), (s, v) => s.MirrorFov = MirrorFovSteps[v], DevWhen.Live),
         new("side_mirror_share", MirrorShareNames, s => Nearest(MirrorShareSteps, s.SideMirrorShare), (s, v) => s.SideMirrorShare = MirrorShareSteps[v], DevWhen.Live),

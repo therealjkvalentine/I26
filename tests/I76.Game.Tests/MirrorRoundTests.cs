@@ -100,10 +100,11 @@ public class MirrorRoundTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void TheMouldingsOuterEdgeIsRoundedTwoWidthsOutByDefault()
+    public void TheMouldingsOuterEdgeIsTheHousingsByDefault()
     {
         Assert.Equal(GlassRound.DefaultRimOut, new I76.Game.Shell.ShellSettings().SideMirrorRimOut);
-        Assert.Equal(new GlassRound.RimOut(true, 2), GlassRound.Out(null, GlassRound.DefaultRimOut));
+        Assert.Equal(GlassRound.RimOut.Housing, GlassRound.Out(null, GlassRound.DefaultRimOut));   // the housing's outline unchanged, as the 1997 look's
+        Assert.Equal(new GlassRound.RimOut(true, 2), GlassRound.Out(null, GlassRound.RoundedRimOut));
         Assert.False(GlassRound.Out(null, 0).On);                     // 0: the housing's straight outline, the look before
         Assert.False(GlassRound.Out("off", 3).On);
         Assert.Equal(new GlassRound.RimOut(true, 0), GlassRound.Out("in", 0));
@@ -166,7 +167,7 @@ public class MirrorRoundTests(ITestOutputHelper output)
     {
         var rect = GlassRound.Hull([new(0, 0), new(1.5f, 0), new(1.5f, 1), new(0, 1)]);
         var (core, r) = GlassRound.Shape(rect, GlassRound.DefaultShare)!.Value;
-        float rimW = MirrorRim.OuterShare, rimOut = GlassRound.DefaultRimOut * rimW, ringW = MirrorRim.RingWidth(rimOut);
+        float rimW = MirrorRim.OuterShare, rimOut = GlassRound.RoundedRimOut * rimW, ringW = MirrorRim.RingWidth(rimOut);
         // screen pixels from picture units: 400 px per unit up, stretched and sheared across
         float k = 400, ax = 1.6f * k, sh = 0.3f * k;
         Vector2 ToScreen(Vector2 p) => new(ax * p.X + sh * p.Y, k * p.Y);
@@ -213,7 +214,7 @@ public class MirrorRoundTests(ITestOutputHelper output)
     {
         float before = 6f / 64 * 2 / 3 * 0.3f;   // the rim's width before the halving
         Assert.Equal(before, MirrorRim.OuterShare, 0.00001f);
-        float rimOut = GlassRound.DefaultRimOut * MirrorRim.OuterShare;
+        float rimOut = GlassRound.RoundedRimOut * MirrorRim.OuterShare;
         Assert.Equal(0.0375f, rimOut, 0.00001f);
         Assert.Equal((rimOut + before) / 2, MirrorRim.RingWidth(rimOut), 0.00001f);
         Assert.Equal(0.028125f, MirrorRim.RingWidth(rimOut), 0.00001f);
@@ -240,7 +241,7 @@ public class MirrorRoundTests(ITestOutputHelper output)
     {
         var pane = GlassRound.Hull([new(0, 0), new(1.4f, 0), new(1.8f, 1), new(0.4f, 1)]);
         var (core, r) = GlassRound.Shape(pane, GlassRound.DefaultShare)!.Value;
-        float grow = GlassRound.DefaultRimOut * MirrorRim.OuterShare, margin = 0.004f;
+        float grow = GlassRound.RoundedRimOut * MirrorRim.OuterShare, margin = 0.004f;
         Assert.Contains(pane, v => GlassRound.Distance(core, v) - r > grow);   // as round as the glass: points stick out
         var (oc, or) = GlassRound.OuterShape(pane, core, r, grow, margin);
         Assert.True(or < r);
@@ -290,7 +291,7 @@ public class MirrorRoundTests(ITestOutputHelper output)
         var pane = GlassRound.Hull(which switch { "piranha-left" => PiranhaLeft, "piranha-right" => PiranhaRight, _ => CcLeft });
         var outline = which == "cc-left-housing" ? GlassRound.Housing(pane, CcHead) : pane;
         var (_, r) = GlassRound.Shape(pane, GlassRound.DefaultShare)!.Value;
-        float reach = GlassRound.DefaultRimOut * MirrorRim.OuterShare, ringW = MirrorRim.RingWidth(reach), margin = 0.004f;
+        float reach = GlassRound.RoundedRimOut * MirrorRim.OuterShare, ringW = MirrorRim.RingWidth(reach), margin = 0.004f;
         var (core, e, over) = GlassRound.EvenShape(outline, r, reach, margin, ringW);
         Assert.Equal(reach, over, 1e-5f);   // these outlines take the rim's reach as it is
         Assert.True(e <= r + 1e-5f && e > 0);
@@ -333,7 +334,7 @@ public class MirrorRoundTests(ITestOutputHelper output)
     public void ASharpCornerReachesFurtherRatherThanAPoint()
     {
         var pane = GlassRound.Hull([new(0, 0), new(1.6f, 0), new(0.2f, 1)]);
-        float ringW = MirrorRim.RingWidth(GlassRound.DefaultRimOut * MirrorRim.OuterShare);
+        float ringW = MirrorRim.RingWidth(GlassRound.RoundedRimOut * MirrorRim.OuterShare);
         var (core, e, over) = GlassRound.EvenShape(pane, 0.3f, 0.005f, 0.004f, ringW);
         Assert.True(over > 0.005f);
         Assert.Equal(1.5f * ringW, e + over, 1e-4f);

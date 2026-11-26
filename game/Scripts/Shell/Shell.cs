@@ -1785,16 +1785,20 @@ public sealed class ShellSettings
     public I76.Game.Sim.SideMirrorMode SideMirrors { get; set; } = I76.Game.Sim.SideMirrorMode.Auto;
     /// <summary>The port's own, Graphic Detail's Mirror Rate row (I76.Game.Sim.MirrorRateRow): how often the modern look's mirrors are drawn, alternate (the default: the rear every second frame, the side mirrors in turn), half (every mirror every second frame) or full (every frame) (shell.cfg [port] mirror_rate; written only when not alternate).</summary>
     public I76.Game.Sim.MirrorRate MirrorRate { get; set; } = I76.Game.Sim.MirrorRate.Alternate;
-    /// <summary>The port's own, Graphic Detail's Mirror Haze row (I76.Game.Sim.MirrorHazeRow): the modern look's mirror glass a little milky and soft, 0 off, 1 slight (the default), 2 more (shell.cfg [port] mirror_haze; written only when not slight, so a file from before it takes the default).</summary>
+    /// <summary>The port's own, Graphic Detail's Mirror Haze row (I76.Game.Sim.MirrorHazeRow): the modern look's mirror glass a little milky and soft, 0 off, 1 low (the default), 2 med, 3 high (shell.cfg [port] mirror_haze: off, med, high; written only when not low, so a file from before it takes the default; the first release's slight reads as low, more as high).</summary>
     public int MirrorHaze { get; set; } = I76.Game.Sim.MirrorHazeRow.Default;
     /// <summary>The port's own, Graphic Detail's Radar Sweep row (I76.Game.Sim.RadarSweepRow): 0 stepped, the original's 30 frames (the default), 1 smooth, drawn every frame from a pack's sweep layers (shell.cfg [port] radar_sweep; written only when smooth).</summary>
     public int RadarSweep { get; set; } = I76.Game.Sim.RadarSweepRow.Default;
+    /// <summary>The port's own, Graphic Detail's Mirror AA row (I76.Game.Sim.MirrorAaRow): the modern look's mirror renders' anti-aliasing, 0 off (the default, the mirrors as before), 2x, 4x, 8x, SMAA, 2x+SMAA, As View (shell.cfg [port] mirror_aa; written only when not off).</summary>
+    public int MirrorAa { get; set; } = I76.Game.Sim.MirrorAaRow.Default;
     /// <summary>The port's own, without a row: the modern look's rear mirror's corners, that many of its art's pixels round (I76.Game.Sim.MirrorRound; 0, the default, the art's own; shell.cfg [port] mirror_round, 0 to 24; written only when not 0).</summary>
     public int MirrorRound { get; set; } = I76.Game.Sim.MirrorRound.DefaultRadius;
     /// <summary>The port's own, without a row: the modern look's door mirrors' glass with its corners rounded by that percent of its shorter side, at most (the moulding's even outer edge rounds them as far as its reach past the housing allows; I76.Game.Sim.GlassRound; 0 the glass's own corners, 50 round ends; shell.cfg [port] side_mirror_round; written only when not the default).</summary>
     public int SideMirrorRound { get; set; } = I76.Game.Sim.GlassRound.DefaultShare;
-    /// <summary>The port's own, without a row: the modern look's door mirrors' moulding with its outer edge rounded too, that many of its own widths past the housing's outline (one smooth edge, the band one width all round; GlassRound.EvenShape), the housing's corners outside it cut away (I76.Game.Sim.GlassRound.RimOut; 0 the housing's straight outline, the look before; shell.cfg [port] side_mirror_rim_out; written only when not the default).</summary>
+    /// <summary>The port's own, without a row: the modern look's door mirrors' moulding with its outer edge rounded too, that many of its own widths past the housing's outline (one smooth edge, the band one width all round; GlassRound.EvenShape), the housing's corners outside it cut away (I76.Game.Sim.GlassRound.RimOut; 0, the default, the housing's straight outline, as the 1997 look's; 2 until the heads stayed where the art places them; shell.cfg [port] side_mirror_rim_out; written only when not the default).</summary>
     public int SideMirrorRimOut { get; set; } = I76.Game.Sim.GlassRound.DefaultRimOut;
+    /// <summary>The port's own, without a row: the modern look's door mirrors' heads where the original's art places them, as the 1997 look draws them (false, the default), or turned to face the driver (I76.Game.Sim.MirrorAim.HeadTurned; shell.cfg [port] side_mirror_head = art / turned; written only when turned).</summary>
+    public bool SideMirrorHeadTurned { get; set; }
     /// <summary>With the side mirrors on, the one mirror render's field across in degrees, 45 to 135 ([port] mirror_fov, 90; written only when not 90).</summary>
     public int MirrorFov { get; set; } = (int)I76.Game.Sim.MirrorBands.DefaultFov;
     /// <summary>How much of the render outside the rear mirror's band each side mirror shows, percent from the rear's edge outward ([port] side_mirror_share, 100; written only when not 100).</summary>
@@ -2251,8 +2255,10 @@ public sealed class ShellSettings
         s.MirrorRate = I76.Game.Sim.MirrorRateRow.Parse(c.GetValue("port", "mirror_rate", "alternate").ToString());
         s.MirrorHaze = I76.Game.Sim.MirrorHazeRow.Parse(c.GetValue("port", "mirror_haze", "").ToString());
         s.RadarSweep = I76.Game.Sim.RadarSweepRow.Parse(c.GetValue("port", "radar_sweep", "").ToString());
+        s.MirrorAa = I76.Game.Sim.MirrorAaRow.Parse(c.GetValue("port", "mirror_aa", "").ToString());
         s.MirrorRound = Math.Clamp((int)c.GetValue("port", "mirror_round", I76.Game.Sim.MirrorRound.DefaultRadius), 0, 24);
         s.SideMirrorRound = Math.Clamp((int)c.GetValue("port", "side_mirror_round", I76.Game.Sim.GlassRound.DefaultShare), 0, I76.Game.Sim.GlassRound.MaxShare);
+        s.SideMirrorHeadTurned = I76.Game.Sim.MirrorAim.HeadTurned(c.GetValue("port", "side_mirror_head", "").ToString());
         s.SideMirrorRimOut = Math.Clamp((int)c.GetValue("port", "side_mirror_rim_out", I76.Game.Sim.GlassRound.DefaultRimOut), 0, I76.Game.Sim.GlassRound.MaxRimOut);
         s.MirrorFov = Math.Clamp((int)c.GetValue("port", "mirror_fov", (int)I76.Game.Sim.MirrorBands.DefaultFov), (int)I76.Game.Sim.MirrorCameraSettings.MinFov, (int)I76.Game.Sim.MirrorCameraSettings.MaxFov);
         s.SideMirrorShare = Math.Clamp((int)c.GetValue("port", "side_mirror_share", 100), 10, 100);
@@ -2485,9 +2491,11 @@ public sealed class ShellSettings
         if (I76.Game.Sim.MirrorRateRow.Word(MirrorRate) is { } mirrorRate) c.SetValue("port", "mirror_rate", mirrorRate);
         if (I76.Game.Sim.MirrorHazeRow.Word(MirrorHaze) is { } mirrorHaze) c.SetValue("port", "mirror_haze", mirrorHaze);
         if (I76.Game.Sim.RadarSweepRow.Word(RadarSweep) is { } radarSweep) c.SetValue("port", "radar_sweep", radarSweep);
+        if (I76.Game.Sim.MirrorAaRow.Word(MirrorAa) is { } mirrorAa) c.SetValue("port", "mirror_aa", mirrorAa);
         if (MirrorRound != I76.Game.Sim.MirrorRound.DefaultRadius) c.SetValue("port", "mirror_round", MirrorRound);
         if (SideMirrorRound != I76.Game.Sim.GlassRound.DefaultShare) c.SetValue("port", "side_mirror_round", SideMirrorRound);
         if (SideMirrorRimOut != I76.Game.Sim.GlassRound.DefaultRimOut) c.SetValue("port", "side_mirror_rim_out", SideMirrorRimOut);
+        if (SideMirrorHeadTurned) c.SetValue("port", "side_mirror_head", "turned");
         if (MirrorFov != (int)I76.Game.Sim.MirrorBands.DefaultFov) c.SetValue("port", "mirror_fov", MirrorFov);
         if (SideMirrorShare != 100) c.SetValue("port", "side_mirror_share", SideMirrorShare);
         if (SideMirrorAngle != (int)I76.Game.Sim.MirrorBands.DefaultYaw) c.SetValue("port", "side_mirror_angle", SideMirrorAngle);

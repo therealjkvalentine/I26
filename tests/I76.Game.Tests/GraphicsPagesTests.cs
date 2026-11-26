@@ -25,6 +25,7 @@ public class GraphicsPagesTests
         GraphicsRow.MirrorRate => s.MirrorRate,
         GraphicsRow.MirrorHaze => s.MirrorHaze,
         GraphicsRow.RadarSweep => s.RadarSweep,
+        GraphicsRow.MirrorAa => s.MirrorAa,
         GraphicsRow.AntiAliasing => s.Graphics[0x8],
         GraphicsRow.VSync => s.VSync,
         GraphicsRow.MaxFps => s.MaxFps,
@@ -67,7 +68,7 @@ public class GraphicsPagesTests
         s.FieldOfView = I76.Sim.Views.ViewFov.Monitor + 3; s.HoodGloss = I76.Sim.Views.PaintFinish.Satin + 15; s.CabinsBehindGlass = false;
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false; s.MenuWide = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
-        s.SideMirrors = I76.Game.Sim.SideMirrorMode.Left; s.MirrorRate = I76.Game.Sim.MirrorRate.Full; s.MirrorHaze = 2; s.RadarSweep = 1;
+        s.SideMirrors = I76.Game.Sim.SideMirrorMode.Left; s.MirrorRate = I76.Game.Sim.MirrorRate.Full; s.MirrorHaze = 2; s.RadarSweep = 1; s.MirrorAa = I76.Game.Sim.MirrorAaRow.Smaa;
         s.SmokeLighting = true; s.SmokeHaze = true; s.HeatShimmer = HeatShimmerRow.Road; s.HeatStrength = HeatStrengthRow.Extreme; s.TerrainShadows = TerrainShadowsRow.Fine; s.RoadDetail = true;
         return s;
     }
@@ -134,7 +135,7 @@ public class GraphicsPagesTests
             GraphicsPages.Rows[GraphicsPages.Display]);
         Assert.Equal([GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.RoadDetail, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
             GraphicsPages.Rows[GraphicsPages.World]);
-        Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.RadarSweep, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
+        Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.MirrorAa, GraphicsRow.RadarSweep, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.CarCockpit]);
         Assert.Equal([GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer, GraphicsRow.HeatStrength],
             GraphicsPages.Rows[GraphicsPages.Effects]);
@@ -285,7 +286,7 @@ public class GraphicsPagesTests
 
     /// <summary>
     /// The shell's page room with the frame-rate line (eleven rows; the pad's thirteen) against each page's rows, all packs shown, and
-    /// the rows coming (a Radar Sweep row on Car &amp; Cockpit, a smoke-linger row on Effects): every page fits with a line to spare.
+    /// every row shown (the pack rows too; Radar Sweep and Smoke Linger have landed): every page fits with a line to spare.
     /// </summary>
     [Fact]
     public void EachPageHasRoomToSpare()
@@ -293,7 +294,7 @@ public class GraphicsPagesTests
         int room = GraphicsLayout.Shell(GraphicsPages.Display, 99, fps: true).Shown;
         Assert.Equal(11, room);
         Assert.Equal(13, GraphicsLayout.Pad(GraphicsPages.Display, 99, fps: true).Shown);
-        int[] coming = [0, 0, 0, 1, 1];
+        int[] coming = [0, 0, 0, 0, 0];
         for (int p = GraphicsPages.FirstPage; p < GraphicsPages.Names.Length; p++)
             Assert.True(room - GraphicsPages.Rows[p].Length - coming[p] >= 1, $"{GraphicsPages.Names[p]} has {GraphicsPages.Rows[p].Length} rows");
     }

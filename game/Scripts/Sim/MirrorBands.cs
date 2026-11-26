@@ -377,6 +377,13 @@ public static class MirrorAim
         return q;
     }
 
+    /// <summary>
+    /// [port] side_mirror_head: "turned" turns each door mirror's head to face the driver (the look of section FF to IJ); anything else,
+    /// or none, leaves the heads where the original's art places them, as the 1997 look draws them, so the housing sits and reads the
+    /// same in both looks and only the glass's picture differs (its aim, by this rule, is the same either way).
+    /// </summary>
+    public static bool HeadTurned(string? word) => string.Equals(word?.Trim(), "turned", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>The shortest rotation taking unit <paramref name="a"/> to unit <paramref name="b"/>.</summary>
     public static System.Numerics.Quaternion Between(System.Numerics.Vector3 a, System.Numerics.Vector3 b)
     {
