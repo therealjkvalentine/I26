@@ -19,7 +19,8 @@ public static class DevHeat
         new("road ripple strength", 0, 4, 0.05f, () => HeatTune.Road, v => HeatTune.Road = v, "x"),
         new("mirage strength", 0, 4, 0.05f, () => HeatTune.Mirage, v => HeatTune.Mirage = v, "x"),
         new("road band from", 10, 400, 5, () => HeatTune.RoadNear, v => HeatTune.RoadNear = v, " m"),
-        new("ripple band", 0.2f, 6, 0.05f, () => HeatTune.RippleDeg, v => HeatTune.RippleDeg = v, " deg"),
+        new("ripple band under level", 0.2f, 8, 0.05f, () => HeatTune.RippleDeg, v => HeatTune.RippleDeg = v, " deg"),
+        new("ripple band over level", 0.2f, 8, 0.05f, () => HeatTune.RippleAboveDeg, v => HeatTune.RippleAboveDeg = v, " deg"),
         new("mirage band", 0.2f, 6, 0.05f, () => HeatTune.MirageDeg, v => HeatTune.MirageDeg = v, " deg"),
         new("fire full to", 5, 300, 5, () => HeatTune.FireFull, v => HeatTune.FireFull = v, " m"),
         new("fire gone at", 20, 600, 10, () => HeatTune.FireFar, v => HeatTune.FireFar = v, " m"),
@@ -39,7 +40,7 @@ public static class DevHeat
         var readout = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         readout.AddThemeColorOverride("font_color", new Color(0.75f, 0.9f, 0.75f));
         DevScale.Min(readout, 400);
-        void Refresh() => readout.Text = $"setting: {(HeatShimmer.Setting switch { 0 => "Off (the sliders show nothing until Heat Shimmer is on)", 1 => "Fires", _ => "Fires + Road" })}{(HeatShimmer.Look1997 ? ", 1997 look: none" : "")}\n{HeatShimmer.Readout()}";
+        void Refresh() => readout.Text = $"setting: {(HeatShimmer.Setting switch { 0 => "Off (the sliders show nothing until Heat Shimmer is on)", 1 => "Fires", _ => "Fires + Road" })}, Shimmer Strength {I76.Game.Shell.HeatStrengthRow.NameOf(HeatShimmer.Strength)} (x{HeatShimmer.Strength:0.##}){(HeatShimmer.Look1997 ? ", 1997 look: none" : "")}\n{HeatShimmer.Readout()}";
         Refresh();
         col.AddChild(readout);
         var grid = DevScale.Grid(new GridContainer { Columns = 3 }, 8, 2);

@@ -42,6 +42,7 @@ public class GraphicsPagesTests
         GraphicsRow.SmokeLighting => s.SmokeLighting,
         GraphicsRow.SmokeLinger => s.SmokeHaze,
         GraphicsRow.HeatShimmer => s.HeatShimmer,
+        GraphicsRow.HeatStrength => s.HeatStrength,
         GraphicsRow.TerrainShadows => s.TerrainShadows,
         GraphicsRow.Look1997 => (s.Look1997, s.SoftwareRenderer),
         GraphicsRow.PaletteGrade => s.PaletteGrade,
@@ -66,7 +67,7 @@ public class GraphicsPagesTests
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false; s.MenuWide = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
         s.SideMirrors = I76.Game.Sim.SideMirrorMode.Left; s.MirrorRate = I76.Game.Sim.MirrorRate.Full; s.MirrorHaze = 2; s.RadarSweep = 1;
-        s.SmokeLighting = true; s.SmokeHaze = true; s.HeatShimmer = HeatShimmerRow.Road; s.TerrainShadows = TerrainShadowsRow.Fine;
+        s.SmokeLighting = true; s.SmokeHaze = true; s.HeatShimmer = HeatShimmerRow.Road; s.HeatStrength = HeatStrengthRow.Extreme; s.TerrainShadows = TerrainShadowsRow.Fine;
         return s;
     }
 
@@ -134,7 +135,7 @@ public class GraphicsPagesTests
             GraphicsPages.Rows[GraphicsPages.World]);
         Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.RadarSweep, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.CarCockpit]);
-        Assert.Equal([GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
+        Assert.Equal([GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer, GraphicsRow.HeatStrength],
             GraphicsPages.Rows[GraphicsPages.Effects]);
         Assert.Equal(GraphicsPages.Display, GraphicsPages.FirstPage);
         Assert.Equal(GraphicsPages.Display, GraphicsPages.PageNamed("advanced"));
