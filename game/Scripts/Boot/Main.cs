@@ -338,6 +338,7 @@ public partial class Main : Node3D
 		ExitWatchdog.Install(GetTree());
 		HitchWatch.Install(GetTree());
 		FrameSections.Install(GetTree());
+		GcPacer.Install();
 		MusicProbe.Install(GetTree());
 		Controls.InstallDir = _opt.Install;
 		GameKeys.InstallDir = _opt.Install;
