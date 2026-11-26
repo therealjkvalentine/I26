@@ -41,6 +41,7 @@ public class GraphicsPagesTests
         GraphicsRow.SmokeLighting => s.SmokeLighting,
         GraphicsRow.HeatShimmer => s.HeatShimmer,
         GraphicsRow.TerrainShadows => s.TerrainShadows,
+        GraphicsRow.RoadDetail => s.RoadDetail,
         GraphicsRow.Look1997 => (s.Look1997, s.SoftwareRenderer),
         GraphicsRow.PaletteGrade => s.PaletteGrade,
         GraphicsRow.CrashBlur => s.CrashBlur,
@@ -64,7 +65,7 @@ public class GraphicsPagesTests
         s.MouseCamera = I76.Sim.Views.MouseLook.Normal + 1; s.KeepMouseInWindow = true; s.CameraReturn = false; s.ZoomReset = false; s.Garage3D = false; s.MenuWide = false;
         s.Look1997 = true; s.SoftwareRenderer = true; s.PaletteGrade = true; s.CrashBlur = I76.Sim.Views.CrashBlurMode.Off;
         s.SideMirrors = I76.Game.Sim.SideMirrorMode.Left; s.MirrorRate = I76.Game.Sim.MirrorRate.Full; s.MirrorHaze = 2;
-        s.SmokeLighting = true; s.HeatShimmer = HeatShimmerRow.Road; s.TerrainShadows = TerrainShadowsRow.Fine;
+        s.SmokeLighting = true; s.HeatShimmer = HeatShimmerRow.Road; s.TerrainShadows = TerrainShadowsRow.Fine; s.RoadDetail = true;
         return s;
     }
 
@@ -98,7 +99,7 @@ public class GraphicsPagesTests
         Assert.Equal(["Graphic Detail", "Display", "World", "Car & Cockpit", "Effects"], GraphicsPages.Names);
         Assert.Equal([GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
             GraphicsPages.Rows[GraphicsPages.Display]);
-        Assert.Equal([GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
+        Assert.Equal([GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.RoadDetail, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
             GraphicsPages.Rows[GraphicsPages.World]);
         Assert.Equal([GraphicsRow.FieldOfView, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.Garage3D],
             GraphicsPages.Rows[GraphicsPages.CarCockpit]);

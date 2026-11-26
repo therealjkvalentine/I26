@@ -286,6 +286,10 @@ i76_terrain_tiers={
 "type": "float",
 "value": 1.0
 }
+i76_road_detail={
+"type": "float",
+"value": 0.0
+}
 i76_terrain_shade={
 "type": "sampler2D",
 "value": ""

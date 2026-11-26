@@ -610,6 +610,8 @@ public sealed partial class EscapeMenu : Control
             case GraphicsRow.HeatShimmer: return Setting(Cycle, HeatShimmerRow.Label, 0, 3, HeatShimmerRow.Names, HeatShimmerRow.Index, HeatShimmerRow.Put, apply: live);
             // [port] terrain_shadows (TerrainShadowsRow): the modern look's, live (a bake starts on a worker and eases in)
             case GraphicsRow.TerrainShadows: return Setting(Cycle, TerrainShadowsRow.Label, 0, 3, TerrainShadowsRow.Names, TerrainShadowsRow.Index, TerrainShadowsRow.Put, apply: live);
+            // [port] road_detail (RoadDetailRow): the modern look's, live
+            case GraphicsRow.RoadDetail: return Setting(Cycle, RoadDetailRow.Label, 0, 2, RoadDetailRow.Names, RoadDetailRow.Index, RoadDetailRow.Put, apply: live);
             // Screen Resolution, Renderer, 3D Garage, Menu Width (the menu pages only): the shell's alone
             default: return null;
         }

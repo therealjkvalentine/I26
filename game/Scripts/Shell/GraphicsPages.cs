@@ -6,7 +6,7 @@ public enum GraphicsRow
     Resolution, MonitorBrightness, VisibilityRange, TerrainDetail, ShadowDetail, ExtInstruments, Mirrors,
     AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
-    RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer, TerrainShadows, MirrorHaze,
+    RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer, TerrainShadows, MirrorHaze, RoadDetail,
 }
 
 /// <summary>
@@ -35,7 +35,7 @@ public static class GraphicsPages
     [
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors],
         [GraphicsRow.Look1997, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
-        [GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
+        [GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.TerrainShadows, GraphicsRow.RoadDetail, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
         [GraphicsRow.FieldOfView, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.Garage3D],
         [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer],
     ];
@@ -163,6 +163,7 @@ public static class GraphicsPages
             case GraphicsRow.SmokeLighting: t.SmokeLighting = f.SmokeLighting; break;
             case GraphicsRow.HeatShimmer: t.HeatShimmer = f.HeatShimmer; break;
             case GraphicsRow.TerrainShadows: t.TerrainShadows = f.TerrainShadows; break;
+            case GraphicsRow.RoadDetail: t.RoadDetail = f.RoadDetail; break;
             // one row: off, the original's 3D card or its software renderer
             case GraphicsRow.Look1997: t.Look1997 = f.Look1997; t.SoftwareRenderer = f.SoftwareRenderer; break;
             case GraphicsRow.PaletteGrade: t.PaletteGrade = f.PaletteGrade; break;

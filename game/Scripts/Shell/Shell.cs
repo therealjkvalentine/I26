@@ -1495,6 +1495,8 @@ public sealed class ShellSettings
     public bool Reflections { get; set; }
     /// <summary>The port's own: Graphic Detail's Smoke Lighting (SmokeLightingRow), the modern look's smoke and dust lit by the sun's colour and direction and the sky's; [port] smoke_lighting, written only when on. Off unless the player chose.</summary>
     public bool SmokeLighting { get; set; }
+    /// <summary>The port's own: Graphic Detail's Road Detail (RoadDetailRow), the modern look's paved roads with a surface of their own near the camera (World/RoadDetail); [port] road_detail, written only when on. Off unless the player chose.</summary>
+    public bool RoadDetail { get; set; }
     /// <summary>The port's own: Graphic Detail's Heat Shimmer (HeatShimmerRow: 0 Off, 1 Fires, 2 Fires + Road); [port] heat_shimmer, written only when not Off. Off unless the player chose.</summary>
     public int HeatShimmer { get; set; }
     /// <summary>
@@ -2114,6 +2116,7 @@ public sealed class ShellSettings
         s.Reflections = (bool)c.GetValue("port", "reflections", false);
         // no version step: a file without these keys has them off, as they were before they existed
         s.SmokeLighting = (bool)c.GetValue("port", "smoke_lighting", false);
+        s.RoadDetail = (bool)c.GetValue("port", "road_detail", false);
         s.HeatShimmer = HeatShimmerRow.FromFile(c.HasSectionKey("port", "heat_shimmer") ? c.GetValue("port", "heat_shimmer").ToString() : null);
         // a file without the key has no choice, and the look's default applies; version 12 drops the Far 0.11.0 wrote on every save
         s.DrawDistanceChoice = I76.Formats.Imaging.DrawDistance.FromFile(c.HasSectionKey("port", "draw_distance") ? (int)c.GetValue("port", "draw_distance") : null, version);
@@ -2356,6 +2359,7 @@ public sealed class ShellSettings
         if (Glow != 0) c.SetValue("port", "glow", Glow);
         if (Reflections) c.SetValue("port", "reflections", true);
         if (SmokeLighting) c.SetValue("port", "smoke_lighting", true);
+        if (RoadDetail) c.SetValue("port", "road_detail", true);
         if (HeatShimmer != HeatShimmerRow.Off) c.SetValue("port", "heat_shimmer", HeatShimmerRow.Word(HeatShimmer));
         if (SoftwareRenderer) c.SetValue("port", "software_renderer", true);
         if (PaletteGrade) c.SetValue("port", "palette_grade", true);

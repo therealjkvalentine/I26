@@ -867,6 +867,7 @@ public partial class Main : Node3D
 		(_haze, _glow, _reflections) = (s.Haze, s.Glow, I76.Game.Shell.AirRows.ReflectionsActive(s));
 		I76.Game.Sim.SmokeLight.Apply(s.SmokeLighting, _mode1997);
 		I76.Game.World.HeatShimmer.Apply(s.HeatShimmer, _mode1997);
+		I76.Game.World.RoadDetail.Apply(s.RoadDetail);
 		_terrainDetail = s.Graphics[0x2];
 		_antialias = s.Graphics[0x8];
 		MouseCamera.Apply(s);
