@@ -875,7 +875,7 @@
   ]
  },
  "glass": {
-  "note": "the scope's glass, over the beam, cone, graticule and pip (and in the live sweep's grid layer), under the game's blips, lamp and plate: the bezel's shadow (vignette from vignette_from of the face's radius), a soft sheen inside the rim at the top left as the player sees it (bearing 315, clockwise from the top), a faint glare inside it, and second-hand wear from the seed: smudges, fine scratches catching the light, dust settled at the rim. Lengths in original pixels; light's parts are the first of medium's",
+  "note": "the scope's glass, over the beam, cone, graticule and pip (and in the live sweep's grid layer), under the game's blips, lamp and plate: the bezel's shadow (vignette from vignette_from of the face's radius), a soft sheen inside the rim at the top left as the player sees it (bearing 315, clockwise from the top), a faint glare inside it, and second-hand wear from the seed: smudges, fine scratches catching the light, dust settled at the rim. Lengths in original pixels; light's parts are the first of medium's. Its seed, level names and grime and dust colours are those of the panels' wear (tools/hud-redraw/hud.json distress): the same hand ages the radar's glass and the panels",
   "default": "none",
   "seed": 1976,
   "vignette_from": 0.7,
@@ -904,9 +904,9 @@
    215
   ],
   "dust_colour": [
-   168,
+   178,
    176,
-   150
+   162
   ],
   "max_smudges": 2,
   "max_scratches": 14,
@@ -944,6 +944,11 @@
      0.34
     ]
    }
-  }
+  },
+  "vignette_colour": [
+   26,
+   24,
+   14
+  ]
  }
 }

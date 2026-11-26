@@ -518,12 +518,13 @@ def draw_glass(paint, g, spec, cv):
     lv = glass_level(spec)
     if lv is None: return
     gl = spec["glass"]; fc = np.array(g["face"]["centre"]); fr = g["face"]["radius"]
-    rng = np.random.default_rng(gl["seed"])
+    import zlib
+    rng = np.random.default_rng([int(gl["seed"]), zlib.crc32(b"zrad-glass")])   # seeded as the panels' wear is: the seed and the unit's name
     X, Y = np.broadcast_arrays(cv.X, cv.Y)
     r = np.hypot(X - fc[0], Y - fc[1]) / fr
     def ss(a, b, x): t = np.clip((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t)
     # the bezel's shadow on the glass
-    paint(lv["vignette"] * ss(gl["vignette_from"], 1.0, r) ** 1.5, (0, 0, 0))
+    paint(lv["vignette"] * ss(gl["vignette_from"], 1.0, r) ** 1.5, gl.get("vignette_colour", (0, 0, 0)))
     # the sheen: a soft crescent inside the rim at the top left (a fixed light), and a faint broad glare inside it
     sh = gl["sheen"]
     d = (screen_bearing(X, Y, fc) - sh["bearing"] + 180) % 360 - 180
