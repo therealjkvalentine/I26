@@ -15,6 +15,28 @@ namespace I76.Game.Tests;
 /// </summary>
 public class ReticleArtTests
 {
+    /// <summary>
+    /// The ring is rebuilt every frame (CockpitReticle, the HUD): built twice for the same projection it gives the same triangles, and once warm a
+    /// build allocates next to nothing (it made about 160 kB of lists and arrays a frame at 3440x1440, most of the main thread's garbage).
+    /// </summary>
+    [Fact]
+    public void ABuildIsRepeatableAndAllocatesNothingOnceWarm()
+    {
+        Vector2? Map(Vector2 u) => new Vector2(1720, 720) + new Vector2(u.X * 300f + u.Y * 12f, u.Y * 290f);   // a half tile 300 px: the ring's most rows
+        var first = ReticleArt.Build(ReticleArt.Coarse, Map)!.Value;
+        var (index, point, colour) = (first.Index.ToArray(), first.Point.ToArray(), first.Colour.ToArray());
+        Assert.True(point.Length > 3000, $"{point.Length} points");   // the ring's 354 rows of nine and the ticks
+        ReticleArt.Build(ReticleArt.Fine, Map);   // the binoculars' shape between: other sizes, the kept arrays made again
+        ReticleArt.Build(ReticleArt.Coarse, Map);
+        long before = System.GC.GetAllocatedBytesForCurrentThread();
+        var again = ReticleArt.Build(ReticleArt.Coarse, Map)!.Value;
+        long made = System.GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(made < 4096, $"a warm build allocated {made} bytes");
+        Assert.Equal(index, again.Index);
+        Assert.Equal(point, again.Point);
+        Assert.Equal(colour, again.Colour);
+    }
+
     [Fact]
     public void TheRingFillsTheTileAndKeepsTheMeasuredProportions()
     {
