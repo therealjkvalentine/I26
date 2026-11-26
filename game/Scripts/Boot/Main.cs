@@ -905,8 +905,8 @@ public partial class Main : Node3D
 	// (+0x2: Low, High), Anti-Aliasing (+0x8, the port's: Off, 2x, 4x), Ambient Occlusion (the port's). The 1997 look ignores them.
 	private int _shadowDetail = 1, _terrainDetail = 0, _antialias = 1, _vegetation = 1;
 	private bool _ambientOcclusion;
-	private int _terrainShadows;   // Terrain Shadows (TerrainShadowsRow), the port's, Advanced
-	// Haze, Glow and Reflections (the port's, Advanced; EnvExtras), Off by default
+	private int _terrainShadows;   // Terrain Shadows (TerrainShadowsRow), the port's, World
+	// Haze, Glow and Reflections (the port's, World and Effects; EnvExtras), Off by default
 	private int _haze, _glow;
 	private bool _reflections;
 	private AerialHaze? _aerialHaze;

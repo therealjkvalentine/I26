@@ -69,6 +69,13 @@
     "license": "Apache 2.0",
     "source": "https://github.com/google/fonts/tree/main/apache/permanentmarker"
   },
+  "B612": {
+    "name": "B612",
+    "file": "B612/B612-Bold.ttf",
+    "by": "The B612 Project Authors (Airbus, Intactile Design, Nicolas Chauveau, Thomas Paillot, Jonathan Favre-Lamarine, Jean-Luc Vinot)",
+    "license": "SIL OFL 1.1",
+    "source": "https://github.com/google/fonts/tree/main/ofl/b612"
+  },
   "RussoOne": {
     "name": "Russo One",
     "file": "RussoOne/RussoOne-Regular.ttf",

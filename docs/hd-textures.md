@@ -78,6 +78,9 @@ It prints each command before it runs it (`--dry-run` prints them and stops), so
 3. Set the smallest painted lettering again from free fonts: `python tools/text-redraws.py i26-hd-work/export` (the
    speedometer's figures, licence plates, badges, signs; CPU only; the model's own files are kept in the pack's
    `.text-base/`, `--restore` puts them back).
+4. Optional, as the shared packs have it: the cockpit radar drawn again over the pack's frames (`pip install scipy` first):
+   `python tools/radar-redraw.py pack i26-hd-work/export PACK`, PACK the pack's folder
+   ([The cockpit radar redrawn](#the-cockpit-radar-redrawn-step-13-of-the-recipe)).
 
 The pack goes to the game's own folder: `%APPDATA%\I26\tex-world-4x` on Windows, `~/.local/share/I26/tex-world-4x` on
 Linux, `~/Library/Application Support/I26/tex-world-4x` on macOS. `--out DIR` puts it elsewhere (then copy or move that
@@ -85,7 +88,7 @@ folder there yourself). `--only "pp11*,cb_1bd*"` does a few textures first, to s
 
 ### Check that it worked
 
-Start the game in the modern look (the default; F12 switches looks). **Options > Graphic Detail > Advanced** now has
+Start the game in the modern look (the default; F12 switches looks). **Options > Graphic Detail** (its World and Car & Cockpit pages) now has
 **World Textures** and **Car & Dash Textures** rows reading **4x**: they only appear when a pack is found. With the
 game started with `-- --log`, its log (`logs/godot.log` in the user folder) has lines like
 `HD textures: .../I26/tex-world-4x/ (N files); world tex-world-4x, cars and dash tex-world-4x` at the start and
@@ -129,7 +132,7 @@ packs as the releases are (`--notes FILE` for the README's "what changed").
 
 **Extra things the full recipe needs**
 
-- `pip install scipy` (`--cells`, `--paint-masks`, `--paint-cut`, `menu-rules.py`), and `potracer resvg-py` for `flat-art.py`.
+- `pip install scipy` (`--cells`, `--paint-masks`, `--paint-cut`, `menu-rules.py`, `radar-redraw.py`), and `potracer resvg-py` for `flat-art.py`.
 - `pip install opencv-python-headless` for the barn doors' braces only (the release's inpaint; see step 12).
 - The developer tools' command line, `i76` below (`tex-seams`, `key-edge`, `cat`, `bg`): it is not in the release zips. Install
   the .NET 8 SDK and run it from the repository as `dotnet run --project tools/I76.Cli -- --install DIR COMMAND ...`.
@@ -194,6 +197,10 @@ because the tool skips a texture already in `--out`):
 12. **Mip chains**: the tools write each file's full chain from its top level. The release's files were made before that
    (their chains rewritten later by `dds-mips.py --fix`, the top levels kept), so a rebuild matches the release's top levels,
    not every smaller level. `python tools/dds-mips.py PACK --fix` repairs a pack made before November 2026.
+13. **The radar** (after the release, 2026-11-26), last: `radar-redraw.py pack SRC PACK` draws the radar's 62 frames again
+   over the pack's own (style B, the lock-range labels) and writes the range plate's and contact lamp's sheets from them,
+   which go with them: [The cockpit radar redrawn](#the-cockpit-radar-redrawn-step-13-of-the-recipe). CPU only, about a
+   minute.
 
 **The 8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's Car & Dash Textures row then
 offers 8x; 2.9 GB, 2,579 textures, about 0.5 GB more video memory, no difference in frame time). It needs the 8x masters of
@@ -204,7 +211,8 @@ step 2 (`MASTERS` below). Then:
     python tools/upscale-textures.py SRC --families --family-masters FAMILY_MASTERS --from MASTERS --from-models 4xTextures_GTAV_rgt-s_dither.pth,2xHDCube_Compact.pth --scale 8 --max-size 640 --only "z*" --skip "zmap*" --covers "cockpit & cars"
 
 then the 4x pack's steps 8 to 11 with `--scale 8` (and `key-edge FIELDS 8`): the damage panel's cells (with `--x2-model
-2xHDCube_Compact.pth`), the frames, the lettering (61 of the specs have a texture in the 8x) and the cars' painted edges.
+2xHDCube_Compact.pth`), the frames, the lettering (61 of the specs have a texture in the 8x) and the cars' painted edges,
+then step 13, the radar, over the 8x's own frames.
 The first is the graphics card part (about 15 minutes on a GTX 1080 Ti), the second and third the packing on the CPU
 (about half an hour on 8 cores). `--out` defaults to the user folder's `tex-world-8x/`; the mission maps (`zmap*`) stay at
 4x. The car list `tools/hd-8x-cars.txt` comes from `i76 car-table survey`, with the 23 lit brake lamp textures
@@ -307,7 +315,7 @@ the pop-ups' printed words are the model's as in the base pack. Widescreen pages
 An optional pack for windows wider than 4:3: the **sides** of the menu pack's pages, so a page fills a 16:9 window (and, with
 its ultrawide layer, a 21:9 one) instead of sitting between black bars. It holds no page: the game puts the 4:3 pack's own page
 in the middle, untouched, and the strips beside it when it loads the page, so the hotspots, the words and everything the game
-draws on a page stay exactly where they were (the sides are decoration only). Graphic Detail > Advanced has a **Menu Width** row
+draws on a page stay exactly where they were (the sides are decoration only). Graphic Detail > Display has a **Menu Width** row
 (Wide\*, the default, or 4:3) when the pack is installed; the 1997 look never uses it.
 
 **Its layout.** `tex-menu-wide/wide.json` lists the layers (`16x9`: 3414x1920, 427 texels added on each side of the 2560x1920
@@ -424,6 +432,85 @@ Small print nobody can read (a plate's state line, a garage's list of services) 
 about an hour of reading and a minute or two of fitting. Hand lettering, scripts and decorative wood
 type are better kept than redrawn: no shipped face matches them, and the measures cannot tell. A new face follows
 `tools/text-redraws/fonts/README.md`.
+
+## The cockpit radar redrawn (step 13 of the recipe)
+
+`tools/radar-redraw.py` draws the radar's 62 frames (`zradf000`-`030`, the sweep; `zradb000`-`030`, locked on a target)
+again over a pack's own upscale of them, CPU only. Both world recipes run it last before `finish`, as their `radar` step:
+
+    python tools/radar-redraw.py pack EXPORT PACK        # style B, the lock-range labels: the packs' choice, the defaults
+
+It measures everything from your own export (`i76 export-textures`): the 60 frames' per-pixel median is the clean grid and
+panel; the scope's three rings are circles fitted to its grid pixels (one centre), the four spokes lines through them, the
+face a circle fitted to the green's edge, the small scope at the corner likewise; each sweep frame's beam is a fitted line
+(all 30 meet at one pivot, frame f at 12f degrees plus a measured offset) and each lock cone's two edges are fitted. The
+scope is drawn again as anti-aliased vectors at the pack's scale in the original's colours, registered to the original's
+pixels, so the blips, the contact lamp and the range plate the game stamps at fixed pixels land where they did. Style B,
+the packs', is a phosphor scope: a bright beam with a fading afterglow behind it, a soft lock cone over the graticule;
+style A (`--style A`) is the original's line and cone without the afterglow barbs. The left panel's marks (the dotted arc,
+the ticks, the knob pointers and the two small lettered rows) are erased from the upscale and drawn again as shapes, and
+the label set's words are set in B612 Bold (SIL OFL 1.1, in `tools/text-redraws/fonts/B612/` with its licence; the pack's
+`pack.json` and `ATTRIBUTION.txt` name it). The painted words are three pixels high and one pixel high: `fit-labels`
+scores candidates against them and against a list of unrelated words, and none stands above chance, so the words are a
+choice, not a reading. The game shows the frames with their rows flipped, so the spec's panel positions are in the game's
+view and the lettering is set upright there.
+
+The label set is `lock-range`: LOCK VOL between the knobs (the top knob as the lock tone's volume), and over the lower
+knob 100 (left tick), TGT (the X) and 600 (right tick, where the painted pointer rests: the default range), RANGE under
+it. 100 m and 600 m are the game's two radar ranges (R flips them); TGT is a story for the middle mark, not a state of R
+(the weapon camera in the radar screen, `RADAR_CAMERA_TOGGLE`, W, is a separate switch and needs a target and a turret).
+The three over the knob are 1.8 original pixels high; the 600 sits over its tick and ends 1.3 pixels short of the scope's
+bezel (the bezel's outer edge is at x 41.3 at that height). The spec keeps other sets for comparison (`--labels`:
+`lock-range-m` with the unit, `owner-50-500`, `var-range`, `gain-range`, `intensity`, `marks-only`). The knob's painted
+pointer never moves.
+
+The graticule (rings, spokes, the corner scope) is 0.7 original pixels wide with a soft edge: `line_width` and `line_edge`
+in the spec (the edge a ramp a quarter pixel wide, two texels at 8x, so a line's outermost texels are partly covered).
+
+The game stamps two small sheets over every frame at the layout's anchors: `zrge` (the range plate over the corner scope:
+`range_3` lit at 600 m, the default, `range_1` dark at 100 m) and `ztge` (the contact lamp: `radled_1` red while a car is
+listed, `radled_2` green when none is within 600 m). A pack's upscale of those sheets on their own does not continue the
+frame's upscale, so the stamp shows as a hard square at 4x and 8x; and the original's plate art (and its green lamp) lies
+one pixel higher than the frame paints its own. The step therefore also writes `zrge` and `ztge`: each sprite is the
+redrawn frame's texels inside a disc about the frame's own corner scope (or lamp), keyed outside it, the lit faces drawn
+there from radial colour profiles measured on the original sprites; every frame carries the same texels inside the discs,
+so a stamp changes nothing past its lit face. **The sheets and the frames ship together**: the sheets carry the frames'
+texels, so a pack with the new frames and its old sheets (or the other way round) shows the square again. The game's
+stamping code is untouched; the 1997 look and a game without a pack draw the originals.
+
+What `pack` writes: the 62 frames and the two sheets in the pack's own format (a `.dds` pack gets BC7 `.dds` with the
+full mip chain, the sheets stored bottom up as the export's `bottom-up.txt` says, the frames as they are; a PNG pack
+PNGs), each file replaced, not written into (the recipe's stages are hard links). It keeps the frames it started from in
+the pack's `.radar-base/` and starts from those when it runs again, so a second run writes the same files (`hd-pack.py
+--only zradf007` takes that frame out of `.radar-base/` too, so the rebuilt upscale is the one redrawn). It adds
+`radar_redraw` (the tool's and the spec's SHA-256, the style, the label set, the scale) and B612 to `text_fonts` in
+`pack.json`, B612's line to `ATTRIBUTION.txt` (in the file's own style), and makes `FILES.sha256` again when the pack has
+one. `--out DIR` writes the 64 files with the amended `pack.json` and `ATTRIBUTION.txt` into DIR and leaves the pack as it
+was: the way to redraw a pack you already have (yours, or one unzipped from a release) without building it again.
+
+**The radar for a pack you already have.** The packs released as 2026.11.23 predate this step. With the export of the
+quick route (or `hd-pack.py`'s work folder) and Python with `numpy scipy pillow etcpak`, in PowerShell:
+
+    .venv\Scripts\python tools\radar-redraw.py pack i26-hd-work\export "$env:APPDATA\I26\tex-world-8x" --out radar-8x
+    .venv\Scripts\python tools\radar-redraw.py pack i26-hd-work\export "$env:APPDATA\I26\tex-world-4x" --out radar-4x
+
+then, with the game closed, copy each folder's files over the pack's: `Copy-Item -Force radar-8x\* "$env:APPDATA\I26\tex-world-8x\"`
+and the same for `radar-4x` (Linux: `cp radar-8x/* ~/.local/share/I26/tex-world-8x/`). Each takes about a minute. Without `--out` the pack is changed
+in place (the frames it had kept in `.radar-base/`). For a release archive: unzip it, run `pack` on the unzipped
+`tex-world-4x` (or `-8x`) in place, which also makes its `FILES.sha256` again, and zip it with `hd-pack.py release`.
+`hd-pack.py verify` against the 2026.11.23 archives lists the 64 radar files as changed by the `radar` step.
+
+The other commands, for working on the redraw:
+
+    python tools/radar-redraw.py measure EXPORT [geometry.json]
+    python tools/radar-redraw.py fit-labels EXPORT [fit.json]
+    python tools/radar-redraw.py render EXPORT UPSCALE OUT [--scale 8] [--style A|B] [--labels NAME]   # PNGs, and radar-geometry.json
+    python tools/radar-redraw.py sheet EXPORT UPSCALE OUT        # the contact sheet: OUT/index.html
+    python -m unittest tools/test_radar_redraw.py
+
+UPSCALE is a folder of a pack's frames (PNG or `.dds`, any whole multiple of 256 wide). For a look in the game without
+touching your pack, put `render`'s output (or `pack --out`'s) in a folder's `world/` and start the game with `I76_TEX_DIR`
+pointing at that folder: it is read first, over the installed pack.
 
 ## Notes
 

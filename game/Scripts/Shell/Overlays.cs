@@ -574,16 +574,17 @@ public sealed class AudioScreen : OverlayScreen
 
 /// <summary>
 /// Graphic Detail, overlay 5: record 9, the sixteen-byte graphics block. The sheet keeps the original's rows the port honours, in
-/// the original's order and words, the port's rows a player reaches for most under them and, under a blank line, an entry for
-/// Advanced (<see cref="GraphicsPages"/>); a page is the same sheet with its name on the first line, its rows under it and a Back.
-/// Reset puts the page's rows back (the sheet's: the default profile, as the original's); Done and Cancel, on any page, save or
-/// restore every page. Every row has a tooltip (<see cref="GraphicsHelp"/>). A page whose rows overflow its lines scrolls them
-/// (upstream's scrolling list, <see cref="ScrollRows{T}"/>): the entries, the frame-rate line and the buttons stay put.
+/// the original's order and words and, under a blank line, the entries for the port's pages, Display, World, Car &amp; Cockpit and
+/// Effects (<see cref="GraphicsPages"/>); a page is the same sheet with its name on the first line, its rows under it and a Back, each row
+/// on its own ruled line (<see cref="GraphicsLayout"/>). Reset puts the page's rows back (the sheet's: the default profile, as the
+/// original's); Done and Cancel, on any page, save or restore every page. Every row has a tooltip (<see cref="GraphicsHelp"/>). A
+/// page whose rows overflowed its lines would scroll them (upstream's scrolling list, <see cref="ScrollRows{T}"/>, its mark past
+/// the values); none does.
 /// </summary>
 public sealed class GraphicsScreen : ScrollingOverlayScreen
 {
     protected override int Record => 9;
-    protected override int MarkX => 386;    // in the gap before the value column
+    protected override int MarkX => 463;    // past the values' right end (461), inside the sheet's edge: long values run left into the label column
     /// <summary><see cref="GraphicsPages.Sheet"/>, or the page shown.</summary>
     public int Page { get; init; }
     /// <summary>The settings as Graphic Detail was opened, which Cancel restores on any page: taken on the sheet, handed on to a page and back.</summary>
@@ -591,10 +592,10 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
     private ShellSettings _saved = null!;
 
     // the sheet's fourteen 23 px lines
-    private const int ListY = 118, LineH = 23;
-    private static int LineY(int line) => ListY + LineH * line;
+    private const int LineH = GraphicsLayout.LineH;
+    private static int LineY(int line) => GraphicsLayout.LineY(line);
     /// <summary>A row's tooltip zone: the whole ruled line, label and value.</summary>
-    private const int RowX0 = 200, RowX1 = 462;
+    private const int RowX0 = GraphicsLayout.RowX0, RowX1 = GraphicsLayout.RowX1;
 
     /// <summary>The line the page's rows start on: the list's first slot.</summary>
     private int _firstLine;
@@ -622,31 +623,28 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             if (Array.IndexOf(GraphicsPages.BlankBefore, r) >= 0) line++;
             if (PortRow(r, line)) line++;
         }
-        // the rows' lines: on the sheet down to the entries' line, on a page to the sheet's foot; more rows than that scroll there
-        int room = (Page == GraphicsPages.Sheet ? GraphicsPages.FirstEntryLine : GraphicsPages.Lines) - _firstLine;
-        (List.Top, List.Shown) = (LineY(_firstLine), room);
-        line = _firstLine + Math.Min(line - _firstLine, room);
-        if (Page == GraphicsPages.Sheet)
+        // the rows' lines (GraphicsLayout): on the sheet down to the entries, on a page down to the blank line over the frame rate's;
+        // rows past them would scroll there
+        var place = GraphicsLayout.Shell(Page, line - _firstLine, Shell.Settings.MenuFps);
+        (List.Top, List.Shown) = (LineY(place.First), GraphicsLayout.Shell(Page, GraphicsPages.Lines, Shell.Settings.MenuFps).Shown);
+        // the pages' entries, each the whole line
+        for (int k = 0; k < place.Entries.Length; k++)
         {
-            // the pages' entries under a blank line, each the whole line
-            for (int p = GraphicsPages.Advanced; p < GraphicsPages.Names.Length; p++)
-            {
-                int page = p;
-                var entry = Add(200, LineY(GraphicsPages.FirstEntryLine + p - GraphicsPages.Advanced), () => GraphicsPages.Names[page] + "...", () => Shell.Overlay(new GraphicsScreen { Page = page, Snapshot = _saved }), w: 262, h: 18);
-                Tip(entry, () => GraphicsHelp.AdvancedEntry, RowX0, RowX1, -2, LineH);
-            }
+            int page = GraphicsPages.FirstPage + k;
+            var entry = Add(200, LineY(place.Entries[k]), () => GraphicsPages.Names[page] + "...", () => Shell.Overlay(new GraphicsScreen { Page = page, Snapshot = _saved }), w: 262, h: 18);
+            Tip(entry, () => GraphicsHelp.Entry(page), RowX0, RowX1, -2, LineH);
         }
-        else Add(246, 438, "Back", Back, Small);
+        if (Page != GraphicsPages.Sheet) Add(246, GraphicsLayout.ButtonY, "Back", Back, Small);
         // the last line: the frame rate these settings would give, from the last mission's ([port] menu_fps; the modern look's only)
-        if (Shell.Settings.MenuFps && line < GraphicsPages.Lines - 1)
+        if (place.Fps >= 0)
         {
             var record = I76.Game.Ui.FpsRecord.Read(ProjectSettings.GlobalizePath(I76.Game.Ui.FpsRecord.File));
-            var fps = Add(200, LineY(GraphicsPages.Lines - 1), () => Shell.Settings.Look1997 ? "" : I76.Game.Ui.FpsLabels.Estimated(Estimate(record)), null);
+            var fps = Add(200, LineY(place.Fps), () => Shell.Settings.Look1997 ? "" : I76.Game.Ui.FpsLabels.Estimated(Estimate(record)), null);
             Tip(fps, () => Shell.Settings.Look1997 ? null : GraphicsHelp.EstimatedFps(record), RowX0, RowX1, -2, LineH);
         }
-        Tip(Add(288, 438, "Reset", Reset, Small), () => GraphicsHelp.Reset);
-        Add(350, 438, "Done", Done, Small);
-        Add(402, 438, "Cancel", Cancel, Small);
+        Tip(Add(288, GraphicsLayout.ButtonY, "Reset", Reset, Small), () => GraphicsHelp.Reset);
+        Add(350, GraphicsLayout.ButtonY, "Done", Done, Small);
+        Add(402, GraphicsLayout.ButtonY, "Cancel", Cancel, Small);
     }
 
     /// <summary>The frame rate the settings now would give in the window now, from <paramref name="record"/> (FrameCostModel); null without one.</summary>
@@ -804,7 +802,7 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                 Row(r, line, "3D Garage", () => st.Garage3D ? "On" + mark : "Off", () => st.Garage3D = !st.Garage3D);
                 break;
             // the 1997 look: off, the original's 3D card or its software renderer (the shell keeps the look it started in; a change shows
-            // from the next start or mission), the first row of Advanced, with its palette grade for the modern look after it
+            // from the next start or mission), the first row of Display (its palette grade for the modern look is on Effects)
             case GraphicsRow.Look1997:
                 string[] modes = ["Off" + mark, "3D Card", "Software"];
                 Row(r, line, "1997 Mode", () => modes[!st.Look1997 ? 0 : st.SoftwareRenderer ? 2 : 1], () =>
@@ -824,26 +822,23 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
         return true;
     }
 
-    /// <summary>A page's live rows applied after Reset or Cancel put them back (a click applies its own); the sheet's bytes apply in a mission.</summary>
+    /// <summary>A page's live rows applied after Reset or Cancel put them back (a click applies its own); the graphics block's bytes apply in a mission.</summary>
     private void Apply(int page)
     {
         var st = Shell.Settings;
-        switch (page)
-        {
-            case GraphicsPages.Sheet:
-                I76.Game.Boot.WindowApplier.Apply(st);
-                I76.Game.FrameLimiter.Apply(st);
-                I76.Sim.Views.ViewFov.Apply(st.FieldOfView);
-                break;
-            case GraphicsPages.Advanced:
-                I76.Game.Assets.HdTextures.WorldSize = st.WorldTextures;
-                I76.Game.Assets.HdTextures.CarSize = st.CarTextures;
-                WideMenus.Enabled = st.MenuWide;
-                I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss);
-                I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps);
-                I76.Game.Boot.RenderScale.Apply(st);
-                break;
-        }
+        foreach (var r in GraphicsPages.Rows[page])
+            switch (r)
+            {
+                case GraphicsRow.Resolution: I76.Game.Boot.WindowApplier.Apply(st); break;
+                case GraphicsRow.VSync or GraphicsRow.MaxFps: I76.Game.FrameLimiter.Apply(st); break;
+                case GraphicsRow.FieldOfView: I76.Sim.Views.ViewFov.Apply(st.FieldOfView); break;
+                case GraphicsRow.WorldTextures: I76.Game.Assets.HdTextures.WorldSize = st.WorldTextures; break;
+                case GraphicsRow.CarTextures: I76.Game.Assets.HdTextures.CarSize = st.CarTextures; break;
+                case GraphicsRow.MenuWidth: WideMenus.Enabled = st.MenuWide; break;
+                case GraphicsRow.ShowFps: I76.Game.Ui.FpsOverlay.Apply(Shell.GetTree(), st.DevFps); break;
+                case GraphicsRow.RenderScale: I76.Game.Boot.RenderScale.Apply(st); break;
+                case GraphicsRow.HoodGloss: I76.Game.Assets.MaterialLibrary.ApplyHoodGloss(st.HoodGloss); break;
+            }
     }
 
     private void Reset()

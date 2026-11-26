@@ -105,8 +105,16 @@ public static class GraphicsHelp
         return I76.Game.Assets.HdPacks.RowNote() is { Length: > 0 } n ? " " + n : "";
     }
 
-    /// <summary>The sheet's entry for the Advanced page.</summary>
-    public const string AdvancedEntry = "Advanced: 1997 Mode and its palette, the texture packs, the modern look's extras, render scale and the start-up rows.";
+    /// <summary>The sheet's entries for the pages, by page (GraphicsPages; the sheet's own is unused).</summary>
+    public static readonly string[] Entries =
+    [
+        "",
+        "Display: 1997 Mode, anti-aliasing, render scale, VSync and the frame rate limit, the frame counter, the renderer and the menus' width.",
+        "World: the world's textures, plants, terrain shadows, ambient occlusion, reflections and haze (the modern look's).",
+        "Car & Cockpit: the field of view, the car and dash textures, the paint's gloss, how often the mirrors are drawn and the 3D garage.",
+        "Effects: the modern look's palette grade, crash blur, glow, smoke lighting and heat shimmer.",
+    ];
+    public static string Entry(int page) => Entries[page];
 
     /// <summary>The Esc menu's frame-rate line (FrameRateEstimate's LiveFps): paused in single player, the game running on in a network game.</summary>
     public static string MeasuredFps(bool net, double? play = null) => (net

@@ -18,8 +18,11 @@ public class GraphicsHelpTests
                 Assert.False(string.IsNullOrWhiteSpace(GraphicsHelp.Text(r, look1997)), $"{r} has no tooltip");
         foreach (var page in GraphicsPages.Rows)
             foreach (var r in page) Assert.False(string.IsNullOrWhiteSpace(GraphicsHelp.Text(r, false)));
-        Assert.False(string.IsNullOrWhiteSpace(GraphicsHelp.AdvancedEntry));
-        Assert.Equal(GraphicsHelp.AdvancedEntry, MenuTips.Of("Advanced..."));
+        for (int p = GraphicsPages.FirstPage; p < GraphicsPages.Names.Length; p++)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(GraphicsHelp.Entry(p)));
+            Assert.Equal(GraphicsHelp.Entry(p), MenuTips.Of(GraphicsPages.Names[p] + "..."));
+        }
     }
 
     [Theory]

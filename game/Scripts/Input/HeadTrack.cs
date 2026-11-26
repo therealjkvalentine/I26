@@ -304,7 +304,7 @@ public static class HeadTracker
         Look.Sensitivity = s.HeadTrackSensitivity;
         Look.Position = s.HeadTrackPosition;
         _source = s.HeadTrackSource;
-        bool on = s.HeadTrack != HeadTrackMode.Off;
+        bool on = s.HeadTrack != HeadTrackMode.Off && !I76.Game.Boot.QuietWindow.DevicesLeftAlone;   // a quiet run leaves the person's tracker port alone
         bool udp = on && _source != HeadTrackSource.FreeTrack;
         bool ft = on && _source != HeadTrackSource.Udp && FreeTrackReader.Supported;
         if (!ft) { _ft?.Dispose(); _ft = null; }

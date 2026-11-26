@@ -405,30 +405,29 @@ public sealed partial class EscapeMenu : Control
         int sheetRow = 1;
         List<GraphicsRow> sheetOffered = [];
         foreach (var r in GraphicsPages.Rows[GraphicsPages.Sheet]) if (PortRow(r) is { } it) { it.Pair = sheetRow++; _graphics.Items.Add(it); sheetOffered.Add(r); _rowOf[it] = r; }
-        // the sheet's rows over its lines down to the entries' (a blank line, the entries, the frame-rate line under them)
-        int sheetRoom = 14 - 1 - (GraphicsPages.Names.Length - GraphicsPages.Advanced) - (Settings.MenuFps ? 1 : 0);
-        ScrollIfOver(_graphics, sheetRoom);
-        if (sheetRow - 1 > sheetRoom) sheetRow = sheetRoom + 1;
-        for (int p = GraphicsPages.Advanced; p < GraphicsPages.Names.Length; p++)
+        // the sheet's rows over its lines down to the entries' (a blank line, the entries, the frame-rate line under them: GraphicsLayout)
+        var sheetPlace = GraphicsLayout.Pad(GraphicsPages.Sheet, sheetRow - 1, Settings.MenuFps);
+        ScrollIfOver(_graphics, [.. _graphics.Items], sheetPlace);
+        for (int p = GraphicsPages.FirstPage; p < GraphicsPages.Names.Length; p++)
         {
             var page = new Screen { Key = $"graphics{p}", Art = "grxdet1", Title = GraphicsPages.Names[p], Parent = _graphics };
             int row = 1, pg = p;
             List<GraphicsRow> offered = [];
             foreach (var r in GraphicsPages.Rows[p]) if (PortRow(r) is { } it) { it.Pair = row++; page.Items.Add(it); offered.Add(r); _rowOf[it] = r; }
-            ScrollIfOver(page, 14 - (Settings.MenuFps ? 1 : 0));
+            ScrollIfOver(page, [.. page.Items], GraphicsLayout.Pad(p, row - 1, Settings.MenuFps));
             // Reset puts back the pad's own rows only: Cancel could not restore a row the pad does not show (the window, the renderer)
             page.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, pg, offered); Live?.Invoke(Settings); _fps.Changed(); Switch(page); } } });
             page.Items.Add(DoneButton());
             page.Items.Add(CancelButton());
             _graphicsPages.Add(page);
-            _graphics.Items.Add(Action(GraphicsPages.Names[p] + "...", sheetRow + 1 + p - GraphicsPages.Advanced, () => Switch(page)));
+            _graphics.Items.Add(Action(GraphicsPages.Names[p] + "...", sheetPlace.Entries[p - GraphicsPages.FirstPage], () => Switch(page)));
         }
         _graphics.Items.Add(new Item { Flags = Command, Label = "Reset", Pair = 17, Cb = (_, m) => { if (m == 4) { GraphicsPages.Reset(Settings, GraphicsPages.Sheet, sheetOffered); Live?.Invoke(Settings); _fps.Changed(); Switch(_graphics); } } });
         // the frame rate measured behind the pad, on the last line of the sheet and of each page ([port] menu_fps)
         if (Settings.MenuFps)
             foreach (var pad in _graphicsPages.Prepend(_graphics))
             {
-                var line = new Item { Flags = Static, Label = FpsLabels.Measured(null, null), Pair = 14 };
+                var line = new Item { Flags = Static, Label = FpsLabels.Measured(null, null), Pair = GraphicsLayout.PadRows };
                 pad.Items.Add(line);
                 _fpsLines.Add(line);
             }
@@ -510,15 +509,15 @@ public sealed partial class EscapeMenu : Control
     }
 
     /// <summary>
-    /// A pad whose rows (Pair 1..n) are more than <paramref name="room"/>: they become a list over its first rows that scrolls
-    /// (upstream's scrolling pads), the rest of the pad staying put. Rows that fit are left as they are.
+    /// A Graphic Detail pad whose <paramref name="rows"/> (Pair 1..n) outnumber its lines (<paramref name="place"/>): every one of them
+    /// becomes the list over its first rows that scrolls (upstream's scrolling pads), the rest of the pad staying put. Rows that fit
+    /// are left as they are. All of them: a row past pair 14 left out of the list would sit on a button's pair (15 to 17).
     /// </summary>
-    private static void ScrollIfOver(Screen pad, int room)
+    private static void ScrollIfOver(Screen pad, List<Item> rows, GraphicsLayout.Place place)
     {
-        var rows = pad.Items.Where(i => i.Pair is >= 1 and <= 14 && i.Type != Static).ToList();
-        if (rows.Count <= room) return;
-        pad.FirstRow = 1;
-        pad.VisibleRows = room;
+        if (!place.Scrolls) return;
+        pad.FirstRow = place.First;
+        pad.VisibleRows = place.Shown;
         foreach (var it in rows) it.Scrolls = true;
     }
 
@@ -1232,6 +1231,8 @@ public sealed partial class EscapeMenu : Control
 
     /// <summary>The scroll bar's left edge in pad pixels: the pad's right margin, after the value column (the pad is 296 wide).</summary>
     private const int BarX = 291;
+    /// <summary>The right end a value may reach on a pad with no scroll bar: inside the pad's 296 px, short of its edge.</summary>
+    private const int ValueRight = 294;
 
     /// <summary>The scrolling rows: a thin track in the pad's ink down its right edge, after the values, with a thumb for the rows shown, and an arrow at an end where there is more.</summary>
     private void DrawScrollMark()
@@ -1304,8 +1305,9 @@ public sealed partial class EscapeMenu : Control
         if (value is { Length: > 0 } && b is { } vb)
         {
             float w = Width(font, cell, value), x = vb.X0;
-            // a value that would run under the scroll bar (Unlimited) moves left to clear it
-            float limit = it.Scrolls && _screen.MaxScroll > 0 ? BarX - 1 : vb.X1;
+            // a value that would run under the scroll bar (Unlimited) moves left to clear it; one that would run off the pad (the value
+            // column's box reaches 301, past the pad's 296: Southwest*, Needs AO) ends inside its edge
+            float limit = it.Scrolls && _screen.MaxScroll > 0 ? BarX - 1 : Math.Min(vb.X1, ValueRight);
             if (x + w > limit) x = limit - w;
             Print(font, cell, x, vb.Y0, value);
         }
