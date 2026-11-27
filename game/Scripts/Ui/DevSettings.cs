@@ -74,6 +74,9 @@ public static class DevSettings
     /// <summary>[port] side_mirror_tilt_right / _left's values offered: degrees the door mirror's glass turns toward the driver inside its housing (MirrorAim.Tilt).</summary>
     public static readonly int[] TiltSteps = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45];
     private static string[] TiltNames(int dflt) => [.. TiltSteps.Select(d => d == dflt ? $"{d}" : $"{d}{M}")];
+    /// <summary>[port] side_mirror_face_over_left / _right's values offered: percent of the proud face's height its sides stand past the least that covers the housing end's corners.</summary>
+    public static readonly int[] FaceOverSteps = [0, 3, 6, 10, 15, 20, 25, 30, 40, 50, 60];
+    private static string[] FaceOverNames(int dflt) => [.. FaceOverSteps.Select(d => d == dflt ? $"{d}" : $"{d}{M}")];
     private static readonly string[] RimOutNames = [.. RimOutSteps.Select(d => d == 0 ? "0" : $"{d}{M}")];
     private static readonly string[] MirrorShareNames = [.. MirrorShareSteps.Select(p => p == 100 ? $"{p}" : $"{p}{M}")];
     private static readonly string[] MirrorYawNames = [.. MirrorYawSteps.Select(d => d == 45 ? $"{d}" : $"{d}{M}")];
@@ -131,6 +134,9 @@ public static class DevSettings
         new("side_mirror_head", ["art", "turned" + M], s => s.SideMirrorHeadTurned ? 1 : 0, (s, v) => s.SideMirrorHeadTurned = v == 1, DevWhen.NextMission),
         new("side_mirror_tilt_right", TiltNames(I76.Game.Sim.MirrorAim.DefaultTiltRight), s => Nearest(TiltSteps, s.SideMirrorTiltRight), (s, v) => s.SideMirrorTiltRight = TiltSteps[v], DevWhen.NextMission),
         new("side_mirror_tilt_left", TiltNames(I76.Game.Sim.MirrorAim.DefaultTiltLeft), s => Nearest(TiltSteps, s.SideMirrorTiltLeft), (s, v) => s.SideMirrorTiltLeft = TiltSteps[v], DevWhen.NextMission),
+        new("side_mirror_face", ["proud", "inset" + M], s => s.SideMirrorFaceProud ? 0 : 1, (s, v) => s.SideMirrorFaceProud = v == 0, DevWhen.NextMission),
+        new("side_mirror_face_over_right", FaceOverNames(I76.Game.Sim.DoorFace.DefaultOverRight), s => Nearest(FaceOverSteps, s.SideMirrorFaceOverRight), (s, v) => s.SideMirrorFaceOverRight = FaceOverSteps[v], DevWhen.Live),
+        new("side_mirror_face_over_left", FaceOverNames(I76.Game.Sim.DoorFace.DefaultOverLeft), s => Nearest(FaceOverSteps, s.SideMirrorFaceOverLeft), (s, v) => s.SideMirrorFaceOverLeft = FaceOverSteps[v], DevWhen.Live),
         new("side_mirror_rim_out", RimOutNames, s => Nearest(RimOutSteps, s.SideMirrorRimOut), (s, v) => s.SideMirrorRimOut = RimOutSteps[v], DevWhen.Live),
         new("mirror_fov", MirrorFovNames, s => Nearest(MirrorFovSteps, s.MirrorFov), (s, v) => s.MirrorFov = MirrorFovSteps[v], DevWhen.Live),
         new("side_mirror_share", MirrorShareNames, s => Nearest(MirrorShareSteps, s.SideMirrorShare), (s, v) => s.SideMirrorShare = MirrorShareSteps[v], DevWhen.Live),

@@ -72,6 +72,12 @@ uniform bool rim_dark = false;
 uniform bool ring_from_outer = false;
 // the glass's UV box the view is spread over (u0, v0, u1, v1): 0..1, or wider where the glass grows past its pane (GlassRound.PictureBox)
 uniform vec4 view_box = vec4(0.0, 0.0, 1.0, 1.0);
+// the proud face (DoorFace, [port] side_mirror_face): the ring's shapes (pane_ocore, pane_or, pane_hull) in the face's own units,
+// its heights in the face's plane, from the picture units: q = face_ux p.x + face_uy p.y + face_c
+uniform bool face_on = false;
+uniform vec2 face_ux = vec2(1.0, 0.0);
+uniform vec2 face_uy = vec2(0.0, 1.0);
+uniform vec2 face_c = vec2(0.0);
 uniform vec2 pane_hull[12];
 uniform int pane_hull_n = 0;
 // the ring the same width on screen all round (perspective stretches a glass near the screen's edge across its sight line; the
@@ -259,6 +265,7 @@ void fragment() {
 		ALPHA = 1.0;
 		if (pane_round && rim_round) {
 			vec2 p = vec2(puv.x * pane_aspect, puv.y);
+			if (face_on) p = face_ux * p.x + face_uy * p.y + face_c;
 			float sdo = sd_ocore(p) - pane_or;
 			float sd = ring_from_outer ? sdo : sd_core(p) - pane_r;
 			// screen pixels in from the ring's outer edge: the outline's distance over its gradient on screen
@@ -269,7 +276,8 @@ void fragment() {
 			float shade = mix(0.55, 1.35, smoothstep(0.15, 0.8, t)) - 0.6 * smoothstep(0.88, 1.0, t);
 			float hull_in = rounded(sd_hull(p));
 			if (rim_key) ALBEDO = mix(KEY_GLASS_OUT, KEY_GLASS, hull_in);
-			ALBEDO = mix(rim_key ? mix(KEY_OVER, KEY, hull_in) : rim_colour * shade, ALBEDO, clamp(px - w + 0.5, 0.0, 1.0));
+			if (glass_key) ALBEDO = vec3(0.0, 1.0, 0.0);
+			ALBEDO = mix(rim_key ? mix(KEY_OVER, KEY, hull_in) : glass_key ? vec3(1.0, 0.0, 1.0) : rim_colour * shade, ALBEDO, clamp(px - w + 0.5, 0.0, 1.0));
 			// the outer edge: the outline eroded by pane_or and widened by it and rim_out (GlassRound.OuterShape), its corners tighter
 			// than the glass's where the outline's corners (the housing's edge) would otherwise stick out past it as points; along
 			// the straight runs it is the glass's rounded shape's, so the band is as wide there and thicker in such a corner; with
