@@ -2828,8 +2828,12 @@ public partial class Cockpit : Node
     {
         if (FitOff || cover.Count < 3) return (hull, cover);
         var back = _glassTurn[left ? 0 : 1].AffineInverse();   // the art's points in the turned glass's frame
-        var art = ArtPoints(left).Select(q => GlassRound.Seen(near, plane, back * q)).OfType<(Vector2 Uv, float Depth)>().Select(q => q.Uv).ToList();
+        List<Vector2> Seen(IEnumerable<Vector3> pts) => [.. pts.Select(q => GlassRound.Seen(near, plane, back * q)).OfType<(Vector2 Uv, float Depth)>().Select(q => q.Uv)];
+        var art = Seen(ArtPoints(left));
         if (art.Count == 0) return (hull, cover);
+        // the end's painted glass: its corners must stay under the ring
+        var paint = Seen(Node3D.MirrorPaint.Where(p => p.Left == left).SelectMany(p => p.Mesh.Mesh is { } m
+            ? Enumerable.Range(0, m.GetSurfaceCount()).SelectMany(si => m.SurfaceGetArrays(si)[(int)Mesh.ArrayType.Vertex].AsVector3Array()) : []).Distinct());
         var c = cover.Aggregate(Vector2.Zero, (a, b) => a + b) / cover.Count;
         var mid = plane.O + plane.A * c.X + plane.B * c.Y;
         if (GlassRound.Seen(near, plane, mid + back.Basis * Vector3.Up * 0.01f) is not { } above) return (hull, cover);
@@ -2837,9 +2841,9 @@ public partial class Cockpit : Node
         if (up.LengthSquared() < 1e-12f) return (hull, cover);
         int share = GlassRound.Share(GlassRoundHook, _glassRoundSetting);
         float grow = GlassRound.Out(RimOutHook, Math.Max(_rimOutSetting, GlassRound.RoundedRimOut)).Widths * MirrorRim.OuterShare;
-        var fit = DoorFace.FitTurned(hull, cover, art, art, up, share, grow, PointMargin, MirrorRim.RingWidth(grow), TurnedTuck);
+        var fit = DoorFace.FitTurned(hull, cover, art, paint, up, share, grow, PointMargin, MirrorRim.RingWidth(grow), TurnedTuck);
         if (TiltLog)
-            GD.Print($"mirror-fit: {(left ? "L" : "R")} ring {fit.Top:+0.0000;-0.0000} above the housing's top, {fit.Bottom:+0.0000;-0.0000} below its bottom (glass heights); scaled {fit.Scale:0.000}, shifted {fit.Shift:+0.0000;-0.0000} up");
+            GD.Print($"mirror-fit: {(left ? "L" : "R")} ring {fit.Top:+0.0000;-0.0000} above the end's top, {fit.Bottom:+0.0000;-0.0000} below its bottom (glass heights); scaled {fit.Scale:0.000}, widened {fit.Wide:0.000}, moved {fit.Shift.X:+0.0000;-0.0000} across and {fit.Shift.Y:+0.0000;-0.0000} up; worst left {fit.Left:+0.0000;-0.0000}");
         return (fit.Hull, fit.Cover);
     }
 
