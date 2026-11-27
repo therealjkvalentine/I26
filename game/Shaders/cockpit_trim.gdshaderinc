@@ -120,6 +120,8 @@ void trim_surface(vec3 base, float base_rough, float base_spec, vec3 p, vec3 nl,
 		dr = roof ? 0.0 : 0.36;
 		ks = roof ? 1.0 : 1.3;
 	}
+	// the door panels half the pillars' sheen: big panels facing the side windows, their sheen lifted the doors' mean (+4 to +8 % luma)
+	if (trim_part == 3) { dr *= 0.5; ks = 1.0 + (ks - 1.0) * 0.5; }
 	rough = base_rough - dr;
 	spec = base_spec * ks;
 	alb = trim_tint(base, tint);
