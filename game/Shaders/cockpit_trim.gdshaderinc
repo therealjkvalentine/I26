@@ -59,7 +59,11 @@ float trim_weave(vec2 q, float cell) {
 	bool alt = mod(c.x + c.y, 2.0) > 0.5;
 	float across = alt ? f.x : f.y;
 	float along = alt ? f.y : f.x;
-	return sin(fract(across * 3.0) * TRIM_PI) * (0.8 + 0.2 * sin(along * TRIM_PI));
+	float h = sin(fract(across * 3.0) * TRIM_PI) * (0.8 + 0.2 * sin(along * TRIM_PI));
+	// the strands tuck under at the cell's edges: the height eases to its mean there, so it is continuous from cell to cell (a step
+	// there made a one-pixel highlight along every edge, sparkling where nothing supersampled it)
+	vec2 ef = min(f, 1.0 - f);
+	return mix(0.55, h, smoothstep(0.0, 0.12, ef.x) * smoothstep(0.0, 0.12, ef.y));
 }
 
 // a seam line every `spacing` metres along s: the groove's darkness 0..1 (half-width hw), and the vinyl's puff between seams as a slope
