@@ -2849,6 +2849,7 @@ public partial class Cockpit : Node
         Func<Vector2, float> Height(Vector3 fwd)
         {
             var f = fwd.Normalized();
+            if ((mid - near).Dot(f) < 0) f = -f;   // the car's forward as the eye faces it (the glass ahead of the eye)
             var camUp = (back.Basis * Vector3.Up - f * (back.Basis * Vector3.Up).Dot(f)).Normalized();
             return q => { var w = plane.O + plane.A * q.X + plane.B * q.Y - near; return w.Dot(camUp) / MathF.Max(w.Dot(f), 1e-4f); };
         }
