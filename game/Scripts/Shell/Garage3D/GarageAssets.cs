@@ -124,6 +124,7 @@ public sealed class GarageAssets
         RenderingServer.GlobalShaderParameterSet("i76_light_dir", l);
         RenderingServer.GlobalShaderParameterSet("i76_light_intensity", Light.Intensity);
         RenderingServer.GlobalShaderParameterSet("i76_daylight", I76.Game.Sim.Daylight.Of(Light.IsDay, Light.Intensity));
+        RenderingServer.GlobalShaderParameterSet("i76_lamp_gain", 1f);   // (no calibration in the garage)
         RenderingServer.GlobalShaderParameterSet("i76_ambient", Light.Ambient);
         RenderingServer.GlobalShaderParameterSet("i76_night", false);
         RenderingServer.GlobalShaderParameterSet("i76_fade", new Vector2(I76.Formats.Mission.Lighting.FadeA, I76.Formats.Mission.Lighting.FadeB));

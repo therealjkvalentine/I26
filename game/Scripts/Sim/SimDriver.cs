@@ -107,7 +107,8 @@ public partial class SimDriver : Node
     /// <summary>Sim ticks run since the mission started (the original's frames, at the fixed step).</summary>
     public int Ticks => Remote?.Tick ?? Session.Ticks;
     private readonly bool _debugCam = System.Environment.GetEnvironmentVariable("I76_DEBUG_CAM") is not null;
-    private readonly bool _holdBrake = System.Environment.GetEnvironmentVariable("I76_HOLD_BRAKE") is not null;
+    /// <summary>I76_HOLD_BRAKE: the brake held, for captures (an I76_SHOT_SEQ step's brake=0|1 sets it live).</summary>
+    public static bool HoldBrake { get; set; } = System.Environment.GetEnvironmentVariable("I76_HOLD_BRAKE") is not null;
     /// <summary>I76_HOLD_STEER: <c>left</c> or <c>right</c> held throughout, or <c>left@A-B;right@C-D</c> over those sim ticks, for captures.</summary>
     private readonly (int Dir, int A, int B)[] _holdSteer = ParseHoldSteer(System.Environment.GetEnvironmentVariable("I76_HOLD_STEER"));
 
@@ -473,7 +474,7 @@ public partial class SimDriver : Node
     {
         var b = CarButtons.None;
         if (HoldThrottle || Controls.Down("throttle_up")) b |= CarButtons.ThrottleUp;
-        if (Controls.Down("throttle_down") || _holdBrake) b |= CarButtons.ThrottleDown;
+        if (Controls.Down("throttle_down") || HoldBrake) b |= CarButtons.ThrottleDown;
         if (Controls.Down("steer_left") || HeldSteer() > 0) b |= CarButtons.SteerLeft;
         if (Controls.Down("steer_right") || HeldSteer() < 0) b |= CarButtons.SteerRight;
         if (Controls.Down("e_brake")) b |= CarButtons.EBrake;
@@ -486,7 +487,7 @@ public partial class SimDriver : Node
     {
         var r = CarButtons.None;
         if (!HoldThrottle && Controls.DownByRuleAlone("throttle_up")) r |= CarButtons.ThrottleUp;
-        if (!_holdBrake && Controls.DownByRuleAlone("throttle_down")) r |= CarButtons.ThrottleDown;
+        if (!HoldBrake && Controls.DownByRuleAlone("throttle_down")) r |= CarButtons.ThrottleDown;
         if (HeldSteer() <= 0 && Controls.DownByRuleAlone("steer_left")) r |= CarButtons.SteerLeft;
         if (HeldSteer() >= 0 && Controls.DownByRuleAlone("steer_right")) r |= CarButtons.SteerRight;
         return r;
@@ -498,7 +499,7 @@ public partial class SimDriver : Node
         using var _ = Hitch.Time(Hitch.Phase.Input);
         var b = CarButtons.None;
         if (HoldThrottle || Controls.Down("throttle_up")) b |= CarButtons.ThrottleUp;
-        if (Controls.Down("throttle_down") || _holdBrake) b |= CarButtons.ThrottleDown;   // I76_HOLD_BRAKE: the brake held, for captures
+        if (Controls.Down("throttle_down") || HoldBrake) b |= CarButtons.ThrottleDown;   // I76_HOLD_BRAKE: the brake held, for captures
         if (Controls.Down("steer_left") || HeldSteer() > 0) b |= CarButtons.SteerLeft;
         if (Controls.Down("steer_right") || HeldSteer() < 0) b |= CarButtons.SteerRight;   // I76_HOLD_STEER: for captures
         if (Controls.Down("e_brake")) b |= CarButtons.EBrake;
@@ -576,7 +577,7 @@ public partial class SimDriver : Node
     {
         var b = CarButtons.None;
         if (HoldThrottle || Controls.Down("throttle_up")) b |= CarButtons.ThrottleUp;
-        if (Controls.Down("throttle_down") || _holdBrake) b |= CarButtons.ThrottleDown;
+        if (Controls.Down("throttle_down") || HoldBrake) b |= CarButtons.ThrottleDown;
         if (Controls.Down("steer_left") || HeldSteer() > 0) b |= CarButtons.SteerLeft;
         if (Controls.Down("steer_right") || HeldSteer() < 0) b |= CarButtons.SteerRight;
         if (Controls.Down("e_brake")) b |= CarButtons.EBrake;

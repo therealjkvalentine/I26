@@ -110,6 +110,10 @@ i76_daylight={
 "type": "float",
 "value": 0.0
 }
+i76_lamp_gain={
+"type": "float",
+"value": 1.0
+}
 i76_dash_light={
 "type": "float",
 "value": 0.0
