@@ -49,7 +49,7 @@ public class LanSearchTests
     /// A search sends the query to each of its networks' addresses on every searched port, as a plain unconnected message (which
     /// a server answers like the broadcast). Here the "network" is a second loopback address with a socket on it.
     /// </summary>
-    [Fact]
+    [Anet.LoopbackAliasFact]
     public void ASearchAsksEveryNetworksOwnAddress()
     {
         var net = IPAddress.Parse("127.0.0.2");

@@ -88,6 +88,7 @@ public class AutoHandicapSimTests(ITestOutputHelper output)
         // a level a net kill with the damage taken scaled too, on play, whose turret fix had changed the bots' game; re-pinned on the
         // stock install, whose Piranha is not the one an install's garage saved into addon\, which the first pins were measured with)
         Assert.Equal(auto.Said, Play(install, HandicapMode.Auto, Minutes).Said);
+        if (!MathPlatform.LibmAsRecorded) return;   // the pins below are of Windows x64's sin and cos: another C library plays the bots' game out differently
         Assert.Equal([2, 4, 0, 2, 0, 0], auto.Kills);
         Assert.Equal([0, -2, 1, 0, 1, 0], auto.Levels);
         Assert.Equal(["1:-1", "1:+1", "1:0", "3:+1", "1:-1", "5:+1", "1:0", "1:-2"], auto.Said);

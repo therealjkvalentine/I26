@@ -68,9 +68,10 @@ public class ConnectFiledTests
         using var secondIn = new ManualResetEventSlim();
         using var firstGo = new ManualResetEventSlim();
         using var secondGo = new ManualResetEventSlim();
-        var first = Task.Run(() => layer.ConnectFiled(() => { firstIn.Set(); return firstGo.Wait(5000); }));
+        // (threads of their own: on a busy 4-core machine the pool starves, with the other tests' waits holding its threads)
+        var first = Task.Factory.StartNew(() => layer.ConnectFiled(() => { firstIn.Set(); return firstGo.Wait(5000); }), TaskCreationOptions.LongRunning);
         Assert.True(firstIn.Wait(5000));
-        var second = Task.Run(() => layer.ConnectFiled(() => { secondIn.Set(); return secondGo.Wait(5000); }));
+        var second = Task.Factory.StartNew(() => layer.ConnectFiled(() => { secondIn.Set(); return secondGo.Wait(5000); }), TaskCreationOptions.LongRunning);
         Assert.True(secondIn.Wait(5000));
         Assert.True(layer.InboundHeld);
         // the second connect is filed first: the first is still under way, so the reading stays held

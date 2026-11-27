@@ -90,6 +90,25 @@ float results of some path differ between the two runtimes or processors. A netw
 different machines predicts and reconciles against that; a replay or snapshot taken on one machine and checked on another
 will part. Not looked into here: a lane of its own (which operation, and whether the runtime's version alone explains it).
 
+## Other platforms
+
+The same build and install on an Apple M2 (macOS 15.5, .NET 8.0.33, arm64) part from Windows x64 (.NET 8.0.34) at once: the
+StateHash after every tick, T05 from tick 4, T01 from tick 12, T06 from tick 689 (`tick-bench ... --hashes`, 20 Hz, one minute).
+At T05's tick 4 the player's car's rotation rows differ in the last bit of a float (-0.13264973 against -0.13264975) and its
+position in the 10th digit; the cars' steering input on T01 from tick 12 (0.012651765 against 0.012652749). The cause is the
+C library: .NET hands `MathF`/`Math` Sin, Cos, Tan, Atan, Atan2, Asin, Acos, Exp, Log and Pow to the platform's own (Windows' UCRT, Apple's libm), and
+a probe of 43 operations over 20000 fixed inputs each, hashing the result bits, gave other bits on the Mac for every one of those
+(float and double), for `Matrix4x4.CreateFromYawPitchRoll`, `CreateRotationX/Y` and `Quaternion.Slerp` (built on them) and for
+`FusedMultiplyAdd`, and the same bits for `+ - * /`, `Sqrt`, `Vector3.Dot/Cross/Length/Normalize/Distance/Lerp`, a quaternion
+transform, `a*b+c` (the JIT does not contract it into a fused multiply-add), float-to-int casts, `%` and `Floor/Round`. The sim
+builds every rotation from `MathF.Sin/Cos` (`Rows.AboutX/Y/Z`) and aims with `Atan2`: 69 call sites in src/I76.Sim. Nothing
+else differs, so an Apple-silicon Mac and a Windows PC playing one network melee, or a snapshot or replay taken on one and
+checked on the other, will part as the two Windows machines above do (their cause was not looked into; the same one is likely, with
+the CPU's FMA paths in UCRT's functions). Making the platforms agree needs the sim's own software Sin, Cos, Atan2, ... (a few
+functions of a few lines), which changes every recorded hash on Windows too: a decision for the owner, not done here.
+`TickBudgetTests.EveryTicksStateHashIsTheRecordedOne` and the 16-seed dice of `AiStructureTargetTests.T01sAttackersShootTheDiner...`
+therefore check only where the library is the recording's (`MathPlatform.LibmAsRecorded`, tests/I76.Sim.Tests).
+
 ## Not done
 
 - **The rest of the garbage.** What a settled tick still allocates: event records (shots, impacts, sounds) the views take,
