@@ -107,8 +107,10 @@ builds every rotation from `MathF.Sin/Cos` (`Rows.AboutX/Y/Z`) and aims with `At
 signed zeros the processor decided: .NET 8 negates a vector by flipping sign bits on x64 and as `Zero - v` on Arm64, vector
 `Min`/`Max`/`Clamp` take the second operand on a +0/-0 tie on x64 and the IEEE answer on Arm, `Vector2.Dot` adds the unused lanes'
 +0 on x64 (with the transcendentals alone the Mac still parted later, on a zero's sign: T01 at tick 4012, a melee at 59-1728).
-Measured with both: see the proof table in the lane's report; every tick's StateHash of the missions and the melee is the same on
-the Mac, the laptop and this PC. The probe's "FusedMultiplyAdd differs" above was a mix-up of probe versions: it is the same on
+Measured with both (`tick-bench SCENARIO --rate R --seed S --minutes 10 --hashes FILE`): T01, T05, T06, `melee8`, `coop-t01` and
+`remix`, seeds 1-5, at 20 and 60 Hz, give the same StateHash on every tick on a Windows x64 desktop and the laptop (60 of 60 runs);
+the Mac (Apple M2) matched Windows on every tick of T01, T05, T06 and `melee8`, five seeds, 20 Hz (20 of 20 runs, the branch's
+prototype of the same code). The probe's "FusedMultiplyAdd differs" above was a mix-up of probe versions: it is the same on
 both. The recorded hashes and seeded tests check on every platform; the cost is in the tick table of the report (within noise in
 the missions, a few percent in the eight-bot melee).
 
