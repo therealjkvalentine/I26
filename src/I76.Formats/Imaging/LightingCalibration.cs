@@ -286,7 +286,7 @@ public static class LightingCalibration
     /// <paramref name="sun"/>: the modern sun's energy times its colour; <paramref name="sky"/>: the modern sky light on
     /// flat ground (a slope sees (1 + ny)/2 of it).
     /// </summary>
-    public static List<Cell> Cells(TerrainTiles t, int stride, System.Numerics.Vector3 light, IReadOnlyList<byte>? luma, double ambient, Rgb sun, Rgb sky, double flat = 0)
+    public static List<Cell> Cells(TerrainTiles t, int stride, System.Numerics.Vector3 light, IReadOnlyList<byte>? luma, double ambient, Rgb sun, Rgb sky, double flat = 0, bool castShadows = false)
     {
         const double k = 0.1 / 5.0;   // height units to sample units (TerrainNode)
         var groups = new Dictionary<(double, int, int, int), Cell>();
@@ -299,13 +299,37 @@ public static class LightingCalibration
                 double d = light.Y - dhdx * light.X - dhdz * light.Z;
                 double lit = d < 0 ? ambient : Math.Min(d * TypicalFade + ambient, 1);
                 double len = Math.Sqrt(1 + dhdx * dhdx + dhdz * dhdz);
-                var cell = new Cell(Ramp(luma, lit), sun * Math.Max(d / len, 0), sky * ((1 + 1 / len) / 2));
+                // the modern look's sun is cut off where the terrain casts a shadow (the original has no cast shadows: its ramp lights by the normal alone)
+                double sunShare = castShadows && d > 0 && InCastShadow(t, sx, sz, light) ? 0 : Math.Max(d / len, 0);
+                var cell = new Cell(Ramp(luma, lit), sun * sunShare, sky * ((1 + 1 / len) / 2));
                 var l = cell.Light(1);
                 var key = (cell.Ramp, (int)Math.Round(l.R * 16), (int)Math.Round(l.G * 16), (int)Math.Round(l.B * 16));
                 double wf = Math.Pow(1 / len, flat);
                 groups[key] = groups.TryGetValue(key, out var g) ? g with { Count = g.Count + wf } : cell with { Count = wf };
             }
         return groups.Values.ToList();
+    }
+
+    /// <summary>
+    /// Whether the terrain shades sample (<paramref name="sx"/>, <paramref name="sz"/>) from the light: a march toward it, sample by
+    /// sample up to 1500 samples, for ground higher than the ray from the point (heights in sample units, as <see cref="Cells"/>).
+    /// </summary>
+    public static bool InCastShadow(TerrainTiles t, int sx, int sz, System.Numerics.Vector3 light)
+    {
+        const double k = 0.1 / 5.0;
+        double hl = Math.Sqrt(light.X * light.X + light.Z * light.Z);
+        if (hl < 1e-6 || light.Y <= 0 || t.Height(sx, sz) is not { } h0) return false;
+        double dx = light.X / hl, dz = light.Z / hl, rise = light.Y / hl;
+        for (int i = 2; i <= 1500; i++)
+        {
+            int x = (int)Math.Round(sx + dx * i), z = (int)Math.Round(sz + dz * i);
+            if (t.Height(x, z) is not { } h) { if (i > 4) return false; continue; }
+            double above = (h - h0) * k - rise * i;
+            if (above > 0.05) return true;
+            // (the ray is above anything the map can hold from here)
+            if (rise * i > 2000 * k) return false;
+        }
+        return false;
     }
 
     /// <summary>

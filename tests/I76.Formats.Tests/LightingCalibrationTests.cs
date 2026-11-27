@@ -217,6 +217,20 @@ public class LightingCalibrationTests
     }
 
     [Fact]
+    public void AWallTowardTheLowSunShadesTheGroundBehindItAndOnlyThere()
+    {
+        // a ridge across Z at x 60..64, 5 samples high (250 height units), the sun 15 degrees up toward +X: a shadow about 19 samples long west of it
+        var t = Tile((x, _) => x is >= 60 and <= 64 ? 1000 + 250 : 1000);
+        var sun = Sun(1.309);
+        Assert.True(M.InCastShadow(t, 50, 40, sun));
+        Assert.False(M.InCastShadow(t, 20, 40, sun));   // past the shadow's end
+        Assert.False(M.InCastShadow(t, 80, 40, sun));   // the far side, facing the sun
+        var lit = M.Cells(t, 4, sun, Luma, 0, SunLight, DimSky);
+        var shaded = M.Cells(t, 4, sun, Luma, 0, SunLight, DimSky, castShadows: true);
+        Assert.True(shaded.Sum(c => c.Count * c.Sun.Luminance) < lit.Sum(c => c.Count * c.Sun.Luminance));
+    }
+
+    [Fact]
     public void FlatGroundHasNoContrastToMatchAndKeepsTheSunAsItIs()
     {
         var flat = M.Cells(Tile((_, _) => 1000), 4, Sun(0.785), Luma, 0, SunLight, DimSky);

@@ -3264,7 +3264,8 @@ public partial class Main : Node3D
 		}
 		I76.Formats.Imaging.LightingCalibration.Result Solved(out int kinds)
 		{
-			var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp, card ? I76.Formats.Imaging.LightingCalibration.CardFlatWeight : 0);
+			// (the sunlit look's ground with the terrain's cast shadows, which the modern look draws and the original has not)
+			var ground = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp, card ? I76.Formats.Imaging.LightingCalibration.CardFlatWeight : 0, castShadows: sunlit);
 			kinds = ground.Count;
 			// a night through the card's curve: the moon's share alone (NightLight)
 			if (!light.IsDay) return I76.Formats.Imaging.LightingCalibration.Result.None with { Moon = I76.Formats.Imaging.LightingCalibration.NightMoon(pixels, ground, sun * I76.Formats.Imaging.LightingCalibration.GroundGlint) };
@@ -3273,7 +3274,7 @@ public partial class Main : Node3D
 			if (sunlit)
 			{
 				// the sun's share too, for the 1997 look's contrast over the map's slopes as they are (each cell alike)
-				var contrast = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp);
+				var contrast = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp, castShadows: true);
 				return I76.Formats.Imaging.LightingCalibration.SolveSunlit(pixels, ground, objects, contrast, curve, keep);
 			}
 			return I76.Formats.Imaging.LightingCalibration.Solve(pixels, ground, objects, curve);
