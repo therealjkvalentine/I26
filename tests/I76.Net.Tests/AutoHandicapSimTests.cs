@@ -81,17 +81,20 @@ public class AutoHandicapSimTests(ITestOutputHelper output)
         Assert.NotEmpty(auto.Said);
         Assert.Equal(auto.Said.Count, auto.Moves.Count);
         Assert.All(auto.Moves, m => Assert.True(m.Level == 0 || (m.Level < 0) == (m.Over > 0), $"level {m.Level} at {m.Over:+0.00;-0.00} over the mean"));
-        Assert.All(auto.Said.Where(s => s.Contains(":-")), s => Assert.StartsWith("1:", s));
+        // the easier levels go mostly to the strong pair (bots 1 and 2; another bot eased only while it led the table, checked above)
+        var eased = auto.Said.Where(s => s.Contains(":-")).ToList();
+        Assert.True(eased.Count(s => s.StartsWith("1:") || s.StartsWith("2:")) * 2 > eased.Count, string.Join(" ", eased));
         Assert.True(auto.Levels[0] + auto.Levels[1] < System.Math.Min(auto.Levels[2] + auto.Levels[3], auto.Levels[4] + auto.Levels[5]), string.Join(",", auto.Levels));
         Assert.All(auto.Levels, l => Assert.InRange(l, -3, 3));
         // pinned: the numbers of this seed on a stock install (a change here is a change of the rule or of the bots' game; re-pinned for
         // a level a net kill with the damage taken scaled too, on play, whose turret fix had changed the bots' game; re-pinned on the
         // stock install, whose Piranha is not the one an install's garage saved into addon\, which the first pins were measured with; re-pinned for the sim's portable maths, DetMath, whose game is the same on
-        // every machine: checked equal on Windows x64, the laptop and macOS Arm64)
+        // every machine: checked equal on Windows x64, the laptop and macOS Arm64; re-pinned for upstream's sphere parts, a car meeting a
+        // sign's parts with its own box grown by the part's radius, which changes where the bots' cars knock signs off and so the game)
         Assert.Equal(auto.Said, Play(install, HandicapMode.Auto, Minutes).Said);
-        Assert.Equal([2, 2, 1, 0, 0, 0], auto.Kills);
-        Assert.Equal([-1, -1, 0, 1, 0, 0], auto.Levels);
-        Assert.Equal(["1:-1", "3:+1", "3:+1", "1:-1", "3:0"], auto.Said);
-        Assert.Equal([2, 1, 1, 1, 0, 0], off.Kills);
+        Assert.Equal([5, 1, 0, 1, 0, 0], auto.Kills);
+        Assert.Equal([-3, 0, 1, 0, 1, 1], auto.Levels);
+        Assert.Equal(["1:-1", "3:+1", "1:0", "3:-1", "1:-1", "5:+1", "1:-2", "3:0", "1:-3", "5:+1"], auto.Said);
+        Assert.Equal([1, 3, 2, 0, 0, 1], off.Kills);
     }
 }

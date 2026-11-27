@@ -95,8 +95,8 @@ public partial class Main
             _moodSaved = true;
             _moodSun0 = _sun.LightColor;
             _moodClouds0 = _calibratedSky.GetShaderParameter("clouds");
-            _moodSkyLum0 = _calibratedSky.GetShaderParameter("sky_lum");
-            _moodCloudLum0 = _calibratedSky.GetShaderParameter("cloud_lum");
+            _moodSkyLum0 = _calibratedSky.GetShaderParameter("sky_ref");
+            _moodCloudLum0 = _calibratedSky.GetShaderParameter("cloud_ref");
         }
         var skies = new[] { _calibratedSky, _skyFog?.MaterialOverride as ShaderMaterial };
         // the sky's texture and its measured colours
@@ -117,7 +117,7 @@ public partial class Main
         if (pal is not null && (_mood.ContainsKey("skytex") || _mood.ContainsKey("sky")))
         {
             var sc = skyTex
-                ? new SkyColours(pal.Sky, average, pal.Cloud, pal.Shade, 1f, 1f, true)
+                ? new SkyColours(pal.Sorted.Sky, average, pal.Sorted.Cloud, pal.Sorted.Shade, 1f, 1f, true)
                 : day ? new SkyColours(pal.Sky.Darkened(0.12f), pal.Sky.Lerp(average, 0.6f).Lerp(Colors.White, 0.25f), pal.Cloud.Lerp(Colors.White, 0.4f), pal.Shade.Lerp(pal.Sky, 0.35f).Darkened(0.1f), 1f, 1f, false)
                 : new SkyColours(pal.Sky, pal.Sky.Lerp(average, 0.5f), pal.Cloud, pal.Shade.Lerp(pal.Cloud, 0.5f), 1f, 1f, false);
             foreach (var m in skies)
@@ -135,8 +135,8 @@ public partial class Main
         {
             if (m is null) continue;
             m.SetShaderParameter("clouds", clouds);
-            m.SetShaderParameter("sky_lum", pal is not null && _mood.ContainsKey("skytex") ? pal.SkyLum : _moodSkyLum0);
-            m.SetShaderParameter("cloud_lum", pal is not null && _mood.ContainsKey("skytex") ? pal.CloudLum : _moodCloudLum0);
+            m.SetShaderParameter("sky_ref", pal is not null && _mood.ContainsKey("skytex") ? new Vector3(pal.SkyRef.X, pal.SkyRef.Y, pal.SkyRef.Z) : _moodSkyLum0);
+            m.SetShaderParameter("cloud_ref", pal is not null && _mood.ContainsKey("skytex") ? new Vector3(pal.CloudRef.X, pal.CloudRef.Y, pal.CloudRef.Z) : _moodCloudLum0);
             if (_mood.TryGetValue("radchroma", out var rc)) m.SetShaderParameter("radiance_chroma", MoodF(rc));
         }
         // the ambient: a colour in place of (or beside) the sky's radiance (ApplyLightingCalibration sets both again each time)

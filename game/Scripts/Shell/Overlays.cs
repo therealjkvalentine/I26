@@ -850,6 +850,14 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
             case GraphicsRow.CrashBlur:
                 Row(r, line, "Crash Blur", () => I76.Sim.Views.CrashBlurMode.Names[Math.Clamp(st.CrashBlur, 0, 1)], () => st.CrashBlur = 1 - Math.Clamp(st.CrashBlur, 0, 1));
                 break;
+            // upstream's: the modern look's motion blur (Forward+ only); in a mission
+            case GraphicsRow.MotionBlur:
+                Row(r, line, "Motion Blur", () => st.MotionBlur ? "On" + mark : "Off", () => st.MotionBlur = !st.MotionBlur);
+                break;
+            // upstream's: the modern look's clouds, the flat layer or volumetric (Forward+ and Mobile); in a mission
+            case GraphicsRow.Clouds:
+                Row(r, line, "Clouds", () => CloudsRow.Names[CloudsRow.Index(st)], () => st.Clouds = 1 - CloudsRow.Index(st));
+                break;
         }
         return true;
     }

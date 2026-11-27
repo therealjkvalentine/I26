@@ -8,6 +8,8 @@ public enum GraphicsRow
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
     RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer, TerrainShadows, MirrorHaze,
     RadarSweep, SmokeLinger, HeatStrength, RoadDetail, MirrorAa, Lighting,
+    /// <summary>Upstream's rows: the modern look's motion blur ([port] motion_blur) and its clouds ([port] clouds, Flat or Volumetric).</summary>
+    MotionBlur, Clouds,
     /// <summary>The preset over the costly rows (QualityPreset): nothing of its own, read back from the rows.</summary>
     Quality,
 }
@@ -22,7 +24,7 @@ public enum GraphicsRow
 /// menus' width), World (what is drawn of the world: Visibility Range, Terrain Detail, Shadow Detail beside the terrain's shadows,
 /// textures, plants, ambient occlusion, reflections, haze), Car &amp; Cockpit (the view and the car: field of view, Ext. Instrum.
 /// Disp., Mirrors beside the mirrors' rate and haze, the car's and the dash's textures, the paint, the 3D garage) and Effects (the
-/// modern look's grade and its effects). The original's rows lead their pages in the original's order. Each page fits one sheet
+/// modern look's light and sky, its grade and its effects: upstream's Clouds beside Lighting, its Motion Blur beside Crash Blur). The original's rows lead their pages in the original's order. Each page fits one sheet
 /// without scrolling, with the frame-rate line under a blank line (<see cref="GraphicsLayout"/>). (Until the owner's playtest the
 /// sheet kept the original's seven rows over the entries; upstream's PR keeps them there.) A page is the same sheet with its name,
 /// its rows and a way back. The shell's sheet and the in-game pad build from this table, so a row sits on the same page in both, and
@@ -42,7 +44,7 @@ public static class GraphicsPages
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
         [GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.RoadDetail, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
         [GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.MirrorAa, GraphicsRow.RadarSweep, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
-        [GraphicsRow.Lighting, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer, GraphicsRow.HeatStrength],
+        [GraphicsRow.Lighting, GraphicsRow.Clouds, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.MotionBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer, GraphicsRow.HeatStrength],
     ];
 
     /// <summary>
@@ -193,6 +195,8 @@ public static class GraphicsPages
             // one row over [port] lighting_calibration's words (LightingRow)
             case GraphicsRow.Lighting: t.LightingCalibration = f.LightingCalibration; t.LightingFilmic = f.LightingFilmic; t.LightingSunlit = f.LightingSunlit; break;
             case GraphicsRow.CrashBlur: t.CrashBlur = f.CrashBlur; break;
+            case GraphicsRow.MotionBlur: t.MotionBlur = f.MotionBlur; break;
+            case GraphicsRow.Clouds: t.Clouds = f.Clouds; break;
             // derived from its rows, each copied by its own page (QualityPreset.Copy copies them for the pad's row)
             case GraphicsRow.Quality: break;
         }
@@ -363,4 +367,15 @@ public static class MenuWidthRow
     /// <summary>The file's word: "4:3" turns it off; anything else (or none) is Wide.</summary>
     public static bool FromFile(string? word) => word?.Trim() != "4:3";
     public static string Word(bool wide) => wide ? "wide" : "4:3";
+}
+
+/// <summary>
+/// Clouds (upstream's [port] clouds, <see cref="I76.Formats.Imaging.CloudNoise"/>): the modern look's sky, Flat (the sky texture's
+/// clouds on the dome, as the original paints them) or Volumetric* (a layer of clouds lit in the world, drawn from the sky texture's
+/// colours). The 1997 look keeps its dome either way.
+/// </summary>
+public static class CloudsRow
+{
+    public static readonly string[] Names = ["Flat", "Volumetric" + ShellSettings.PortMark];
+    public static int Index(ShellSettings s) => Math.Clamp(s.Clouds, 0, 1);
 }

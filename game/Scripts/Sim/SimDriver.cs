@@ -807,6 +807,7 @@ public partial class SimDriver : Node
     public void Jumped()
     {
         if (Player is { } jumped) jumped.Ahead = null;
+        MotionBlur.Cut();
         foreach (var c in Cars) c.SetPoses(c.Sim.Rot, c.Sim.Pos, c.Sim.Rot, c.Sim.Pos);
         foreach (var c in Cars) c.Place(1, Origin());
         Voice3D.ListenerCut();   // the camera jumps with them: no Doppler sweep across the distance
