@@ -216,6 +216,8 @@ public static class DevSettings
         StartStep("smoke_start_density", SmokeStartDensitySteps, SmokeStart.BeforeDensity, s => s.SmokeStartDensity, (s, v) => s.SmokeStartDensity = v),
         StartStep("smoke_start_width", SmokeStartWidthSteps, SmokeStart.BeforeWidth, s => s.SmokeStartWidth, (s, v) => s.SmokeStartWidth = v),
         StartStep("smoke_fade", SmokeFadeSteps, SmokeStart.BeforeFade, s => s.SmokeFade, (s, v) => s.SmokeFade = v),
+        new("own_smoke", [OwnSmoke.Any, OwnSmoke.Engine + M], s => s.OwnSmokeEngine ? 1 : 0, (s, v) => s.OwnSmokeEngine = v != 0, DevWhen.Live,
+            s => OwnSmoke.EngineOnly = s.OwnSmokeEngine),
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,
             (s, v) => s.RumbleMode = v != 0 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original, DevWhen.Live,
             s => ForceFeedback.Mode = s.RumbleMode),

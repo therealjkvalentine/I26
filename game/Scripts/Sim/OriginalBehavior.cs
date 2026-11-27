@@ -57,6 +57,7 @@ public static class OriginalBehavior
         MuzzleReach.Percent = s.MuzzleReach;
         SmokeLinger.Percent = s.SmokeLinger;
         s.ApplySmokeStart();
+        OwnSmoke.EngineOnly = s.OwnSmokeEngine;
         SmokeHaze.Long = s.SmokeHaze;
         DamageView.MovieIgnition = s.MovieIgnition;
     }

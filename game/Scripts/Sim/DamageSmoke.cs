@@ -70,6 +70,7 @@ public partial class DamageSmoke : Node3D
     private readonly MPuff[] _mp = new MPuff[CapM];
     private int _mnext;
     private readonly Dictionary<CarNode, (float Level, double Carry)> _lvl = [];
+    private bool _ownRear;   // the player's own smoke's last source, for I76_SMOKE_LOG's line when it changes
     private double _clock;   // game seconds the modern smoke has run: the clumping's clock (not the wall clock, which runs on through a pause and a slow capture)
     // The billows go out in depth slabs, one MultiMeshInstance3D each. Godot sorts transparent draws (the lamps' glare, the
     // tyre smoke) by instance, not by puff, and one instance for all the smoke sorted as a block: a flare behind the smoke was
@@ -350,11 +351,15 @@ public partial class DamageSmoke : Node3D
             st.Carry += Math.Max(dt * rate * Math.Max(clump, 0.05f), Math.Min(driven, 60f) / spacing * Math.Max(clump, 0.7f));
             int n = Math.Min((int)st.Carry, 12); st.Carry -= (int)st.Carry;
             _lvl[car] = st;
+            // [port] own_smoke=engine: the player's own car, seen from the cockpit, smokes from the original's point behind it unless its engine is damaged
+            bool rear = OwnSmoke.FromRear(OwnSmoke.On, car == Voice3D.PlayerCar?.Invoke(), Voice3D.InCockpit?.Invoke() == true, OwnSmoke.EngineDamaged(v.Health));
+            if (KindLog && car == Voice3D.PlayerCar?.Invoke() && rear != _ownRear) GD.Print($"damage smoke: own car from {(rear ? "behind it" : "the engine bay")}, health {h:0.00}, engine {v.Health?.Engine?.Ratio ?? 1f:0.00}");
+            if (car == Voice3D.PlayerCar?.Invoke()) _ownRear = rear;
             // the puffs are spread along the path drawn since the last frame, oldest furthest back
             for (int i = 0; i < n; i++)
             {
                 float f = (i + 0.5f) / n;
-                SpawnModern(car, v, L, driven > 0.01f ? 0f : (float)(dt * f), (was0 - here) * (1f - f));
+                SpawnModern(car, v, L, driven > 0.01f ? 0f : (float)(dt * f), (was0 - here) * (1f - f), rear);
             }
         }
         StaticSmokers(dt);
@@ -501,11 +506,20 @@ public partial class DamageSmoke : Node3D
         }
     }
 
-    private void SpawnModern(CarNode car, I76.Sim.Vehicles.Vehicle v, float level, float back, System.Numerics.Vector3 shift = default)
+    private void SpawnModern(CarNode car, I76.Sim.Vehicles.Vehicle v, float level, float back, System.Numerics.Vector3 shift = default, bool rear = false)
     {
         float r1 = (float)_rng.NextDouble(), r2 = (float)_rng.NextDouble(), r3 = (float)_rng.NextDouble();
-        var eng = EnginePoint(car);   // modern look: from the car's engine bay, just above the hood (the 1997 look keeps the original's rear emitter)
-        float ox = eng.X + (r1 - 0.5f) * 0.6f * SmokeHaze.Scatter, oz = eng.Z + (r2 - 0.5f) * 0.5f * SmokeHaze.Scatter, oy = eng.Y + 0.1f + 0.3f * r3;
+        float ox, oy, oz;
+        if (rear)
+        {
+            // the original's point (Spawn): 1 m behind the rear body section, 1.2 to 1.7 m up, its scatter narrowed as the engine bay's
+            ox = (r1 - 0.5f) * SmokeHaze.Scatter; oz = RearZ(car) - 1f + (r2 - 0.5f) * SmokeHaze.Scatter; oy = 1.2f + 0.5f * r3;
+        }
+        else
+        {
+            var eng = EnginePoint(car);   // modern look: from the car's engine bay, just above the hood (the 1997 look keeps the original's rear emitter)
+            ox = eng.X + (r1 - 0.5f) * 0.6f * SmokeHaze.Scatter; oz = eng.Z + (r2 - 0.5f) * 0.5f * SmokeHaze.Scatter; oy = eng.Y + 0.1f + 0.3f * r3;
+        }
         EmitModern(Coords.ToGame(car.GlobalTransform * new Vector3(ox, oy, -oz)) + Origin() + shift, v.Vel, level, back, 1f);
     }
 

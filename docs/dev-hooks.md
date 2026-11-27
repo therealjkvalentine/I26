@@ -111,6 +111,7 @@ Kinds: **capture** (put the game in a known state for a screenshot), **test** (d
 | `I76_CAR_DAMAGE` | capture | `L` (0..3): every car's zones shown at damage level L, shape and textures, as a hit leaves them (DamageView). |
 | `I76_SMOKE` | capture | `h` (0..1) holds every living car's health at h; `0` leaves the damage smoke out. |
 | `I76_SMOKE_LOG` | debug | `1`: a log line each time a car's damage smoke changes colour (its health and the band); off by default, as a print in play costs its frame. |
+| `I76_OWN_SMOKE` | capture | `engine` or `any` in place of `[port] own_smoke` (where the player's own damage smoke starts in the cockpit view); with `I76_SMOKE_LOG=1` a line each time the own car's smoke changes between the engine bay and behind the car, with its health and its engine's. |
 | `I76_SMOKE_LINGER` | tuning | `N`: the modern look's smoke lives N percent of its own life for the run (100 to 300), whatever `[port] smoke_linger` says (150); for a before \| after. |
 | `I76_SMOKE_STATS` | debug | `1`: every 2 s a "smoke stats" log line: the puffs the smoke layer drew a frame (mean, most) and their overdraw (each puff's quad on the screen, unclipped and before the depth test, over the screen's area; frames with no smoke are not counted), for the cost of `smoke_linger`. |
 | `I76_SMOKE_HAZE` | tuning | `1` / `0`: Graphic Detail's Smoke Linger Long / Normal for the run, whatever `[port] smoke_haze` says (SmokeHaze); with `I76_SMOKE_STATS=1` a `smoke haze:` line about once a second (haze puffs, their screen coverage, the budget's pressure). |
