@@ -137,6 +137,8 @@ packs as the releases are (`--notes FILE` for the README's "what changed").
 
 - `pip install scipy` (`--cells`, `--paint-masks`, `--paint-cut`, `menu-rules.py`, `radar-redraw.py`), and `potracer resvg-py` for `flat-art.py`.
 - `pip install opencv-python-headless` for the barn doors' braces only (the release's inpaint; see step 12).
+- Windows' Arial (`arial.ttf`, `arialbd.ttf`; on Linux or macOS `I26_ARIAL_DIR` naming a folder with them) for step 15,
+  the military signs, as for the menu pack's lettering.
 - The developer tools' command line, `i76` below (`tex-seams`, `key-edge`, `cat`, `bg`): it is not in the release zips. Install
   the .NET 8 SDK and run it from the repository as `dotnet run --project tools/I76.Cli -- --install DIR COMMAND ...`.
 - The models below, downloaded by hand into `--models-dir` (default `~/.cache/i26/models`; a missing one stops the run and
@@ -209,6 +211,9 @@ because the tool skips a texture already in `--out`):
    lays the same wear on the radar, `--distress medium`, so the three units match):
    [The damage panel and counters redrawn](#the-damage-panel-and-counters-redrawn-step-14-of-the-recipe). CPU only, under
    a minute.
+15. **The military signs** (2026-11-26), last before the pack's files are listed: `sign-reletter.py pack SRC PACK --option D`
+   sets the White Sands and Chennault AFB restricted-area signs again in Arial, the warning box's small print in wording
+   option D: [The military signs re-lettered](#the-military-signs-re-lettered-step-15-of-the-recipe). CPU only, seconds.
 
 **The 8x pack of the cockpit and the cars** (`tex-world-8x/` beside the 4x; Graphic Detail's Car & Dash Textures row then
 offers 8x; 2.9 GB, 2,579 textures, about 0.5 GB more video memory, no difference in frame time). It needs the 8x masters of
@@ -220,7 +225,8 @@ step 2 (`MASTERS` below). Then:
 
 then the 4x pack's steps 8 to 11 with `--scale 8` (and `key-edge FIELDS 8`): the damage panel's cells (with `--x2-model
 2xHDCube_Compact.pth`), the frames, the lettering (61 of the specs have a texture in the 8x) and the cars' painted edges,
-then steps 13 and 14, the radar and the damage panel, over the 8x's own files.
+then steps 13 and 14, the radar and the damage panel, over the 8x's own files (step 15 is in the 8x recipe too, and finds
+nothing to do: the 8x holds no world texture, and the game reads the world at 4x).
 The first is the graphics card part (about 15 minutes on a GTX 1080 Ti), the second and third the packing on the CPU
 (about half an hour on 8 cores). `--out` defaults to the user folder's `tex-world-8x/`; the mission maps (`zmap*`) stay at
 4x. The car list `tools/hd-8x-cars.txt` comes from `i76 car-table survey`, with the 23 lit brake lamp textures
@@ -440,6 +446,40 @@ Small print nobody can read (a plate's state line, a garage's list of services) 
 about an hour of reading and a minute or two of fitting. Hand lettering, scripts and decorative wood
 type are better kept than redrawn: no shipped face matches them, and the measures cannot tell. A new face follows
 `tools/text-redraws/fonts/README.md`.
+
+## The military signs re-lettered (step 15 of the recipe)
+
+Two signs share one layout: the White Sands Missile Test Range sign (`sw1mtr_1`, the Training mission A01) and the Nitro
+Pack's Chennault Air Force Base sign (`sw1afb_1`, P18). A red band carries the place's name and RESTRICTED AREA; on the white
+board NO TRESPASSING BEYOND THIS POINT, a black or red line, a WARNING box at the right, and USE OF DEADLY FORCE AUTHORIZED.
+The upscale leaves the large lines soft and misshapen and the box's small print (a pixel and a half high in the original) a
+smear. `tools/sign-reletter.py` takes every line off the pack's picture (each line's rect filled from the band or board
+round it, only from texels of that ground, so a rule or the band's edge does not bleed in, then given the pack's own grain)
+and sets it again in Arial (bold or regular, squeezed to the painted line's ink box, read off the original), in one red, one
+black and one white paint, the WARNING heading's rule as a straight line. A light print wear (soft patches a few per cent
+fainter, a few pin-holes, a fixed seed) keeps it from reading as an overlay. The band's streaks, the board's border and the
+bolt are the upscale's.
+
+The layout is `tools/sign-reletter/military.json`: each line's rect, words, face and paint, the measured boxes and colours
+(`sign-reletter.py measure EXPORT` writes them; numbers only), and the box's wording options, typed as plain sign wording:
+
+- **A**, the closest reading: what the original's pixels say, found by setting candidate sentences in Arial at the box's
+  size and comparing their word breaks and line lengths with the painted rows: "U.S. Army Installation" (the Chennault
+  sign: "U.S. Air Force Installation"), then "It is unlawful to enter this area without permission of the Installation
+  Commander." and "While on this installation all personnel and the property under their control are subject to search."
+  in the original's line breaks. The first paragraph's third line is about 33 texels of text the pixels do not decide; A
+  and D set "Unauthorized entry is prohibited." there.
+- **B**, the two sentences the pixels confirm and nothing guessed, a little larger and airier.
+- **C**, with the statutory citation the period's signs print after the first sentence: "(Sec. 21, Internal Security Act
+  of 1950; 50 U.S.C. 797)".
+- **D** (the recipe's), A's words at the painted size with a reader's leading, in the box's whole height.
+
+The option is one word in the recipes (`--option D` in `world-4x.json`'s `signs` step). To try one on a pack you have:
+`python tools/sign-reletter.py render SRC PACK OUT --option C` writes upright PNGs to look at; `pack SRC PACK --option C`
+re-letters the pack in place (the files it started from kept in `PACK/.sign-base/`, so a rerun or another option starts from
+the upscale again; `--out DIR` leaves the pack alone). It needs Windows' Arial (`arial.ttf`, `arialbd.ttf`; elsewhere
+`I26_ARIAL_DIR`), as the menu pack does. `python tools/sign-reletter.py --self-check` and `python -m unittest
+tools/test_sign_reletter.py` check it on a made-up sign.
 
 ## The cockpit radar redrawn (step 13 of the recipe)
 

@@ -59,6 +59,9 @@
     {"id": "hud", "tool": "hud-redraw.py", "writes": "pack", "only": "zsy_,zsye,zwpe,zbk_,zbks_",
      "args": ["pack", "{export}", "{pack}", "--distress", "medium"],
      "note": "the damage panel's wires drawn again as tubes fitted to the original's, and a medium wear (grime, chipped paint, fine scratches, an uneven print; the owner's pick) laid alike on the damage panel, its lights' every state and the counters' five housings, what the game stamps left as it is (2026-11-26)"},
+    {"id": "signs", "tool": "sign-reletter.py", "writes": "pack", "only": "sw1mtr_1,sw1afb_1",
+     "args": ["pack", "{export}", "{pack}", "--option", "D"],
+     "note": "the military signs re-lettered as in world-4x: the 8x holds no world texture, so the step finds nothing to do unless a world 8x is added (2026-11-26)"},
     {"id": "finish", "tool": "finish", "writes": "pack",
      "note": "pack.json, ATTRIBUTION.txt and FILES.sha256 from this recipe"}
   ]

@@ -111,8 +111,10 @@ def font_table(fonts_dir=FONTS):
     with open(os.path.join(fonts_dir, "fonts.json"), encoding="utf-8") as f: return json.load(f)
 
 # a face fonts.json marks "system" is not shipped (Arial, the shell's own face: the game also takes it from the machine);
-# its file is looked for in the system's font folders, Windows' first, then the Microsoft core fonts' places elsewhere
-SYSTEM_FONT_DIRS = [os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts"), "/usr/share/fonts/truetype/msttcorefonts",
+# its file is looked for in I26_ARIAL_DIR when set (as menu_lettering.py), then the system's font folders, Windows' first, then the
+# Microsoft core fonts' places elsewhere
+SYSTEM_FONT_DIRS = ([os.environ["I26_ARIAL_DIR"]] if os.environ.get("I26_ARIAL_DIR") else []) + [
+                    os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts"), "/usr/share/fonts/truetype/msttcorefonts",
                     "/usr/share/fonts/msttcore", "/usr/share/fonts/corefonts", os.path.expanduser("~/Library/Fonts"),
                     "/Library/Fonts", "/System/Library/Fonts/Supplemental"]
 

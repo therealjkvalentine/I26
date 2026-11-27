@@ -278,12 +278,13 @@ class Build:
 
 # what a step's tool reads besides itself (a change to one runs the step again)
 HELPERS = {"radar-redraw.py": ("panel_distress.py", "radar-redraw/radar.json"),
-           "hud-redraw.py": ("radar-redraw.py", "panel_distress.py", "hud-redraw/hud.json")}
+           "hud-redraw.py": ("radar-redraw.py", "panel_distress.py", "hud-redraw/hud.json"),
+           "sign-reletter.py": ("text-redraws.py", "panel_distress.py", "sign-reletter/military.json", "text-redraws/fonts/fonts.json")}
 
 def drop(folder, stem, dry):
-    """A texture's files out of a stage or pack (and its .text-base/, .recut-prev/, .radar-base/ and .hud-base/ copies)."""
+    """A texture's files out of a stage or pack (and its .text-base/, .recut-prev/, .radar-base/, .hud-base/ and .sign-base/ copies)."""
     for d in (folder, os.path.join(folder, ".text-base"), os.path.join(folder, ".recut-prev"), os.path.join(folder, ".radar-base"),
-              os.path.join(folder, ".hud-base")):
+              os.path.join(folder, ".hud-base"), os.path.join(folder, ".sign-base")):
         if not os.path.isdir(d): continue
         for f in os.listdir(d):
             if f.split(".")[0] == stem and not dry: os.remove(os.path.join(d, f))
@@ -326,7 +327,7 @@ def git_commit():
     except OSError: return None
 
 def finish(pack, r, version, log, device, extra_fixes=()):
-    """pack.json from the recipe (keeping the tools' text_redraws, fixes, fonts, radar_redraw and hud_redraw), ATTRIBUTION.txt and FILES.sha256."""
+    """pack.json from the recipe (keeping the tools' text_redraws, fixes, fonts, radar_redraw, hud_redraw and sign_reletter), ATTRIBUTION.txt and FILES.sha256."""
     pins = json.load(open(os.path.join(RECIPES, "models.json")))["models"]
     pj = os.path.join(pack, "pack.json")
     tools_pj = json.load(open(pj, encoding="utf-8")) if os.path.exists(pj) else {}
@@ -349,17 +350,23 @@ def finish(pack, r, version, log, device, extra_fixes=()):
            "models": models,
            "families": [{"family": f, "globs": g, "colour": c or "the masters (route 8b)", "alpha_step": bool(a)} for f, g, c, a in ut.COCKPIT],
            "recipe": {"file": "tools/hd-recipes/" + r["name"] + ".json", "git": git_commit(), "sha256": sha256_file(recipe_file).hexdigest()},
-           "tools": {t: sha256_file(os.path.join(HERE, t)).hexdigest() for t in ("hd-pack.py", "upscale-textures.py", "text-redraws.py", "radar-redraw.py", "hud-redraw.py", "panel_distress.py", "dds_mips.py")},
+           "tools": {t: sha256_file(os.path.join(HERE, t)).hexdigest() for t in ("hd-pack.py", "upscale-textures.py", "text-redraws.py", "radar-redraw.py", "hud-redraw.py", "sign-reletter.py", "panel_distress.py", "dds_mips.py")},
            "built_with": dict(versions(), device=device),
            "steps": log,
-           **{k: tools_pj[k] for k in ("text_redraws", "text_fonts", "fixes", "radar_redraw", "hud_redraw") if k in tools_pj},
+           **{k: tools_pj[k] for k in ("text_redraws", "text_fonts", "fixes", "radar_redraw", "hud_redraw", "sign_reletter") if k in tools_pj},
            "licence": ("non-commercial; " if nc else "") + "derived from Interstate '76 art, requires an owned copy of the game",
            "links": {"upstream": "https://github.com/vahokif/I26", "recipe": "https://github.com/therealjkvalentine/I26/tree/main/tools/hd-recipes"}}
     with open(pj + ".part", "w", encoding="utf-8") as f: json.dump(out, f, indent=2, ensure_ascii=False); f.write("\n")
     os.replace(pj + ".part", pj)
     lines = [f"{r['title']} {version}: credits", "", "Upscaling models (their outputs are in this pack; the models are not):"]
     lines += [f"- {m['model']} by {m['by']}, {m['license']}, {m['source']} (used for: {m['used_for']})" for m in models]
-    fonts = out.get("text_fonts", [])
+    fonts = list(out.get("text_fonts", []))
+    if "sign_reletter" in out:
+        # the re-lettered signs are set in the machine's Arial (tools/sign-reletter.py)
+        table = json.load(open(os.path.join(HERE, "text-redraws", "fonts", "fonts.json"), encoding="utf-8"))
+        for f in ("ArialRegular", "Arial"):
+            c = {"font": table[f].get("name", f), "by": table[f]["by"], "license": table[f]["license"], "source": table[f]["source"]}
+            if c["font"] not in [x["font"] for x in fonts]: fonts.append(c)
     if fonts:
         lines += ["", "Fonts the redrawn lettering was set in (rendered into the pictures; no font file is included):"]
         lines += [f"- {f['font']}: {f['by']}, {f['license']}, {f['source']}" for f in fonts]
