@@ -3,16 +3,21 @@ base: t07
 hour: 17
 lot: [100, 49300]                   # beside T07's police lot, off the play area
 gates: [gate1]                      # T07's east fence across 380, opened at the start as T07 does
+cast:
+  - {name: Inferno, side: gang}
+  - {name: Patriot, side: gang}
+  - {name: 7 Edwards 7, side: police}
+stock_action: [[300, 47615], [1075, 47765], [1825, 47965], [2945, 47995], [3280, 47770], [4490, 47875], [5190, 47580], [5750, 47480], [1340, 48000], [925, 48060], [698, 47612], [112, 49118]]
 starts:
-  - {name: on_380, at: [2923, 48003], heading: 270}
-  - {name: east, at: [4400, 47930], heading: 270}
-  - {name: south_loop, at: [3755, 47300], heading: 0}
+  - {name: on_380, at: [2923, 48003], heading: 270, called: on 380 west of the south loop}
+  - {name: east, at: [4400, 47930], heading: 270, called: on 380 at the east end}
+  - {name: south_loop, at: [3755, 47300], heading: 0, called: on the loop south of 380}
 nodes:
-  - {name: south_farm, kinds: [pickup, hideout], at: [3720, 47520]}
-  - {name: roadside, kinds: [pickup], at: [2120, 47960]}
-  - {name: north_farm, kinds: [pickup, hideout], at: [850, 49100]}
-  - {name: on_380, kinds: [home], at: [2923, 48003]}
-  - {name: east, kinds: [home, hideout], at: [4400, 47930]}
+  - {name: south_farm, kinds: [pickup, hideout], at: [3720, 47520], called: the saloon in the old town on the south loop}
+  - {name: roadside, kinds: [pickup], at: [2120, 47960], called: the hut beside 380}
+  - {name: north_farm, kinds: [pickup, hideout], at: [850, 49100], called: 'the north farm, by its barn and water tank'}
+  - {name: on_380, kinds: [home], at: [2923, 48003], called: 380 west of the south loop}
+  - {name: east, kinds: [home, hideout], at: [4400, 47930], called: 380 at the east end}
 entries:
   - {name: jump1, path: jump1}
   - {name: jump2, path: jump2}

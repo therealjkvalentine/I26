@@ -1,25 +1,40 @@
-# T05's map (the oil-well country, roads every way out): coordinates read off the map (i76 remix map t05).
+# T05's map (the oil-well country, roads every way out): coordinates read off the map (i76 remix map t05), written by hand with
+# the port's own words for the places. stock_action: where T05's own mission happens, so jobs prefer the rest: the long dirt
+# road south, the spur south of the bend, the far southwest and the far east of the north road.
 base: t05
 lot: [10720, 45930]                 # T05's own lot north of the wreck
+cast:
+  - {name: Balrog, side: gang}
+  - {name: Road Knight, side: gang}
+stock_action: [[7470, 43910], [6455, 43335], [8475, 43975], [7795, 44030], [8175, 44100], [10470, 45000], [10525, 45295], [10470, 44355], [8220, 44520], [8785, 44520], [10685, 44565], [10055, 44845], [9675, 44720], [10960, 44425], [6340, 42165], [6420, 44770], [6870, 44460], [6700, 43910], [10335, 43690], [9472, 44058], [9162, 44548], [9868, 43562], [10722, 45908]]
 starts:
-  - {name: west_road, at: [8078, 44528], heading: 90}
-  - {name: fisher, at: [6455, 43350], heading: 0}
-  - {name: crossing, at: [9475, 44020], heading: 270}
+  - {name: west_road, at: [8078, 44528], heading: 90, called: on the north road west of the oil field}
+  - {name: fisher, at: [6455, 43350], heading: 0, called: on the west road}
+  - {name: crossing, at: [9475, 44020], heading: 270, called: at the crossing in the middle}
+  - {name: south_spur, at: [8570, 42347], heading: 0, called: half way down the long dirt road south}
 nodes:
-  - {name: wreck, kinds: [pickup], at: [10640, 44560]}
-  - {name: middle, kinds: [pickup], at: [8380, 44020]}
-  - {name: south_bend, kinds: [pickup, hideout], at: [9830, 43560]}
-  - {name: watch, kinds: [pickup], at: [6700, 43920]}
-  - {name: west_road, kinds: [home], at: [8078, 44528]}
-  - {name: fisher, kinds: [home, hideout], at: [6455, 43335]}
-  - {name: south_road, kinds: [home, hideout], at: [8560, 42800]}
-  - {name: east_cross, kinds: [hideout], at: [10600, 44880]}
+  - {name: wreck, kinds: [pickup], at: [10640, 44560], called: the wrecks east of the crossroads}
+  - {name: middle, kinds: [pickup], at: [8380, 44020], called: the fenced yard on the middle road}
+  - {name: south_bend, kinds: [pickup, hideout], at: [9830, 43560], called: the bend south of the crossing}
+  - {name: watch, kinds: [pickup], at: [6700, 43920], called: the bend at the west end of the middle road}
+  - {name: west_road, kinds: [home], at: [8078, 44528], called: the north road west of the oil field}
+  - {name: fisher, kinds: [home, hideout], at: [6455, 43335], called: the west road}
+  - {name: south_road, kinds: [home, hideout], at: [8560, 42800], called: the dirt road south of the oil wells}
+  - {name: east_cross, kinds: [hideout], at: [10600, 44880], called: the crossroads on the east side}
+  - {name: south_spur, kinds: [pickup, hideout, home], at: [8570, 42347], called: half way down the long dirt road south}
+  - {name: spur_bend, kinds: [pickup, hideout], at: [9380, 42962], called: the dirt spur south of the bend}
+  - {name: southwest, kinds: [pickup, hideout, home], at: [6205, 41523], called: 'the southwest road, near its end'}
+  - {name: east_far, kinds: [pickup, home], at: [11133, 44880], called: the north road east of the crossroads}
 entries:
   - {name: north_lot, at: [[10750, 44900], [10550, 44880]]}
   - {name: north_road, at: [[10395, 45580], [10450, 45300]]}
   - {name: east, at: [[11500, 44880], [11300, 44880]]}
+  - {name: east_far, at: [[12000, 44880], [11800, 44880]]}
   - {name: south, at: [[8560, 42300], [8560, 42500]]}
+  - {name: south_far, at: [[8570, 41700], [8570, 41950]]}
+  - {name: southwest, at: [[6040, 41040], [6150, 41250]]}
   - {name: northwest, at: [[6340, 44815], [6570, 44660]]}
   - {name: west_mid, at: [[7300, 43910], [7505, 43910]]}
 routes:
   - {name: road_380, points: [[11900, 44880], [11000, 44880], [10500, 44880], [10000, 44840], [9530, 44645], [9000, 44530], [8500, 44530], [8000, 44530], [7650, 44560]], heading: 270}
+  - {name: up_from_south, points: [[8570, 41747], [8570, 42059], [8570, 42368], [8570, 42675], [8446, 42929], [8146, 43015], [7992, 43280], [7906, 43574], [7596, 43627], [7375, 43810], [7473, 43910]], heading: 0}

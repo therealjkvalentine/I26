@@ -1,24 +1,33 @@
-# T02's map (2 x 8.6 km, north-south): the long winding road up to Levelland. Coordinates read off the map (i76 remix map t02).
+# T02's map (2 x 8.6 km, north-south): the long winding road up to Levelland. Coordinates read off the map (i76 remix map t02),
+# written by hand with the port's own words for the places. stock_action: where T02's own mission happens (the whole road
+# north, the race track loops in the south), so jobs prefer the rest: the crossroad's far ends east and west.
 base: t02
 hour: 7
 lot: [8003, 41803]                  # the south end, where T02 starts: out of every job's way
+cast:
+  - {name: Leadsled, side: gang}
+  - {name: Gas Bandit, side: gang}
+stock_action: [[8360, 42860], [8985, 43085], [8985, 43545], [8460, 43590], [8190, 43395], [7860, 43395], [7520, 43570], [7835, 43985], [8140, 44270], [8940, 44475], [8985, 44785], [8835, 45230], [8605, 45740], [8605, 46075], [8710, 42860], [7265, 42860], [6975, 43145], [8605, 46565], [8095, 47240], [9000, 47485], [9440, 48055], [8240, 48205], [8940, 48670], [8150, 49350], [8825, 50635], [9435, 50115], [7955, 42860], [8985, 44005], [8220, 50520], [8470, 49930], [8755, 48920], [8995, 48100], [8590, 46940], [8030, 41785], [8425, 41750], [9018, 50272]]
 starts:
-  - {name: south, at: [8735, 45370], heading: 340}
-  - {name: crossroads_w, at: [7600, 46130], heading: 90}
-  - {name: levelland, at: [8300, 49420], heading: 180}
+  - {name: south, at: [8735, 45370], heading: 340, called: on the road south of the crossroads}
+  - {name: crossroads_w, at: [7774, 46135], heading: 90, called: on the crossroad west of the junction}
+  - {name: levelland, at: [8300, 49420], heading: 180, called: at Levelland}
+  - {name: far_east, at: [9367, 46135], heading: 270, called: on the crossroad east of the junction}
 nodes:
-  - {name: racetrack, kinds: [pickup], at: [8930, 44470]}
-  - {name: watertank, kinds: [pickup], at: [8570, 43650]}
-  - {name: bends, kinds: [pickup, hideout], at: [8240, 48205]}
-  - {name: levelland, kinds: [home, hideout], at: [8150, 49350]}
-  - {name: south, kinds: [home], at: [8735, 45370]}
-  - {name: welman, kinds: [hideout, pickup], at: [8985, 43300]}
+  - {name: racetrack, kinds: [pickup], at: [8930, 44470], called: the bend by the race track}
+  - {name: watertank, kinds: [pickup], at: [8570, 43650], called: the water tank south of the race track}
+  - {name: bends, kinds: [pickup, hideout], at: [8240, 48205], called: the hairpins below Levelland}
+  - {name: levelland, kinds: [home, hideout], at: [8150, 49350], called: Levelland}
+  - {name: south, kinds: [home], at: [8735, 45370], called: the road south of the crossroads}
+  - {name: welman, kinds: [hideout, pickup], at: [8985, 43300], called: the straight east of the race track}
 entries:
   - {name: south, at: [[8950, 44990], [8830, 45240]]}
   - {name: west, at: [[7300, 46130], [7500, 46130]]}
   - {name: east, at: [[9600, 46130], [9400, 46130]]}
+  - {name: far_east, at: [[10050, 46135], [9850, 46135]]}
   - {name: north, at: [[8280, 49765], [8280, 49440]]}
   - {name: midroad, at: [[8605, 46900], [8605, 46700]]}
 routes:
   - {name: leveland, path: leveland, park: [8605, 46480], heading: 0, exit: [8150, 49350]}
   - {name: south, points: [[8605, 46400], [8620, 45800], [8755, 45340], [8950, 44900], [8985, 44400], [8985, 43800], [8985, 43300]], heading: 180}
+  - {name: crossroad_west, points: [[10074, 46135], [9771, 46135], [9461, 46135], [9145, 46135], [8836, 46135], [8516, 46135], [8201, 46135], [7891, 46135], [7575, 46135], [7264, 46135]], heading: 270}

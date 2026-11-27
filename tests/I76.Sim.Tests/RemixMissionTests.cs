@@ -66,6 +66,9 @@ public class RemixMissionTests
 
     private static int FailLine(SimSession s) => s.Script!.Host.End is { FailMessage: var m } ? m + 1 : 0;
 
+    /// <summary>The failure line's text the game shows for the mission's end.</summary>
+    private static string FailText(SimSession s) => s.Script!.Host.End is { FailMessage: var m } && s.Script.Host.Objectives.Text.Failures is var f && m >= 0 && m < f.Count ? f[m] : "";
+
     [Fact]
     public void EveryShippedRemixBuildsTheSameBytesTwiceRoundTripsAndLeavesTheInstallAlone()
     {
@@ -96,7 +99,7 @@ public class RemixMissionTests
             // the text the build wrote is the text the game reads
             var text = ObjectiveText.Parse(a.Text);
             Assert.Equal(spec.Text.Objectives.Count, text.Objectives.Count);
-            Assert.Equal(spec.Text.Failures, text.Failures);
+            Assert.Equal([.. spec.Text.Failures, .. RemixBuilder.Deaths(spec)], text.Failures);   // then a death line per objective
             // no briefing or outro movie, its own text, its listed name
             var w = WorldSettings.Read(new MissionFile(spec.Id + ".msn", a.Mission))!;
             Assert.Equal("", w.Briefing);
@@ -123,7 +126,7 @@ public class RemixMissionTests
         var spec = RemixSpec.Parse(edited);
         Assert.NotEqual(RemixBuilder.Stamp(RemixSpec.Parse(one.Yaml), File.ReadAllBytes(install.FindMission(spec.Base)!)),
             RemixBuilder.Stamp(spec, File.ReadAllBytes(install.FindMission(spec.Base)!)));
-        Assert.Equal(specs.Count, RemixBuilder.Listed(dir).Count(l => !l.Stem.StartsWith("xj", StringComparison.Ordinal)));   // (rolled jobs share the folder)
+        Assert.Equal(specs.Count, RemixBuilder.Listed(dir).Count(l => specs.Any(sp => RemixSpec.Parse(sp.Yaml).Id == l.Stem)));   // (rolled jobs share the folder)
     }
 
     [Fact]
@@ -269,7 +272,8 @@ public class RemixMissionTests
         h.Destroy(h.Of(setup.World.Player!)!);
         Step(s, 20 * 10);
         Assert.False(s.Script.Result);
-        Assert.Equal(1, FailLine(s));
+        Assert.Equal(4, FailLine(s));   // the death line of objective 1 (after the three failures): it names what was failed
+        Assert.Contains("Spanner", FailText(s));
 
         var (w, ws) = Make("x14back");
         var goal = PathStart("x14back", "rx_truckstop");
@@ -392,7 +396,7 @@ public class RemixMissionTests
     {
         if (Built() is null) return;
         foreach (var (stem, labels) in new[] { ("x07farm", "START|DEFEND"), ("x05grab", "START / HOME|PICKUP"), ("x14back", "START|HOME"),
-            ("x10tail", "START|HIDEOUT"), ("x02conv", "START|CONVOY|EXIT") })
+            ("x10tail", "START|HIDEOUT|SAFE HOUSE"), ("x02conv", "START / HOME|CONVOY|EXIT") })
         {
             Assert.True(RemixMarks.IsRemix(stem), stem);
             var m = RemixMarks.For(stem)!;
@@ -409,7 +413,8 @@ public class RemixMissionTests
     public void TatumTailIsWonOnlyOnceThePursuitIsLost()
     {
         if (Built() is null) return;
-        var hide = PathStart("x10tail", "rx_tatum");
+        var hide = PathStart("x10tail", "rx_hideout");
+        var safe = PathStart("x10tail", "rx_safe");
         var (s, setup) = Make("x10tail");
         Step(s, 20 * 6);   // the pursuers are in, behind the start
         var cops = setup.Entities.Where(e => e.Vehicle is not null && e.Name is "t10cp02" or "t10cp03" && e.Order != I76.Sim.Fsm.AiOrder.Hide).ToList();
@@ -432,8 +437,29 @@ public class RemixMissionTests
         Step(w, 20 * 12);
         Assert.NotEqual(0, wh.Objectives.Flags[0] & Objectives.Succeeded);
         MovePlayer(ws, hide.X, hide.Z);
-        Step(w, 20 * 10);
+        Step(w, 20 * 3);
+        // the hideout is watched: the safe house's step opens (objective 3), and a death now names it
+        Assert.NotEqual(0, wh.Objectives.Flags[1] & Objectives.Succeeded);
+        Assert.Equal(0, wh.Objectives.Flags[2] & Objectives.Hidden);
+        Assert.Null(w.Script.Result);
+        MovePlayer(ws, safe.X, safe.Z);
+        Step(w, 20 * 25);   // the stakeout comes in at 15 s: killed, then the safe house counts
+        foreach (var e in ws.Entities.Where(e => e.Vehicle is not null && !e.Dead && e.Vehicle != ws.World.Player).ToList()) wh.Destroy(e);
+        Step(w, 20 * 20);
         Assert.True(w.Script.Result);
+
+        // killed on the way to the safe house: the failure line says so
+        var (d, ds) = Make("x10tail");
+        var dh = d.Script!.Host;
+        Step(d, 20 * 10);
+        foreach (var e in ds.Entities.Where(e => e.Vehicle is not null && e.Name.StartsWith("t10cp") && e.Order != I76.Sim.Fsm.AiOrder.Hide).ToList()) dh.Destroy(e);
+        Step(d, 20 * 18);
+        MovePlayer(ds, hide.X, hide.Z);
+        Step(d, 20 * 3);
+        dh.Destroy(dh.Of(ds.World.Player!)!);
+        Step(d, 20 * 10);
+        Assert.False(d.Script.Result);
+        Assert.Contains("safe house", FailText(d));
     }
 
     /// <summary>Intercept: the convoy reaching its exit fails (line 3); the lead and its escorts dead win.</summary>
@@ -459,8 +485,20 @@ public class RemixMissionTests
         Step(w, 20);
         Assert.NotEqual(0, h.Objectives.Flags[0] & Objectives.Succeeded);
         Assert.Null(w.Script.Result);   // the wingmen still to go
-        foreach (var e in ws.Entities.Where(e => e.Name is "t02fy01" or "t02fy03").ToList()) h.Destroy(e);
+        foreach (var e in ws.Entities.Where(e => e.Name is "t02fy01" or "t02fy03" or "vcmanta1" or "vcgcour1" && e.Vehicle is not null).ToList()) h.Destroy(e);
+        Step(w, 20 * 3);
+        // the escorts down: the ride home opens (objective 3), with Gas Bandit's crew on its way; nobody near at home wins
+        Assert.NotEqual(0, h.Objectives.Flags[1] & Objectives.Succeeded);
+        Assert.Equal(0, h.Objectives.Flags[2] & Objectives.Hidden);
+        Assert.Null(w.Script.Result);
+        foreach (var e in ws.Entities.Where(e => e.Vehicle is not null && !e.Dead && e.Vehicle != ws.World.Player).ToList()) h.Destroy(e);
+        var home = PathStart("x02conv", "rx_home");
+        MovePlayer(ws, home.X, home.Z);
         Step(w, 20 * 10);
+        Assert.Null(w.Script.Result);   // not done by standing at the start: the finish counts 30 s after it opens
+        Step(w, 20 * 15);
+        foreach (var e in ws.Entities.Where(e => e.Vehicle is not null && !e.Dead && e.Vehicle != ws.World.Player).ToList()) h.Destroy(e);
+        Step(w, 20 * 20);
         Assert.True(w.Script.Result);
     }
 
@@ -518,5 +556,158 @@ public class RemixMissionTests
             Assert.True(s.Script.Host.Objectives.Flags.Length >= 2, $"seed {seed}");
         }
         Assert.Equal(RemixDirector.Templates.Length, seen.Count);
+    }
+    /// <summary>
+    /// The owner's play-test (remix-3): hostile cars a target key never reached, a convoy not where the map marked it, a job that
+    /// failed the moment the player got to a place by a map exit. RemixCheck holds every shipped remix and 500 rolled jobs to their
+    /// description and map: every car turned on the player is the enemy's and a radar contact the next-target key reaches once
+    /// it is out; each stands where it is parked, on the ground; the convoy's lead starts at its CONVOY mark; every mark is the
+    /// place its script tests; every place the player must reach is clear of the leave-map exits; every structure set down is a
+    /// collidable static where the description puts it.
+    /// </summary>
+    [Fact]
+    public void EveryRemixAndFiveHundredJobsKeepTheirCarsWhereTheMapSaysAndTargetable()
+    {
+        if (SnapshotRig.Install is not { } inst || Built() is not { } dir) return;
+        var install = new GameInstall(inst);
+        var problems = new List<string>();
+        var jobs = RemixCatalogue.Builtin().Select(b => RemixSpec.Parse(b.Yaml)).ToList();
+        for (int seed = 1; seed <= 500; seed++) jobs.Add(RemixDirector.Roll(seed, id: "xchk"));
+        foreach (var spec in jobs)
+        {
+            var built = RemixBuilder.Build(install, spec);
+            built.WriteTo(dir);
+            var vfs = new AssetVfs(install);   // its own: the folder as it is now
+            foreach (var p in RemixCheck.Run(vfs, new I76.Formats.Assembly.ModelAssembler(vfs), spec.Id, spec, RemixMarks.Parse(built.Marks ?? "")))
+                problems.Add($"{spec.Title} ({spec.Base} {spec.Objective.Template}): {p}");
+        }
+        Assert.Empty(problems);
+    }
+
+    /// <summary>The builder puts every car the template turns on the player on the enemy's side (team 2), new cars and stock ones alike.</summary>
+    [Fact]
+    public void NewHostileCarsAreTheEnemysAndOthersNobodys()
+    {
+        if (SnapshotRig.Install is not { } inst || Built() is null) return;
+        var install = new GameInstall(inst);
+        var spec = RemixSpec.Parse(RemixCatalogue.Builtin().First(b => b.Name.Contains("x07farm")).Yaml);
+        spec.Cars["idle"] = new CarSpec { Vcf = "vccameo1", At = [100, 49300] };
+        var doc = I76.Formats.Mission.Edit.MapDocument.Parse(RemixBuilder.Build(install, spec).Mission);
+        foreach (var o in doc.Objects.Where(o => o.ObjectType == 1 && o.Position.X == 100 && o.Position.Z == 49300))
+            Assert.Equal(0u, (o.ObjectFlags >> 16) & 7);   // nobody's car: the description names it in no hostile part
+        var raiders = spec.Objective.Waves.SelectMany(w => w.Cars).Select(c => spec.Cars[c].Vcf).ToHashSet();
+        foreach (var o in doc.Objects.Where(o => o.ObjectType == 1 && raiders.Contains(o.Name) && o.Position.X != 100))
+            Assert.Equal((uint)RemixRoles.EnemyTeam, (o.ObjectFlags >> 16) & 7);
+    }
+
+    /// <summary>The same job number builds the same files and plays the same: the same state hash after half a minute.</summary>
+    [Fact]
+    public void AJobNumberRebuildsTheSameJobExactly()
+    {
+        if (SnapshotRig.Install is not { } inst || Built() is not { } dir) return;
+        var install = new GameInstall(inst);
+        foreach (int seed in new[] { 59933, 637742, 7 })
+        {
+            var a = RemixBuilder.Build(install, RemixDirector.Roll(seed, id: "xsame"));
+            var b = RemixBuilder.Build(install, RemixSpec.Parse(RemixDirector.ToYaml(RemixDirector.Roll(seed, id: "xsame"))));
+            Assert.Equal(a.Mission, b.Mission);
+            Assert.Equal(a.Text, b.Text);
+            Assert.Equal(a.Marks, b.Marks);
+            Assert.Equal(a.Source, b.Source);
+            Assert.Equal(a.Stamp, b.Stamp);
+            ulong? hash = null;
+            foreach (var built in new[] { a, b })
+            {
+                built.WriteTo(dir);
+                var (s, _) = Make("xsame", 3);
+                Step(s, 20 * 30);
+                var h = s.StateHash();
+                if (hash is null) hash = h; else Assert.Equal(hash, h);
+            }
+            // another job number builds another job
+            Assert.NotEqual(a.Stamp, RemixBuilder.Build(install, RemixDirector.Roll(seed + 1, id: "xsame")).Stamp);
+        }
+    }
+
+    /// <summary>
+    /// A rolled job: three objective steps or more, a death line naming each, where its places are in words (distance and compass
+    /// from the start), an instruction on the radio at the start, its job number in the first line; Levelland Run and Tatum Tail
+    /// three steps too.
+    /// </summary>
+    [Fact]
+    public void RolledJobsHaveThreeStepsAndSayWhereThePlacesAre()
+    {
+        string[] compass = ["north", "east", "south", "west"];
+        for (int seed = 1; seed <= 300; seed++)
+        {
+            var spec = RemixDirector.Roll(seed);
+            int steps = System.Math.Max(RemixTemplates.OwnObjectives(spec), RemixTemplates.FinishObjective(spec));
+            Assert.True(steps >= 3, $"seed {seed} ({spec.Objective.Template}): {steps} steps");
+            Assert.Equal(spec.Text.Objectives.Count, RemixBuilder.Deaths(spec).Count);
+            Assert.All(spec.Text.Deaths, d => Assert.DoesNotContain("Still to do", d));   // the director writes each
+            Assert.Contains(spec.Text.Notes, n => (n.Contains(" km ") || n.Contains(" m ")) && compass.Any(n.Contains));
+            Assert.True(spec.Radio.Start.Count + (spec.Radio.Steps.Count > 0 ? spec.Radio.Steps[0].Count : 0) > 0, $"seed {seed}: no instruction at the start");
+            Assert.StartsWith($"Job {seed}:", spec.Text.Objectives[0]);
+            Assert.True(spec.Objective.Reinforce.Count > 0 || spec.Objective.Waves.Count >= 3, $"seed {seed}: no twist");
+        }
+        foreach (var name in new[] { "x02conv", "x10tail" })
+        {
+            var spec = RemixSpec.Parse(RemixCatalogue.Builtin().First(b => b.Name.Contains(name)).Yaml);
+            Assert.True(RemixTemplates.FinishObjective(spec) >= 3, name);
+            Assert.NotEmpty(spec.Objective.Reinforce);
+        }
+        Assert.Equal("3 km", RemixDirector.Distance([0, 0], [0, 3100]));
+        Assert.Equal("800 m", RemixDirector.Distance([0, 0], [800, 0]));
+        Assert.Equal("north", RemixDirector.Compass([0, 0], [0, 100]));   // +Z north, +X east (docs: the gazetteer)
+        Assert.Equal("west", RemixDirector.Compass([0, 0], [-100, 0]));
+    }
+
+    /// <summary>
+    /// The challenge: Back to Spanner's measured score is the calibration (RemixChallenge.Spanner); rolled jobs at the default
+    /// level come out near it (median within 15 %), the levels scale it, and Levelland Run and Tatum Tail now match it too.
+    /// </summary>
+    [Fact]
+    public void JobsAreBuiltToBackToSpannersChallenge()
+    {
+        if (SnapshotRig.Install is not { } inst || Built() is not { } dir) return;
+        var install = new GameInstall(inst);
+        double Measured(RemixSpec spec)
+        {
+            RemixBuilder.Build(install, spec).WriteTo(dir);
+            var vfs = new AssetVfs(install);
+            return RemixCheck.Score(vfs, new I76.Formats.Assembly.ModelAssembler(vfs), spec.Id, spec).Parts.Total;
+        }
+        RemixSpec Builtin(string name) => RemixSpec.Parse(RemixCatalogue.Builtin().First(b => b.Name.Contains(name)).Yaml);
+        Assert.InRange(Measured(Builtin("x14back")), RemixChallenge.Spanner - 0.3, RemixChallenge.Spanner + 0.3);
+        Assert.InRange(Measured(Builtin("x02conv")) / RemixChallenge.Spanner, 0.85, 1.2);
+        Assert.InRange(Measured(Builtin("x10tail")) / RemixChallenge.Spanner, 0.85, 1.2);
+        var scores = Enumerable.Range(1, 40).Select(seed => Measured(RemixDirector.Roll(seed, id: "xsco")) / RemixChallenge.Spanner).Order().ToList();
+        Assert.InRange(scores[scores.Count / 2], 0.85, 1.15);
+        double Mean(int level) => Enumerable.Range(1, 60).Average(seed => RemixDirector.Score(RemixDirector.Roll(seed, level: level)));
+        Assert.True(Mean(0) < Mean(2) && Mean(2) < Mean(4), "the levels scale the challenge");
+    }
+
+    /// <summary>The director prefers the corners the stock mission never visits: its starts sit further from the stock action than the tables' starts do.</summary>
+    [Fact]
+    public void TheDirectorPrefersTheQuietCorners()
+    {
+        var tables = RemixNodes.Builtin();
+        double picked = Enumerable.Range(1, 400).Select(seed => RemixDirector.Roll(seed, tables)).Average(spec => tables.First(t => t.Base == spec.Base).Quiet(spec.Start!.At));
+        double all = tables.SelectMany(t => t.Starts.Select(st => t.Quiet(st.At))).Average();
+        Assert.True(picked > all * 1.1, $"picked starts {picked:0} m from the stock action, the tables' {all:0} m");
+    }
+
+    /// <summary>A rolled job's map follows the job: the build's stamp (the map picture's key with the stem) differs between two rolls built as xjob.</summary>
+    [Fact]
+    public void EachRollOfXjobHasItsOwnStampAndMarks()
+    {
+        if (SnapshotRig.Install is not { } inst || Built() is not { } dir) return;
+        var install = new GameInstall(inst);
+        RemixBuilder.Build(install, RemixDirector.Roll(637742)).WriteTo(dir);
+        string s1 = RemixMarks.StampOf("xjob"), m1 = RemixMarks.For("xjob")!.ToText();
+        RemixBuilder.Build(install, RemixDirector.Roll(59933)).WriteTo(dir);
+        Assert.NotEqual(s1, RemixMarks.StampOf("xjob"));
+        Assert.NotEqual(m1, RemixMarks.For("xjob")!.ToText());
+        Assert.Contains(RemixMarks.For("xjob")!.Notes, n => n.Contains("Job 59933"));
     }
 }

@@ -493,13 +493,25 @@ public sealed partial class MeleeScreen : ShellScreen
         else
         {
             var msn = MeleeData.Scenarios[Area].Msn;
-            // RANDOM JOB: a new job rolled and built before each launch (docs/remix-missions.md "The director")
-            if (msn == I76.Formats.Remix.RemixDirector.JobStem && RemixScenarios.RollJob(Shell.Install.Root) is { Error: { } err })
+            void Go() => Shell.Launch(new ShellLaunch(msn, GameKind.Scenario, car) { Driver = driver, Model = make, ModelIndex = model });
+            // RANDOM JOB: its job number asked (blank: a new one; a number: that job again), then the job rolled and built before the
+            // launch (docs/remix-missions.md "The director"); I76_JOB_NUMBER answers for a capture
+            if (msn == I76.Formats.Remix.RemixDirector.JobStem)
             {
-                GD.PrintErr(err);
+                void Roll(int? job)
+                {
+                    if (RemixScenarios.RollJob(Shell.Install.Root, job) is { Error: { } err }) { GD.PrintErr(err); Draw(); return; }
+                    Go();
+                }
+                if (System.Environment.GetEnvironmentVariable("I76_JOB_NUMBER") is { } given)
+                {
+                    Roll(int.TryParse(given, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int g) && g > 0 ? g : null);
+                    return;
+                }
+                Shell.Modal(new JobNumberPopup { Font = _font, Recent = RemixScenarios.History(), Picked = Roll, Cancelled = Draw });
                 return;
             }
-            Shell.Launch(new ShellLaunch(msn, GameKind.Scenario, car) { Driver = driver, Model = make, ModelIndex = model });
+            Go();
         }
     }
 

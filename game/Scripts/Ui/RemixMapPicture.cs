@@ -23,7 +23,9 @@ public static class RemixMapPicture
     public static (Texture2D Picture, List<(Vector2 At, string Label)> Marks, string? Title, List<Vector2[]> Lines)? For(string? installRoot, string? mission, bool look1997)
     {
         if (installRoot is null || mission is null || RemixMarks.For(mission) is not { } marks) return null;
-        string key = $"{mission}:{look1997}";
+        // by the build's stamp too: RANDOM JOB rebuilds xjob for every roll, and a picture kept by the stem alone showed the first
+        // job's map for every later one in the same run
+        string key = $"{mission}:{look1997}:{RemixMarks.StampOf(mission)}";
         if (Made.TryGetValue(key, out var done)) return done;
         (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>)? made = null;
         try

@@ -16,6 +16,8 @@ public sealed class RemixMarks
 {
     public List<(string Label, Vector2 At)> Points { get; } = [];
     public List<(string Label, Vector2[] Points)> Lines { get; } = [];
+    /// <summary>Lines for the notepad and the map's foot: where the places are, in words (the description's text.notes).</summary>
+    public List<string> Notes { get; } = [];
 
     /// <summary>Every point the marks name, the region the sketch is drawn round.</summary>
     public IEnumerable<Vector2> All => Points.Select(p => p.At).Concat(Lines.SelectMany(l => l.Points));
@@ -30,6 +32,7 @@ public sealed class RemixMarks
             if (z is not null && place(z.Place) is [var at, ..]) m.Add(label, at);
         }
         m.Add("START", start);
+        m.Notes.AddRange(spec.Text.Notes);
         switch (o.Template)
         {
             case "defend":
@@ -49,8 +52,12 @@ public sealed class RemixMarks
                 Zone(cv.Exit, "EXIT");
                 break;
         }
+        if (o.Finish is { } fin) Zone(fin, FinishLabel(spec));
         return m;
     }
+
+    /// <summary>What the map calls a job's finish: the safe house after a tail's hideout, home after anything else.</summary>
+    public static string FinishLabel(RemixSpec spec) => spec.Objective.Template == "tail" ? "SAFE HOUSE" : "HOME";
 
     /// <summary>A mark; one at (nearly) the place of an earlier one joins its label ("START / HOME").</summary>
     public void Add(string label, Vector2 at)
@@ -66,6 +73,7 @@ public sealed class RemixMarks
         var b = new StringBuilder();
         foreach (var (l, at) in Points) b.Append(inv, $"MARK {l.Replace(' ', '_')} {at.X:0.#} {at.Y:0.#}\n");
         foreach (var (l, pts) in Lines) b.Append(inv, $"LINE {l.Replace(' ', '_')} {string.Join(" ", pts.Select(p => string.Create(inv, $"{p.X:0.#} {p.Y:0.#}")))}\n");
+        foreach (var n in Notes) b.Append($"NOTE {n.Replace('\n', ' ')}\n");
         return b.ToString();
     }
 
@@ -75,6 +83,7 @@ public sealed class RemixMarks
         var inv = CultureInfo.InvariantCulture;
         foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
+            if (line.StartsWith("NOTE ", StringComparison.Ordinal)) { m.Notes.Add(line[5..]); continue; }
             var f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (f.Length < 4) continue;
             var n = f.Skip(2).Select(s => float.TryParse(s, NumberStyles.Float, inv, out var v) ? v : float.NaN).ToArray();
@@ -92,6 +101,14 @@ public sealed class RemixMarks
         if (GameInstall.InUserMissionDir(stem + ".marks") is not { } p) return null;
         try { return Parse(File.ReadAllText(p)); }
         catch (IOException) { return null; }
+    }
+
+    /// <summary>A generated mission's build stamp (STEM.remix: the generator's version, the description's and the base's hashes), or "".</summary>
+    public static string StampOf(string stem)
+    {
+        if (GameInstall.InUserMissionDir(Path.GetFileNameWithoutExtension(stem) + ".remix") is not { } p) return "";
+        try { return File.ReadAllText(p).Trim(); }
+        catch (IOException) { return ""; }
     }
 
     /// <summary>Whether a mission stem names a generated remix (its stamp is in GameInstall.UserMissionDir).</summary>

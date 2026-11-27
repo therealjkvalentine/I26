@@ -1,24 +1,40 @@
-# T14's map (US 285 from the county line north past Spanner's truckstop): coordinates read off the map (i76 remix map t14).
+# T14's map (US 285 from the county line north past Spanner's truckstop): coordinates read off the map (i76 remix map t14),
+# written by hand with the port's own words for the places. stock_action: where T14's own mission happens (285 and the county
+# road), so jobs prefer the rest: the dirt roads east of the truckstop, the west road and 285 north of the truckstop.
 base: t14
 hour: 19
 lot: [8000, 40620]                  # the east end of the county road, past where any job goes
+cast:
+  - {name: Callisto, side: gang}
+  - {name: Malocchio, side: gang}
+  - {name: Union 12, side: police}
+stock_action: [[5400, 45235], [6860, 40580], [5375, 44775], [5295, 44130], [5295, 43600], [5270, 42295], [5270, 41100], [5650, 40580], [6025, 40580], [8030, 40580], [5230, 48595], [5292, 45778], [5268, 43212], [5268, 42772]]
 starts:
-  - {name: county_line, at: [6800, 40580], heading: 270}
-  - {name: truckstop, at: [5385, 45180], heading: 180}
-  - {name: on_285, at: [5290, 43495], heading: 0}
+  - {name: county_line, at: [6800, 40580], heading: 270, called: at the county line}
+  - {name: truckstop, at: [5385, 45180], heading: 180, called: "at Spanner's truckstop"}
+  - {name: on_285, at: [5290, 43495], heading: 0, called: on 285 south of the truckstop}
+  - {name: west_road, at: [4855, 44726], heading: 90, called: on the west road by the junction}
+  - {name: northeast, at: [7150, 46314], heading: 225, called: near the end of the northeast dirt road}
 nodes:
-  - {name: truckstop, kinds: [home, hideout], at: [5420, 45180]}
-  - {name: roadside, kinds: [pickup], at: [5250, 42500]}
-  - {name: south_farm, kinds: [pickup, hideout], at: [6300, 40620]}
-  - {name: east_loop, kinds: [pickup, hideout], at: [6000, 46100]}
-  - {name: north_285, kinds: [hideout, pickup], at: [5200, 46900]}
-  - {name: county_line, kinds: [home], at: [6800, 40580]}
+  - {name: truckstop, kinds: [home, hideout], at: [5420, 45180], called: "Spanner's truckstop"}
+  - {name: roadside, kinds: [pickup], at: [5250, 42500], called: 285 half way up from the county line}
+  - {name: south_farm, kinds: [pickup, hideout], at: [6300, 40620], called: the farm on the county road}
+  - {name: east_loop, kinds: [pickup, hideout], at: [6000, 46100], called: the far bend of the dirt loop east of 285}
+  - {name: north_285, kinds: [hideout, pickup], at: [5200, 46900], called: 285 north of the truckstop}
+  - {name: county_line, kinds: [home], at: [6800, 40580], called: the county line}
+  - {name: west_end, kinds: [pickup, hideout, home], at: [4855, 44726], called: the west road by the junction}
+  - {name: northeast, kinds: [pickup, hideout], at: [7150, 46314], called: near the end of the northeast dirt road}
+  - {name: far_north, kinds: [hideout, pickup], at: [5234, 47450], called: 285 well north of the truckstop}
 entries:
   - {name: county_east, at: [[7500, 40580], [7300, 40580]]}
   - {name: north, at: [[5235, 48000], [5235, 47700]]}
   - {name: west, at: [[4600, 44700], [4800, 44700]]}
+  - {name: west_far, at: [[3880, 44705], [4100, 44705]]}
+  - {name: northeast, at: [[7353, 46491], [7126, 46292]]}
   - {name: bend, at: [[5600, 40580], [5800, 40580]]}
   - {name: mid_285, at: [[5270, 42000], [5270, 42300]]}
 routes:
   - {name: north_285, points: [[6025, 40580], [5815, 40580], [5650, 40580], [5270, 41100], [5270, 42295], [5295, 43600], [5295, 44130], [5375, 44775], [5400, 45150]], heading: 270}
   - {name: up_from_spanner, points: [[5355, 45510], [5250, 46000], [5235, 47000], [5235, 48000]], heading: 0}
+  - {name: west_to_north, points: [[3875, 44705], [4180, 44705], [4485, 44705], [4785, 44714], [5022, 44872], [5099, 45158], [5385, 45281], [5336, 45587], [5255, 45894], [5205, 46205], [5218, 46515], [5234, 46832], [5235, 47134], [5234, 47443]], heading: 90}
+  - {name: northeast_in, points: [[7353, 46491], [7126, 46292], [6891, 46086], [6629, 45911], [6492, 45702], [6386, 45442], [6077, 45394], [5769, 45349], [5481, 45265], [5385, 45239]], heading: 225}

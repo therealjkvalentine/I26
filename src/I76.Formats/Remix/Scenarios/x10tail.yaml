@@ -1,24 +1,31 @@
-# Lose the tail on 380 (T10's map): the police come up behind you east of the roadblock. Shake them (nobody within 500 m for
-# 12 s, or nobody left), then get to the hideout in Tatum at the west end without leading anybody in. T10's roadblock fence
-# is open from the start; the roadblock's cops and the two at the billboard wake as you pass.
+# Lose the tail (T10's map), through the side roads T10 never uses: start on the dirt road south of 380 at the east end with
+# the state police coming up behind you. Shake them (nobody within 500 m for 12 s, or nobody left) on the back roads and the
+# dirt loop north of the roadblock, where the hideout is; the roadblock's cops wake as you pass. Then the twist: the hideout is
+# being watched, and Cloaker's crew comes in from the north; make for the safe house up the road north out of Tatum with
+# nobody behind you. T10's roadblock fence is open from the start.
 id: x10tail
 title: Tatum Tail
 base: t10
 hour: 21
-start: {at: [6600, 47720], heading: 270}      # on 380 east of the roadblock, facing west
+start: {at: [7536, 47072], heading: 0}        # on the south road at the east end, facing north toward 380
 gates:
   start: [gate]                               # T10's roadblock fence opens
 places:
-  chase: [[7050, 47720], [6950, 47720]]       # the police come in behind you, heading west
-  tatum: [[820, 47950]]                       # the hideout: the town at the west end
-  road: [[6000, 47720], [5300, 47718], [4500, 47715], [3830, 47715], [2500, 47720], [1900, 47440], [1300, 47900], [820, 47950]]
-                                              # 380 west to Tatum (no script uses it: a route for test drivers)
+  chase: [[7534, 46650], [7535, 46850]]       # the police come up the south road behind you, inside radar range
+  hideout: [[4100, 48650]]                    # the top of the dirt loop north of the roadblock
+  safe: [[930, 48274]]                        # the safe house: up the road north out of Tatum
+  north: [[930, 48600], [930, 48400]]         # Cloaker's crew comes down the Tatum road from the north
+  road: [[7536, 47300], [7453, 47865], [7210, 47726], [6000, 47720], [5300, 47718], [4500, 47715], [3930, 47715], [3970, 48020], [4100, 48650]]
+                                              # the way to the hideout (no script uses it: a route for test drivers)
+cars:
+  cloak1: {vcf: vcroyal2, at: [5690, 46790]}  # Cloaker's crew, waiting south of the road where T10 sends its tanks
+  cloak2: {vcf: vcgcour2, at: [5702, 46790]}
 objective:
   template: tail
-  hideout: {place: tatum, radius: 120}
+  hideout: {place: hideout, radius: 120}
   lost: {radius: 500, seconds: 12}
   clear: 500
-  deadline: 360
+  deadline: 600
   pursuit:
     cars: [cop2, cop4, cop5]                  # T10's roadblock cops, brought round behind you
     entry: chase
@@ -30,17 +37,31 @@ objective:
     - {car: cop3, wake: 400, siren: true}
     - {car: cop6, wake: 250, siren: true}     # at the billboard
     - {car: cop7, wake: 250, siren: true}
+  reinforce:
+    - {cars: [cloak1, cloak2], entry: north, at_step: 3, delay: 15, speed: 25}
+  finish: {place: safe, radius: 100}
+  finish_clear: 300
+  finish_after: 35                            # the stakeout is in by then
   skill: 2
 radio:
   start: [07sgc23]                            # sirens behind
-  trap: [gdsgc74]                             # lost them
-  win: [14sta06]                              # safe
+  steps: [[], [gdsgc74, 14sta06], [gdsta14]]  # got away, to the rendezvous; then: we've got a problem
+  reinforce: [05sgc05]                        # company
+  win: [10sta06]                              # clean
 text:
   objectives:
-    - Shake the cops off your tail.
-    - (hidden)Get to the hideout in Tatum without leading anybody in.
+    - Ocean 5 and the state police are on your tail. Shake them on the back roads.
+    - (hidden)Get to the hideout at the top of the dirt loop north of the roadblock, without leading anybody in.
+    - (hidden)The hideout's being watched. Make for the safe house up the road north out of Tatum, 3.5 km west.
   failures:
     - You should be more careful... try to stay alive.
     - You can't just leave.
     - Too slow. The hideout's been cleared out.
     - You led them right to us.
+  deaths:
+    - Ocean 5 caught up with you.
+    - You were killed on the way to the hideout.
+    - "Cloaker's crew got you on the way to the safe house."
+  notes:
+    - "Hideout: the top of the dirt loop north of the roadblock, 3.5 km west-northwest of the start."
+    - "Safe house: the road north out of Tatum, at the west end."

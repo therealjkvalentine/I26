@@ -27,6 +27,7 @@ objective:
   skill: 2
 radio:
   start: [07sgc23]                            # uh-oh: the sirens ahead
+  steps: [[14sta06], []]                      # get over to the rendezvous
   win: [10sta06]
 text:
   objectives:
@@ -36,3 +37,8 @@ text:
     - You should be more careful... try to stay alive.
     - You can't just leave.
     - Too slow. Spanner closed up and went home.
+  deaths:
+    - "The county's police got you before you reached Spanner's."
+    - You were killed with the police right behind you.
+  notes:
+    - "Spanner's truckstop: 5 km north up 285, past the bend west of the start."

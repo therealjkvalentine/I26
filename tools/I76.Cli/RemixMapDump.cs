@@ -31,8 +31,8 @@ public static class RemixMapDump
             int n = nth.GetValueOrDefault(o.Name); nth[o.Name] = n + 1;
             if (o.ObjectType is 1 or 2 or 3 or 9 or 11 or 12)
             {
-                Console.WriteLine($"obj  type {o.ObjectType,2} {o.Name,-9} nth {n} key {Key(o),-12} at {P(o.Position)}{(o.IsPlayer ? " PLAYER" : "")}");
-                objects.Add(new { o.Name, Nth = n, Type = o.ObjectType, Key = Key(o), X = o.Position.X, Z = o.Position.Z, Player = o.IsPlayer });
+                Console.WriteLine($"obj  type {o.ObjectType,2} {o.Name,-9} nth {n} key {Key(o),-12} at {P(o.Position)}{(o.ObjectType == 1 ? $" team {(o.ObjectFlags >> 16) & 7}" : "")}{(o.IsPlayer ? " PLAYER" : "")}");
+                objects.Add(new { o.Name, Nth = n, Type = o.ObjectType, Key = Key(o), X = o.Position.X, Z = o.Position.Z, Team = (int)((o.ObjectFlags >> 16) & 7), Player = o.IsPlayer });
             }
         }
         var keys = MissionScriptDecompiler.Keys(doc.Paths.Select(p => p.Name));

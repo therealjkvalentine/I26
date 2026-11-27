@@ -31,6 +31,7 @@ objective:
     speed: 25
   skill: 2
 radio:
+  steps: [[01sta63], [], []]                  # get over here (the pickup)
   trap: [14sta05]                             # got it, moving out
   wave: [07sgc23]                             # the pursuers come in
   win: [11sta08]                              # what took you so long
@@ -43,3 +44,10 @@ text:
     - You should be more careful... try to stay alive.
     - You can't just leave.
     - Too slow. The package is worthless now.
+  deaths:
+    - "The wreck's guards got you before you reached it."
+    - You were killed bringing the package back.
+    - You were killed with the gang right behind you.
+  notes:
+    - "The wreck: by the crossroads on the east side, 2.5 km east of the start."
+    - "Home: where you start, on the north road west of the oil field."

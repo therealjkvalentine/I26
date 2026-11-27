@@ -34,6 +34,11 @@ public partial class MissionPicture : Control
     public string? Title { get; init; }
     /// <summary>A remix map's routes (the convoy's), on the 640 x 480 sheet: dashed in ink.</summary>
     public IReadOnlyList<Vector2[]> Routes { get; init; } = [];
+    /// <summary>
+    /// A remix's notes (RemixMarks.Notes: where its places are, in words, and its job number): under the objectives on the
+    /// notepad after a rule, and along the map's foot.
+    /// </summary>
+    public IReadOnlyList<string> Notes { get; init; } = [];
     /// <summary>The key that closed it, to be acted on as usual.</summary>
     public required Action<InputEventKey> Closed { get; init; }
 
@@ -92,6 +97,16 @@ public partial class MissionPicture : Control
             }
             y += Pitch;   // a blank line between objectives
         }
+        if (Notes.Count == 0) return;
+        // a remix's notes: a short rule, then each note (the port's; a stock mission has none)
+        var r0 = o + new Vector2(Left, y - Pitch / 2) * s;
+        DrawLine(r0, r0 + new Vector2(120 * s, 0), Ink, Mathf.Max(1f, s));
+        foreach (var note in Notes)
+            foreach (var line in Wrap(note, Width * s, size))
+            {
+                DrawString(Lee, o + new Vector2(Left, y) * s + new Vector2(0, ascent), line, HorizontalAlignment.Left, -1, size, Ink);
+                y += Pitch;
+            }
     }
 
     /// <summary>
@@ -122,6 +137,14 @@ public partial class MissionPicture : Control
                 for (float d = 0; d < len; d += 2 * dash)
                     DrawLine(a.Lerp(b, d / len), a.Lerp(b, Mathf.Min(1, (d + dash) / len)), ink, Mathf.Max(1f, 1.5f * s));
             }
+        // the notes along the foot, under the sketch (it ends at 448)
+        int tiny = Mathf.Max(1, Mathf.RoundToInt(11 * s));
+        float fy = 458;
+        foreach (var note in Notes.Take(2))
+        {
+            DrawString(Lee!, o + new Vector2(44, fy) * s, note, HorizontalAlignment.Left, 552 * s, tiny, ink);
+            fy += 12;
+        }
         foreach (var (at, label) in Marks)
         {
             var p = o + at * s;

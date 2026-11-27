@@ -46,6 +46,13 @@ radio:
   wave: [12sgc08, 07sgc23]          # each later wave
   win: [gdsgc32, 10sta06]           # the last of them; clean
 text:
+  deaths:
+    - You were killed on the way to the farms.
+    - You were killed defending the farms.
+    - You were killed before the last raider fell.
+  notes:
+    - "The farms: the three farmsteads north of 380, 1.5 km west of the start."
+    - The raiders come in from the east and west ends of 380, from the north and over the ridge.
   objectives:
     - Get to the farms north of 380 before the raiders do.
     - Keep the farms standing.

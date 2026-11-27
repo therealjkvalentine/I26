@@ -662,6 +662,46 @@ public partial class Main : Node3D
 		return ImageTexture.CreateFromImage(img);
 	}
 
+	/// <summary>The notepad's hand font (Lee, the install's), hard-edged in the 1997 look; null without an install or the file.</summary>
+	private Font? LeeFont()
+	{
+		if (_opt.Install is null) return null;
+		var f = new FontFile { Antialiasing = _mode1997 ? TextServer.FontAntialiasing.None : TextServer.FontAntialiasing.Gray };
+		return f.LoadDynamicFont(new I76.Formats.Vfs.GameInstall(_opt.Install).FindFile("Lee_____.ttf") ?? System.IO.Path.Combine(_opt.Install, "Lee_____.ttf")) == Error.Ok ? f : null;
+	}
+
+	/// <summary>The session a remix's opening (the notepad at the start, RemixOpening) was last decided for.</summary>
+	private object? _remixOpened;
+
+	/// <summary>
+	/// A remix opens on the notepad (docs/remix-missions.md "Briefing"): once a generated mission's first half second has run with
+	/// no cut-scene, menu or picture up, the objectives page opens, as a stock mission's briefing presents its objectives; any key
+	/// closes it. Single player only (a remix is never a network game). Then each objective as it opens is lettered at the top
+	/// of the screen (RemixRadioLine).
+	/// </summary>
+	private void RemixOpening()
+	{
+		if (_sim?.Session is not { } session || ReferenceEquals(_remixOpened, session) || _script is null || _net is not null) return;
+		if (!I76.Formats.Remix.RemixMarks.IsRemix(_opt.Mission)) { _remixOpened = session; return; }
+		if (_loading || _inMenu || _menu is not null || _picture is not null || CameraHeld || _script.Host.Now < 0.5) return;
+		_remixOpened = session;
+		var layer = new CanvasLayer { Layer = 30, Name = "RemixRadio" };
+		var line = new I76.Game.Ui.RemixRadioLine { Lee = LeeFont() };
+		layer.AddChild(line);
+		_sim.AddChild(layer);
+		var ob = _script.Host.Objectives;
+		int shown = -1;
+		ob.Sound += _ =>
+		{
+			// the first objective neither done nor hidden: when it changes, say it
+			int open = System.Array.FindIndex(ob.Flags, f => (f & (I76.Sim.Missions.Objectives.Hidden | I76.Sim.Missions.Objectives.Succeeded | I76.Sim.Missions.Objectives.Failed)) == 0);
+			if (open < 0 || open == shown || !GodotObject.IsInstanceValid(line)) return;
+			shown = open;
+			line.Say(I76.Formats.Remix.RemixBuilder.Plain(ob.Text.Objectives[open].Text) is var t && t.Length > 0 ? char.ToUpperInvariant(t[0]) + t[1..] : t);
+		};
+		OpenPicture(MissionPicture.Kind.Notepad);
+	}
+
 	private void OpenPicture(MissionPicture.Kind kind)
 	{
 		Texture2D? pic;
@@ -688,19 +728,16 @@ public partial class Main : Node3D
 		if (_net is null) GetTree().Paused = true;
 		if (GetNodeOrNull<AudioStreamPlayer>("Music") is { } music) music.ProcessMode = ProcessModeEnum.Always;
 		var layer = new CanvasLayer { Layer = 40, ProcessMode = ProcessModeEnum.Always, Name = "MissionPicture" };
-		Font? lee = null;
-		if ((kind == MissionPicture.Kind.Notepad || remix is not null) && _opt.Install is not null)
-		{
-			var f = new FontFile { Antialiasing = _mode1997 ? TextServer.FontAntialiasing.None : TextServer.FontAntialiasing.Gray };
-			if (f.LoadDynamicFont((new I76.Formats.Vfs.GameInstall(_opt.Install).FindFile("Lee_____.ttf") ?? System.IO.Path.Combine(_opt.Install, "Lee_____.ttf"))) == Error.Ok) lee = f;
-		}
+		Font? lee = kind == MissionPicture.Kind.Notepad || remix is not null ? LeeFont() : null;
+		// a remix's notes (where its places are, in words, and its job number) under the objectives and along the map's foot
+		var notes = I76.Formats.Remix.RemixMarks.IsRemix(_opt.Mission) ? I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Notes ?? [] : [];
 		var objectives = new List<(string, int)>();
 		if (_script?.Host.Objectives is { } ob)
 			for (int i = 0; i < ob.Flags.Length; i++) objectives.Add((ob.Text.Objectives[i].Text, ob.Flags[i]));
 		var view = new MissionPicture
 		{
 			What = kind, Picture = pic, Objectives = objectives, Lee = lee,
-			Marks = remix?.Marks ?? [], Title = remix?.Title, Routes = remix?.Lines ?? [],
+			Marks = remix?.Marks ?? [], Title = remix?.Title, Routes = remix?.Lines ?? [], Notes = notes,
 			// the art's pixels kept in both looks (the text is set at the window's scale); an upscale filtered smooth
 			TextureFilter = hd is null ? CanvasItem.TextureFilterEnum.Nearest : CanvasItem.TextureFilterEnum.LinearWithMipmaps,
 			Closed = k =>
@@ -5033,6 +5070,7 @@ public partial class Main : Node3D
 			if (tcs.CasterReach != casters) tcs.CasterReach = casters;
 		}
 		StartErrors.Frame(GetTree());   // the start's engine errors, counted to a few seconds into the mission
+		RemixOpening();
 		UpdateMouseCapture();
 		// [port] wreck_solid follows the look in use and the key as they are now (F12, the Developer panel), between ticks
 		if (_sim?.Combat is { } wc) I76.Game.Sim.OriginalBehavior.ApplyWrecks(wc, _mode1997);
