@@ -833,7 +833,7 @@ actors; a variable holding such an index is the same slot) is the group, by use 
 | Script use | In co-op |
 |---|---|
 | Conditions (`isWithin*`, `isWithinEnemy`, `isArrived`, `isAtFollow`, `isAirborne`, `isShot/Rammed/Attacked`, `hpLesser`, `canSee`) | true if any living human satisfies it. The thread remembers which (`Thread.Match`) until it yields: a following action on the player in the same tick goes to that human (T12's jump zone destroys the one in it, S03's jump camera watches the jumper). The next condition tries the last matched human first (`Thread.Prefer`) |
-| Negations | fall out as "no human": a leash or escort fails once everyone is away, "no enemy near the player" holds only if none is near anyone |
+| Negations | fall out as "no human": a leash or escort fails once everyone is away (T17's arena leash, `!isWithinSqNav(chicken, user, 1000 / 1250 / 1500)`, "You're a coward after all", fails only once every living human is 1500 from it), "no enemy near the player" holds only if none is near anyone. With every human dead at once a group condition is tested on the lead's wreck, as the single player's dead car stands where it died: the death's fail is the mission's, not a leash read as "everyone away" over it |
 | `isDead(player)` | every human dead at once (a respawning human is dead). The death-taunt routine's `stopCB` follows it, so it comes only then |
 | `isEqualId(x, player)` | x is any human (the match). `whoX(victim)` names a human by a slot of its own (`NoLabel..`), never the group's, so `attack(friend, v)` goes at that human |
 | `whoRammed/Shot/Attacked(player)` | the match's attacker, else the attacker of the human hit last |
@@ -863,7 +863,10 @@ Recognised by their bytecode in every stock mission (`CoopRoutines.Analyze`, `Co
   warnings are `CoopLeaveWarning` events for that seat, and at the fail radius the human is put back beside a living
   teammate away from every exit (outside the last warning's radius), in the same car (no repair from driving off), and
   the thread starts over. The mission fails, as the original, only with nobody to come back to. A01, S02, S06 and B01
-  carry the routine but run no thread on it.
+  carry the routine but run no thread on it. The warnings are positive tests (near the exit); a routine whose tests
+  are all negated is a leash, not this, and stays the group's: T17's arena leash (above, "Negations") was once taken
+  for it, and an empty seat's copy, with no car to be near the arena, failed the duel 8 s into the intro
+  (`CoopStartSweepTests`).
 - **Friendly fire**: `whoAttacked/Shot/Rammed(friend, v)`, a positive `isEqualId(v, player)`, then `inc(counter)`
   before the thread yields; the friend not an enemy. T01 data 12, T02 data 62, T03 data 46, T06 data 74 (the player's
   hits on Inferno: past 10 she drives off); Nitro B01, P01, P03, P04, P06, P07, P08, P19 keep the count in the routine's

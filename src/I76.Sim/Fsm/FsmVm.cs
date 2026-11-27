@@ -238,11 +238,21 @@ public sealed partial class FsmVm
             if (k != first && _host.HumanAlive(k) && _host.Human(k) is { } x) yield return x;
     }
 
-    /// <summary>A condition on the group: true if a living human satisfies it, who becomes the thread's match.</summary>
+    /// <summary>
+    /// A condition on the group: true if a living human satisfies it, who becomes the thread's match. With no living
+    /// human (every one dead at once) the group is the lead's wreck, as the single player's dead car still stands where
+    /// it died: a negated test (T17's leash, "!isWithinSqNav(chicken, user, 1000)") does not read "everyone away" then
+    /// and fail over the death's own message.
+    /// </summary>
     private bool Any(Thread t, Func<object, bool> test)
     {
+        bool none = true;
         foreach (var m in Members(t))
+        {
+            none = false;
             if (test(m)) { t.Match = m; t.Prefer = _host.HumanSeat(m); return true; }
+        }
+        if (none && Pin(t) < 0 && _host.Human(_host.LeadSeat) is { } lead && !_host.IsRemoved(lead)) return test(lead);
         return false;
     }
 
