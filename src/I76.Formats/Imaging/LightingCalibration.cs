@@ -481,16 +481,17 @@ public static class LightingCalibration
     /// The least sun factor the sunlit look takes, whatever the solve finds: the drawn ground has less contrast than the cells say
     /// (the texture's own brights muted by the modern ground's filtering and blends, the sky's occlusion, the ambient occlusion), so
     /// measured on the frames the sunlit and the shaded thirds of every day mission came out nearer each other than the 1997 look's
-    /// at a sun of 1: 3 (the captures of every day mission, docs/deviations.md "Lighting": T10's sunlit and brightest ground nearest the
-    /// 1997 look's with its shade no lighter; the round-two comps' x2.8 by eye).
+    /// at a sun of 1: 2 (the captures of every day mission, docs/deviations.md "Lighting": T10's sunlit and brightest ground nearer the
+    /// 1997 look's, its shade no lighter; 3 scored alike on T10 and darkened T15's dusk valley more; the round-two comps' x2 to x2.8 by eye).
     /// </summary>
-    public const double SunlitMinGain = 3;
+    public const double SunlitMinGain = 2;
 
     /// <summary>
-    /// The floor's extra sun added over the solve's exposure (true) rather than within the ground's mean (false): within the mean, a
-    /// dusk valley in the terrain's own shadow (T15) went twice as dark as the 1997 look's, its exposure lowered for sunlit ground elsewhere.
+    /// The floor's extra sun added over the solve's exposure (true) rather than within the ground's mean (false, shipped): on top, T10's
+    /// and T14's sunlit ground and shade came out brighter than the 1997 look's (T10 lit L 0.38 against 0.32, shade 0.27 against 0.20);
+    /// within the mean, a dusk valley in the terrain's own shadow (T15) goes darker (its exposure lowered for sunlit ground elsewhere).
     /// </summary>
-    public const bool SunlitFloorOnTop = true;
+    public const bool SunlitFloorOnTop = false;
 
     /// <summary>The sun's factor <see cref="SolveSunlit"/> takes (1 when the contrast cells have no spread of light).</summary>
     public static double SunGainFor(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card)
