@@ -15,7 +15,7 @@ namespace I76.Game.Shell;
 /// the mode was called ROAD TRIP: a run saved then resumes), so quitting the game keeps it; the main menu's MELEE > ROGUETRIP takes
 /// it up again. Single player.
 /// </summary>
-public sealed class RoguetripScreen : ShellScreen
+public sealed partial class RoguetripScreen : ShellScreen
 {
     public required RemixRun Run { get; set; }
     /// <summary>Said over the sheet on entry (a job that could not be built or loaded).</summary>
@@ -149,6 +149,8 @@ public sealed class RoguetripScreen : ShellScreen
         _small = Shell.Db.Font(0x44);
         _title = Shell.Db.Font(0x43);
         _caps = Shell.Db.Font(0x47);
+        // a co-op roguetrip's route map and debrief, read from the host's run (RoguetripScreen.Coop.cs)
+        if (CoopEnter()) return;
         // a won job's salvage and garage: the trip's own screens on the run's inventory
         if (Run.Phase == "salvage") { Salvage(); return; }
         if (Mood == "choose") _offers = Run.Offers(RemixNodes.Builtin(), Shell.Install.IsNitro);
@@ -366,7 +368,7 @@ public sealed class RoguetripScreen : ShellScreen
                 }
                 if (_offers.Count == 0) Centre(_hand, 200, "No jobs on the road from here.");
                 else DrawJobMap(_offers[Math.Clamp(_sel, 0, _offers.Count - 1)]);
-                Centre(_small, 428, "Up, Down or the map's rings choose; Enter takes the job; Esc: back.");
+                Centre(_small, 428, CoopHelp ?? "Up, Down or the map's rings choose; Enter takes the job; Esc: back.");
                 Button(Take, "TAKE THE JOB");
                 Button(Later, "BACK");
                 break;
@@ -410,13 +412,13 @@ public sealed class RoguetripScreen : ShellScreen
                 Centre(_small, y, $"{l.Kills} kills. The car: {condition}.");
                 string next = how switch
                 {
-                    RemixRun.Outcome.Won => Run.Legs.Count >= RemixRun.Jobs ? "That was the last job of the run." : "Next: what's left of their cars, in FIELD SALVAGE, then the garage.",
+                    RemixRun.Outcome.Won => Run.Legs.Count >= RemixRun.Jobs ? "That was the last job of the run." : CoopView is not null ? CoopWonNext : "Next: what's left of their cars, in FIELD SALVAGE, then the garage.",
                     RemixRun.Outcome.Bust => Run.Legs.Count >= RemixRun.Jobs ? "A bust, and the last job of the run." : $"A bust: no salvage from this one, and word gets round: the next job is a step harder ({Run.NextChallenge:0.0}).",
                     _ => "The run ends here.",
                 };
                 foreach (var w in Wrap(_small, next, Right - Left - 40)) { y += 18; Centre(_small, y, w); }
                 Button(Later, "CONTINUE");
-                if (Developer) Button(Retry, "RETRY JOB");
+                if (Developer && CoopView is null) Button(Retry, "RETRY JOB");
                 break;
             }
             default:
@@ -492,6 +494,7 @@ public sealed class RoguetripScreen : ShellScreen
 
     public override void Tick()
     {
+        if (CoopTick()) return;
         foreach (var k in Shell.Keys)
         {
             if (k is Key.Up && Count > 0) { _sel = (_sel + Count - 1) % Count; Shell.Sound(82); Repaint(); }

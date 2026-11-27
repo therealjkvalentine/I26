@@ -460,7 +460,7 @@ public sealed partial class MeleeClient : IDisposable
                 foreach (var c in CarList.Read(ref r).Cars) CarAnswers.Enqueue(c);
                 break;
             default:
-                if (!ReceiveCoop(type, ref r)) ReceiveMigration(type, ref r, data.Length);
+                if (!ReceiveRoguetrip(type, ref r) && !ReceiveCoop(type, ref r)) ReceiveMigration(type, ref r, data.Length);
                 break;
         }
     }

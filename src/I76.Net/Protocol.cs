@@ -19,7 +19,7 @@ public static class Protocol
     /// a bit): appended to the join request and the accept, so two fork builds turn them on between them and an upstream
     /// peer, which never says any, gets the layout it reads.
     /// </summary>
-    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip | PeerFeatures.CoopNext | PeerFeatures.WrecksSolid | PeerFeatures.LobbyRename | PeerFeatures.SolidCliffs | PeerFeatures.SmartAi;
+    public const PeerFeatures Features = PeerFeatures.Pistol | PeerFeatures.HandicapBoard | PeerFeatures.Migration | PeerFeatures.CoopWait | PeerFeatures.CoopSkip | PeerFeatures.CoopNext | PeerFeatures.WrecksSolid | PeerFeatures.LobbyRename | PeerFeatures.SolidCliffs | PeerFeatures.SmartAi | PeerFeatures.Roguetrip;
     /// <summary>The first thing in a join request, so that stray packets are refused before they are read.</summary>
     public const string Magic = "I76N";
     public const int DefaultPort = 7676;
@@ -27,6 +27,13 @@ public static class Protocol
     public const int MaxSeats = 64;
     /// <summary>The seats of a co-op story mission.</summary>
     public const int MaxCoopSeats = 8;
+    /// <summary>
+    /// A co-op seat's respawn delay that never comes (a co-op roguetrip's: a player killed in a job is out of it until the next; the
+    /// death card says so). Sent as the accept's respawn delay, as any other.
+    /// </summary>
+    public const float CoopNoRespawn = 1e6f;
+    /// <summary>The words to a joiner whose game cannot play a co-op roguetrip (it says no <see cref="PeerFeatures.Roguetrip"/>).</summary>
+    public const string RoguetripNeeded = "The host is playing ROGUETRIP in co-op: your build of I26 cannot build its jobs (update to the host's build)";
     /// <summary>The longest game password, in characters (protocol 12).</summary>
     public const int MaxPassword = 32;
     /// <summary>
@@ -129,6 +136,11 @@ public enum PeerFeatures : uint
     /// car, so a client only holds it (its mirror's session builds as the host's); a peer without the bit sees the same cars.
     /// </summary>
     SmartAi = 1 << 9,
+    /// <summary>
+    /// ROGUETRIP in co-op (docs/remix-missions.md "Roguetrip in co-op"): the host's run and the job each player builds from it
+    /// (<see cref="MsgType.RoguetripState"/>). A host hosting one turns away a peer without it (its game cannot build the jobs).
+    /// </summary>
+    Roguetrip = 1 << 10,
 }
 
 public enum MsgType : byte
@@ -224,6 +236,8 @@ public enum MsgType : byte
     WreckRule = 64,
     /// <summary>Client → server, reliable (<see cref="PeerFeatures.LobbyRename"/>): in a co-op lobby, the player's new name (one string).</summary>
     LobbyName = 65,
+    /// <summary>Server → client, reliable ordered (<see cref="PeerFeatures.Roguetrip"/>): the co-op roguetrip's run, route map, job and its hash (<see cref="I76.Net.RoguetripState"/>).</summary>
+    RoguetripState = 66,
 }
 
 /// <summary>A dead player's new car for the next respawn: a car file, and its .vcf when the server's install may lack it (as a join's configuration).</summary>

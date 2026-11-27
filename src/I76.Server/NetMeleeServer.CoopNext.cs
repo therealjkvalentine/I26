@@ -57,6 +57,14 @@ public sealed partial class NetMeleeServer
             if (_lobbyOpen) return "the game is in its lobby";
             string mission = Options.Coop ?? Options.Arena;
             bool won = cm.Result == true;
+            // a co-op roguetrip's job is played once: no replay, no next mission but the route map's; the lobby mid-job walks away from it (a bust)
+            if (Roguetrip is not null)
+            {
+                if (kind != CoopPlanKind.Lobby) return "a roguetrip's job is played once: back to the lobby for the next";
+                if (cm.Result is null) { Log?.Invoke("co-op: the host takes the crew off the job: back to the lobby"); RoguetripEnded(cm, null); _planned = true; }
+                CarryOn(CoopPlanKind.Lobby, mission, won);
+                return null;
+            }
             switch (kind)
             {
                 case CoopPlanKind.Next when _plan is { Kind: CoopPlanKind.Next } p:
@@ -81,7 +89,15 @@ public sealed partial class NetMeleeServer
         if (!_planned)
         {
             _planned = true;
-            PlanFor(cm, won);
+            if (Roguetrip is not null)
+            {
+                // a co-op roguetrip's job: the run takes its end, and everyone goes back to the lobby for the debrief and the next choice
+                RoguetripEnded(cm, won);
+                int hold = (int)Math.Ceiling(Options.CoopNextSeconds);
+                SetPlan(new CoopPlan(CoopPlanKind.Lobby, Options.Coop ?? Options.Arena, hold));
+                cm.NextRoundSeconds = (byte)Math.Clamp(hold, 1, 255);
+            }
+            else PlanFor(cm, won);
         }
         if (_plan is { Kind: not CoopPlanKind.Host } p && Now >= _planDue) CarryOn(p.Kind, p.Mission, won);
     }

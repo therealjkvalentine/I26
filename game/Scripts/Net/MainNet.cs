@@ -103,6 +103,8 @@ public partial class Main
                     // the host's own choice of Co-op Scaling's rule, from its shell.cfg alone (no row, not sent)
                     CoopCopyKeyCars = I76.Game.Shell.ShellSettings.Load().CoopCopyKeyCars,
                 };
+            // ROGUETRIP in co-op (the host form's last co-op row): the host's run, its jobs built for the crew (MainNetRoguetrip.cs)
+            if (o.Coop == I76.Formats.Remix.CoopJob.Stem) o = RoguetripHost(o);
             GD.Print($"listen server: {o.Arena}, {o.MaxPlayers} seats (about {I76.Game.Shell.MeleeScreen.UploadMbit(o.MaxPlayers):0.#} Mbit/s up when full), rand seed {(uint)o.Seed}{(_opt.FixedSeed is null ? " (clock)" : "")}{(o.Restrictions.IsEmpty ? "" : $", restricted {o.Restrictions}")}{(o.AllowHidden ? ", hidden weapons and cars allowed" : "")}{(o.AllowTurrets ? ", several turrets allowed" : "")}{(o.Coop is null ? "" : $", co-op: damage x{o.CoopDamage:0.##}, extra enemies {o.CoopScale}, rolling start {(o.CoopRollingStart ? "on" : "off")}{(o.CoopCopyKeyCars ? ", key cars copied (coop_copy_key_cars)" : "")}")}");
             try { await _net.Host(o); }
             catch (System.Exception ex)
@@ -111,6 +113,7 @@ public partial class Main
                 return false;
             }
             (host, port) = ("127.0.0.1", _net.Server!.Port);
+            WatchRoguetrip(_net.Server);
             if (_net.Server.MapNote is { } mapNote) GD.Print($"listen server: {mapNote}");
             // --anet / the host form's server: listed there, and the hole punch answered for the joiners it introduces
             var anet = new List<(string, int)>();
@@ -210,6 +213,13 @@ public partial class Main
             I76.Formats.Vfs.GameInstall.SessionMapDir = mapDir;
             GD.Print($"network: playing the host's map from {mapDir}");
         }
+        // a co-op roguetrip's job is built here from the host's numbers and checked against the host's (MainNetRoguetrip.cs)
+        if (await RoguetripJobHere(acc) is { } rbad)
+        {
+            _net.Client.Leave();
+            NetFailed($"could not join {host}:{port}: {rbad}", rbad);
+            return false;
+        }
         // the host's map must be this install's too (the original's JO check): refused here,
         // before anything is built, rather than playing on a different terrain and drifting apart
         if (acc.MapMismatch(new I76.Formats.Vfs.GameInstall(_opt.Install!)) is { } mismatch)
@@ -278,7 +288,15 @@ public partial class Main
                     if (car is not null) GD.Print($"network: lobby: asking for {car}{(config is null ? "" : " (our own variant)")}");
                     c.SendLobbySet(ready, car, config, car is null ? null : PaintBytes(car));
                 },
-                Start = force => { if (_net.Server?.StartLobby(force) is { } no) GD.Print($"network: lobby: cannot start: {no}"); },
+                // (a co-op roguetrip's start builds the job first: off the frame)
+                Start = force =>
+                {
+                    var sv = _net.Server;
+                    if (sv?.Roguetrip is not null) System.Threading.Tasks.Task.Run(() => { if (sv.StartLobby(force) is { } rno) GD.Print($"network: lobby: cannot start: {rno}"); });
+                    else if (sv?.StartLobby(force) is { } no) GD.Print($"network: lobby: cannot start: {no}");
+                },
+                Roguetrip = () => c.Roguetrip,
+                RouteMap = RoguetripView,
                 Chat = c.SendChat,
                 Boot = who => _net.Server?.Kick(who),
                 Quit = () => { _lobbyLeft = true; c.Leave(); },
@@ -293,7 +311,7 @@ public partial class Main
                 CanRename = () => c.CanRenameInLobby,
                 FallbackModel = _launch?.ModelIndex ?? -1,
                 // the listen host's GAME SETUP: the mission and settings changed in the server in this process, built off the frame
-                Setup = () => _net.Server is { } sv && c.Lobby?.IsHost == true ? sv.Setup : null,
+                Setup = () => _net.Server is { Roguetrip: null } sv && c.Lobby?.IsHost == true ? sv.Setup : null,
                 ChangeSetup = s => System.Threading.Tasks.Task.Run(() =>
                 {
                     string? no = _net.Server is { } sv ? sv.ChangeLobby(s) : "the server has gone";
@@ -318,6 +336,8 @@ public partial class Main
             GetTree().Quit();
         }
         NetCaptureLobbyFrame(c);
+        RoguetripCaptureLobby(c);
+        RoguetripLobbyFrame(c);
         while (c.ReconfigureAnswers.TryDequeue(out var a))
         {
             GD.Print($"network: lobby: the car was {(a.Taken ? "taken" : $"refused: {a.Text}")}");
@@ -592,11 +612,12 @@ public partial class Main
         if (NetHurtEvery <= 0 || _netWorld is not { } mirror) return;
         _net!.Server!.Invoke(h =>
         {
-            var me = h.Seats.FirstOrDefault(s => s.CarSerial == mirror.OwnSerial)?.Player.Car;
+            // (any seat's car: a co-op seat is no melee player; there the nearest teammate is the one hurt)
+            var me = h.Seats.FirstOrDefault(s => s.CarSerial == mirror.OwnSerial)?.Actor.Car;
             if (me is null) return;
             if (_netHurtTarget is null)
             {
-                var near = h.Setup.World.Vehicles.Where(v => v != me && v.NetId != 0).MinBy(v => (v.Pos.ToVector3() - me.Pos.ToVector3()).LengthSquared());
+                var near = (h.Setup.World.Humans.Any(v => v != me) ? h.Setup.World.Humans : h.Setup.World.Vehicles).Where(v => v != me && v.NetId != 0).MinBy(v => (v.Pos.ToVector3() - me.Pos.ToVector3()).LengthSquared());
                 if (near is null) return;
                 _netHurtTarget = near;
                 near.Pos = me.Pos + me.Rot.Forward * 30 + new System.Numerics.Vector3(0, 2, 0);
@@ -687,6 +708,7 @@ public partial class Main
         NetMovie(c);
         NetBriefingSkip(c);
         NetCaptureShot();
+        if (c.Roguetrip is { } rts) RoguetripShot($"job{rts.Legs.Count + 1}");
         // this game took over as host (host migration): the host's prompts and boots are its own now
         if (_netHud is { Server: null } hud && _net.Server is { } taken) { hud.Server = taken; hud.Host = true; }
         // this game's own server stopped on a fault (NetSession let it go): the prompts and boots are no longer its own

@@ -73,7 +73,7 @@ public sealed partial class NetMeleeServer : IDisposable
     /// Builds the arena (seconds, from the install) and opens the port; <see cref="Start"/> runs it. The socket carries
     /// anet's lobby traffic too (<see cref="AnetLayer"/>); <paramref name="inner"/> is a packet layer under it (the tests' NAT).
     /// </summary>
-    public NetMeleeServer(ServerOptions o, PacketLayerBase? inner = null) : this(new MeleeHost(o), inner) { }
+    public NetMeleeServer(ServerOptions o, PacketLayerBase? inner = null) : this(new MeleeHost(PrepareRoguetrip(o)), inner) { }
 
     /// <summary>On a game already built (a successor's restored one, <see cref="Resume"/>, on <paramref name="port"/>).</summary>
     private NetMeleeServer(MeleeHost host, PacketLayerBase? inner, int? port = null)
@@ -291,6 +291,8 @@ public sealed partial class NetMeleeServer : IDisposable
     /// <summary>A join let in: the custom arena's offer first, or the seat at once.</summary>
     private void Admit(NetPeer peer, JoinRequest j)
     {
+        // a co-op roguetrip: a game that cannot build its jobs is turned away (NetMeleeServer.Roguetrip.cs)
+        if (RoguetripRefuses(j) is { } no) { Log?.Invoke($"{j.Name} cannot play the roguetrip (its build says nothing of it): turned away"); Turn(peer, no); return; }
         if (Host.MapOffer is { } offer)
         {
             // a custom arena: the client hears of its files first, and is seated once it has them
@@ -433,6 +435,8 @@ public sealed partial class NetMeleeServer : IDisposable
 
     private void SendAccept(NetPeer peer, Seat s)
     {
+        // a co-op roguetrip's job first: the client builds it before it reads the accept
+        if (RoguetripNow() is { } rt) SendRoguetrip(peer, rt);
         _msg.Clear();
         Host.AcceptFor(s).Write(_msg);
         peer.Send(_msg.Span, DeliveryMethod.ReliableOrdered);

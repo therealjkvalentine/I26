@@ -245,6 +245,98 @@ public static class RemixCheck
         return (parts, cars);
     }
 
+    /// <summary>What a walk of a job came to: the script's result (null: still running at the horizon), its failure line, the seconds, a trace of its steps.</summary>
+    public sealed record WalkResult(bool? Won, int Fail, float Seconds, string Trace);
+
+    /// <summary>
+    /// A job walked as a player would play it to its end (docs/remix-missions.md "Roguetrip in co-op"): each step's place teleported to a few
+    /// seconds after it opens, an escort followed 70 m behind its car, a raid's targets shot through as its second step opens, and every
+    /// hostile car killed as the player's kill a few seconds after it has come out. With <paramref name="seats"/> above 1 the mission is a
+    /// co-op one of that many humans (no respawn, a co-op roguetrip's), the first walked and the others left where the formation put them:
+    /// the template's every test on "the player" must then mean any living human (or none, for a negation) and the job still ends as one
+    /// player's does. <paramref name="kill"/> destroys these seats at these seconds (nobody's kill), for the death rules.
+    /// </summary>
+    public static WalkResult Walk(AssetVfs vfs, ModelAssembler asm, string mission, RemixSpec spec, int seats = 1, string car = "vppirna1.vcf",
+        IReadOnlyList<(int Seat, float At)>? kill = null, float? horizon = null, bool walk = true)
+    {
+        var path = vfs.Install.FindMission(mission) ?? throw new FileNotFoundException(mission);
+        var world = new MissionWorld(vfs, asm, path);
+        var coop = seats > 1 ? new CoopSetup(Enumerable.Repeat<string?>(null, seats).ToList()) { RespawnDelay = 1e6f } : null;
+        var setup = MissionSetup.Build(vfs, world, asm, car, rand: new Rng.CrtRand(1), coop: coop);
+        var s = new SimSession(setup);
+        var humans = coop is null ? [setup.World.Player!] : setup.Humans.ToList();
+        foreach (var h in humans) s.AddDriver(h);
+        var me = humans[0];
+        var vm = setup.Script!.Vm;
+        var keys = MissionScriptDecompiler.Keys(vm.Actors.Select(a => a.Label));
+        Entity? EntityOf(string name)
+        {
+            int i = Array.IndexOf(keys, spec.Cars.ContainsKey(name) || spec.Bind.ContainsKey(name) ? RemixBuilder.PathPrefix + name : name);
+            return i >= 0 ? vm.Actors[i].Handle as Entity : null;
+        }
+        var hostile = RemixRoles.Hostiles(spec).Select(r => EntityOf(r.Car)).OfType<Entity>().Where(e => e.Vehicle is not null).ToList();
+        var objectives = setup.Script.Host.Objectives;
+        var trace = new System.Text.StringBuilder();
+        var seenAt = new Dictionary<Entity, float>();
+        var killed = new HashSet<int>();
+        int walked = 0;
+        float stepAt = 0;
+        int ticks = (int)((horizon ?? Horizon(spec) * 2) / s.TickSeconds);
+        var inputs = humans.Select(_ => new CarInput()).ToArray();
+        for (int t = 0; t < ticks && s.Script!.Result is null; t++)
+        {
+            float now = t * s.TickSeconds;
+            int open = Array.FindIndex(objectives.Flags, f => (f & (Objectives.Hidden | Objectives.Succeeded | Objectives.Failed)) == 0) + 1;
+            if (open > walked) { walked = open; stepAt = now + 6; trace.Append($" {now:0}s:step{open}"); }
+            if (kill is not null)
+                foreach (var (seat, at) in kill)
+                    if (now >= at && killed.Add(seat) && seat < humans.Count && setup.Entities.FirstOrDefault(e => e.Vehicle == humans[seat]) is { Dead: false } he)
+                    {
+                        s.Script!.Host.Destroy(he);
+                        trace.Append($" {now:0}s:seat{seat}dead");
+                    }
+            if (walk && spec.Objective.Escort is { } ec)
+            {
+                if (t % (int)(2 / s.TickSeconds) == 0 && EntityOf(ec.Car)?.Vehicle is { } van && !Weapons.Combat.IsDead(van) && !Weapons.Combat.IsDead(me))
+                {
+                    var f = van.Rot.Forward;
+                    double fl = System.Math.Max(1e-3, System.Math.Sqrt(f.X * f.X + f.Z * f.Z));
+                    Put(setup, me, (float)(van.Pos.X - 70 * f.X / fl), (float)(van.Pos.Z - 70 * f.Z / fl));
+                }
+            }
+            else if (walk && stepAt > 0 && now >= stepAt && !Weapons.Combat.IsDead(me))
+            {
+                stepAt = 0;
+                if (StepPlace(spec, walked) is { } sp) Put(setup, me, (float)sp[0], (float)sp[1]);
+                if (spec.Objective.Template == "raid" && walked == 2)
+                    foreach (var tn in spec.Objective.Targets)
+                        if (EntityOf(tn) is { } te)
+                        {
+                            if (te.Static is { } ws) Wreck(setup, ws);
+                            else if (!te.Dead) { te.KilledByPlayer = true; te.KillerSeat = 0; s.Script!.Host.Destroy(te); }
+                        }
+            }
+            s.Tick(inputs);
+            s.Combat?.Events.Clear();
+            (s.Combat?.Damage as Damage.DamageModel)?.Events.Clear();
+            for (int k = 0; k < humans.Count; k++)
+                if (Weapons.Combat.IsDead(humans[k]) && killed.Add(100 + k)) trace.Append($" {now:0}s:seat{k}wrecked");
+            if (!walk || t % 10 != 0) continue;
+            foreach (var e in hostile)
+            {
+                if (e.Dead || e.Vehicle is not { } v || !Weapons.Combat.IsLive(v)) continue;
+                if (!seenAt.TryGetValue(e, out float at)) { seenAt[e] = now; continue; }
+                if (now - at < 3) continue;
+                e.KilledByPlayer = true;
+                e.KillerSeat = 0;
+                s.Script!.Host.Destroy(e);
+            }
+        }
+        var end = setup.Script.Host.End;
+        trace.Append($" end {(s.Script!.Result is { } w ? (w ? "won" : $"failed:{end?.FailMessage}") : "running")} at {setup.Script.Host.Now:0}s; {string.Join(",", objectives.Flags.Select(Objectives.Describe))}");
+        return new WalkResult(s.Script.Result, end?.FailMessage ?? -1, setup.Script.Host.Now, trace.ToString().Trim());
+    }
+
     private static string Part(List<RemixRoles.Role> roles, string name) => roles.First(r => r.Car == name).Part;
 
     /// <summary>Whether a car may stay parked through the check (a sleeper woken only by the player near it, which the walk need not pass).</summary>

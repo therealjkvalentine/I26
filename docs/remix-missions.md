@@ -260,9 +260,9 @@ Runs are deterministic (the script's `rand` is the session's seeded stream), and
 (tests: `RemixMissionTests`). The session's install identity holds the mission file's size and CRC, so a save of a remix
 restores only into the same build of it; editing a description (or rolling a new RANDOM JOB, which reuses `xjob`) makes old
 saves of it refuse to load, and the player is told so ("This scenario has been rebuilt since the checkpoint") before the mission
-starts from its beginning. Co-op and network games do not offer generated missions (the co-op list takes stock missions only,
-and a client would need the file: `MapFileSet` sends melee arenas only), and a server asked to host one (a mission found in the
-generated missions' folder: a command line, a stale setting) refuses it ("single player only").
+starts from its beginning. The only generated missions a network game plays are a co-op roguetrip's jobs (below, "Roguetrip in
+co-op"), which every player builds from the host's numbers; a server asked to host any other generated mission (one found in the
+generated missions' folder: a command line, a stale setting) refuses it ("single player only"), and the map transfer never sends one.
 
 ## Node tables
 
@@ -379,7 +379,7 @@ SCENARIO form; it is now ROGUETRIP, an entry of its own on the main menu.
 - **Kept.** The run is `user://remix/run.yaml` (YAML: the number, the phase, the map, the jobs played, the car's state), written
   before each job and after each result (to a new file, then moved over the old). Quitting the game keeps it: MELEE > ROGUETRIP
   takes it up at the same choice; a job the game closed during comes back as the same choice (the same offers),
-  not as a loss. Single player only, base game only. The files keep the names they had under ROAD TRIP (`run.yaml`,
+  not as a loss. Base game only; in co-op the host keeps its own run (below, "Roguetrip in co-op"). The files keep the names they had under ROAD TRIP (`run.yaml`,
   `run-last.yaml`, `runs.txt`, the job's stem `xrun`, the hook `I76_RUN_NUMBER`), so a run saved before the rename resumes.
 - **The screen.** The port's paper sheet (record 16's paper, as Control Configuration's) in the shell's fonts: the title in its
   heavy caps, the offers in the hand of the scenario list, one box each, the chosen one marked in red pencil; Up and Down (or 1-3,
@@ -493,3 +493,59 @@ its length is the cut's for the CB queue). The incoming-enemies cue is Groove's 
 two words (`06sgc15@1625-2895`, from the splice work's alignment): the owner rated the whole stuttering line and Taurus's panicked
 takes bad; the good-rated "More creepers coming from the east." is Nitro Pack words spliced and names a direction a job does not
 know. A description's `radio.words` gives each clip's words: an install without the clip letters them instead.
+
+## Roguetrip in co-op
+
+The owner, playing co-op with a second player: "can we get the RogueTrip on the coop melee form please and play that together?". A
+roguetrip played by a crew of one to eight in a co-op lobby game (`CoopRun`, `CoopJob` in `src/I76.Formats/Remix/RemixCoop.cs`; the
+server's `NetMeleeServer.Roguetrip.cs`; the game's `MainNetRoguetrip.cs`, `RoguetripScreen.Coop.cs` and the lobby's ROUTE MAP).
+
+- **The way in.** The co-op host form's AREA OF PLAY list (base game) ends with **ROGUETRIP** (its stem `xcoop`, the generated job's).
+  BROADCAST GAME hosts it as a co-op game with a lobby (`--host-listen --coop xcoop --coop-lobby` on the command line). The host's run is
+  `user://remix/coop-run.yaml` (the run, the crew's cars by name, the route map's pick, the last debrief), apart from the single
+  player's `run.yaml`: a run in progress goes on when ROGUETRIP is hosted again, else a new run number (`I76_RUN_NUMBER` for a capture).
+  Host migration is off for it (the run is the host's). A dedicated server does not host one.
+- **The route map.** In the lobby the GAME SETUP button is ROUTE MAP (everyone's; R): the run's choice sheet (the region, the offers,
+  the chosen offer's own map) drawn from the host's run. The host's Up, Down, 1-3 or a click highlight an offer for everyone; Enter or
+  TAKE THE JOB goes back to the lobby, where START plays the highlighted one. A guest's sheet follows the host's highlight and says the
+  host chooses. The debrief, and the run's end, open the sheet by themselves on every game; the host's CONTINUE (Enter) goes on to the
+  next choice, and after the run's end DONE starts a new run for whoever is in the lobby.
+- **The job on every machine.** At START the server takes the highlighted offer (`RemixRun.Take`) and rolls it for the players in the
+  lobby (`CoopJob`: the run, the builder's version, the job's index, the map, the template, the seed, the challenge and the crew's
+  size), builds it into the generated missions' folder and builds the game again on it. Before each join accept it sends
+  `RoguetripState` (the play fork's message 66, only to a peer whose join says `PeerFeatures.Roguetrip`): the run, the offers, the pick,
+  the job and the SHA-256 of its build (mission, text, marks). The client builds the job itself from those numbers and checks it: a
+  job of another builder version ("made by builder v5 and this game's by v6") or another hash ("differs from the host's (host build
+  abc1234, this build def5678)") is refused before anything is built, and the accept's mission fingerprint (the original's JO check) is
+  checked after it. The mission is never sent (`MapFileSet` is off for it): it is derived from a stock mission, the inputs are a few
+  numbers, and each machine needs the build's text and marks anyway (the notepad, the map, the loading card). A peer without the bit
+  is turned away at the join ("your build of I26 cannot build its jobs"). The protocol version is unchanged (26), as for the fork's
+  other additions; an older fork build still joins stock co-op games.
+- **The crew.** Each player in the car picked in the lobby (or the mission's own), seat 0 the host's, as a co-op mission's. Each
+  player's car carries its damage between jobs by name (`RunCarry`: armour, chassis, parts, guns) while the player keeps the same car
+  file; another car, or a player new to the run, starts as built. **Killed in a job, a player is out of it** (no respawn: the seat's
+  respawn delay is `Protocol.CoopNoRespawn`, the death card says "Out of this job: back for the next one") and comes back for the next
+  with every armour and chassis side at least half of full (`CoopRun.Floor`), the parts and guns as built. The script's "player dead" is
+  the whole crew dead at once (co-op's rule), so the run ends only when everyone is killed; any other failure is a bust, as single
+  player's (`RemixRun.Classify`). The host's Back to Lobby during a job walks away from it (a bust). A job is played once: no Replay.
+- **The enemies grow with the crew.** The job is rolled at its challenge times 1 + 0.75 a player after the first (`CoopJob.Scale`: two
+  1.75, three 2.5, four 3.25); the director's fill adds cars to its groups (14 at most). Measured at challenge 1.0, one job of each
+  template: 5 to 9 hostile cars for one, 7 to 11 for two, 11 to 14 for four (run 4242's first offer, an ambush at 0.8: 5 and 10).
+  Co-op Scaling (EXTRA ENEMIES) still copies on top when the host sets it.
+- **Between jobs.** No field salvage or garage in co-op (the trip's screens are one player's inventory): after a won job each car still
+  running has 30 % of its full armour patched on (the weakest side first, `RemixRun.Patch`'s way) and its guns reloaded; a bust carries
+  the damage as it is. After each job everyone goes back to the lobby (`CoopPlan` Lobby after the hold), where the debrief shows: how it
+  ended, the objectives as they stood, the crew's cars.
+- **Coming and going.** A player who leaves mid-job does not end it (co-op's `CoopLeave`); their car keeps what it carried into the job.
+  Joining between jobs is joining the lobby; mid-job, a late joiner comes in as in any co-op mission, in a fresh car, having built the
+  job from the state sent before its accept.
+- **The templates with several seats.** Every test a template makes on the player is the co-op VM's (docs/multiplayer.md "What the player
+  means"): a zone reached, an ambush's 120 m, an escort's 220 m wait and 110 m go-on, a raid's escape and a defence's arrival hold for any
+  living human; a negation (nobody near, the convoy unalarmed) for none; a death line for the whole crew. `RemixCheck.Walk` plays a job
+  through (each step's place, a raid's targets, every hostile car killed once out) with a crew of one, two and four, the others parked
+  at the start: every template wins with each (`RemixCoopTests`), no template fails a crew idling at the start for anything but their
+  deaths, one of two killed goes on and both killed is a death.
+- **Tests.** `RoguetripCoopTests` (Net): the state's round trip; the host's and a client's builds of every job equal byte for byte and by
+  hash (113 jobs: 12 runs, the first two jobs' offers, crews of 1, 2 and 4); another build refused naming both; a build without the bit turned
+  away; two players through two jobs with the guest's damage carried; a leaver mid-job, one killed then the whole crew killed ending the
+  run and a new run; a run saved after a bust resumed by one player with the host's carried car.

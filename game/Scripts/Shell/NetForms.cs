@@ -111,7 +111,9 @@ public sealed partial class MeleeScreen
     private bool _coopBase;
     private int _coopArea;
     private List<(string Name, string Msn)>? _coopList;
-    private List<(string Name, string Msn)> CoopList => _coopList ??= [.. I76.Formats.Mission.MissionTitles.Coop(Shell.Install).Select(m => (m.Title, m.Stem))];
+    private List<(string Name, string Msn)> CoopList => _coopList ??= [.. I76.Formats.Mission.MissionTitles.Coop(Shell.Install).Select(m => (m.Title, m.Stem)),
+        // the base game's ROGUETRIP, last (docs/remix-missions.md "Roguetrip in co-op"): its jobs are generated; not a mission GAME SETUP can switch a lobby to
+        .. Nitro || LobbyMode ? [] : new[] { (RemixScenarios.Roguetrip, I76.Formats.Remix.CoopJob.Stem) }];
     /// <summary>The area's index in the list on show (the co-op form keeps its own mission apart from the melee's arena).</summary>
     private int Area
     {
