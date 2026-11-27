@@ -86,12 +86,12 @@ public class AutoHandicapSimTests(ITestOutputHelper output)
         Assert.All(auto.Levels, l => Assert.InRange(l, -3, 3));
         // pinned: the numbers of this seed on a stock install (a change here is a change of the rule or of the bots' game; re-pinned for
         // a level a net kill with the damage taken scaled too, on play, whose turret fix had changed the bots' game; re-pinned on the
-        // stock install, whose Piranha is not the one an install's garage saved into addon\, which the first pins were measured with)
+        // stock install, whose Piranha is not the one an install's garage saved into addon\, which the first pins were measured with; re-pinned for the sim's portable maths, DetMath, whose game is the same on
+        // every machine: checked equal on Windows x64, the laptop and macOS Arm64)
         Assert.Equal(auto.Said, Play(install, HandicapMode.Auto, Minutes).Said);
-        if (!MathPlatform.LibmAsRecorded) return;   // the pins below are of Windows x64's sin and cos: another C library plays the bots' game out differently
-        Assert.Equal([2, 4, 0, 2, 0, 0], auto.Kills);
-        Assert.Equal([0, -2, 1, 0, 1, 0], auto.Levels);
-        Assert.Equal(["1:-1", "1:+1", "1:0", "3:+1", "1:-1", "5:+1", "1:0", "1:-2"], auto.Said);
-        Assert.Equal([2, 2, 1, 1, 1, 1], off.Kills);
+        Assert.Equal([2, 2, 1, 0, 0, 0], auto.Kills);
+        Assert.Equal([-1, -1, 0, 1, 0, 0], auto.Levels);
+        Assert.Equal(["1:-1", "3:+1", "3:+1", "1:-1", "3:0"], auto.Said);
+        Assert.Equal([2, 1, 1, 1, 0, 0], off.Kills);
     }
 }
