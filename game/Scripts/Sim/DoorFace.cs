@@ -224,6 +224,78 @@ public static class DoorFace
         return Math.Clamp(share, 0.2f, 1f);
     }
 
+    /// <summary>
+    /// The turned glass's ring as the eye sees it on the glass's plane, its lowest and highest along <paramref name="up"/>: the outer
+    /// edge RoundGlass draws (GlassRound.EvenShape of <paramref name="cover"/> at the rounded glass's radius from <paramref name="hull"/>,
+    /// <paramref name="over"/> past it).
+    /// </summary>
+    public static (float Lo, float Hi, List<Vector2> Core, float Reach) TurnedRing(IReadOnlyList<Vector2> hull, IReadOnlyList<Vector2> cover, Vector2 up, int share, float over, float margin, float ringW)
+    {
+        float r = GlassRound.Shape(hull, share)?.R ?? 0f;
+        var es = GlassRound.EvenShape(cover, r, over, margin, ringW);
+        float reach = es.E + es.Over;
+        return (es.Core.Min(q => q.Dot(up)) - reach, es.Core.Max(q => q.Dot(up)) + reach, es.Core, reach);
+    }
+
+    /// <summary>
+    /// The turned glass (side_mirror_face=turned) fitted within the art-placed housing's height as the eye sees it: its glass outline
+    /// (<paramref name="hull"/>) and the outline its ring covers (<paramref name="cover"/>), picture units on the glass's plane, shifted
+    /// along <paramref name="up"/> (the screen's up on that plane) and, where the ring is taller than the housing, scaled about the
+    /// cover's middle (its rounded shape, rim and turn kept), so that the ring's top stands no higher than the housing's highest point
+    /// seen (<paramref name="housing"/>: the head's and its painted glass's points on the plane) and its bottom no lower than its lowest.
+    /// A housing corner (one of <paramref name="corners"/>) left showing just past the ring (within <paramref name="tuck"/>) is taken under
+    /// it again with its height held inside the housing's, so the ring's side or lower part widens over it rather than its top rising.
+    /// Scale 1 and shift 0 where the ring already fits. Top and Bottom: how far the ring stood past the housing before, in picture
+    /// units (positive: above its top, below its bottom).
+    /// </summary>
+    public static (List<Vector2> Hull, List<Vector2> Cover, float Scale, float Shift, float Top, float Bottom) FitTurned(
+        IReadOnlyList<Vector2> hull, IReadOnlyList<Vector2> cover, IReadOnlyList<Vector2> housing, IReadOnlyList<Vector2> corners, Vector2 up,
+        int share, float over, float margin, float ringW, float tuck)
+    {
+        List<Vector2> h = [.. hull], c = [.. cover];
+        if (housing.Count == 0 || up.LengthSquared() < 1e-12f) return (h, c, 1f, 0f, 0f, 0f);
+        up = up.Normalized();
+        float top = housing.Max(q => q.Dot(up)) - margin, bottom = housing.Min(q => q.Dot(up)) + margin;
+        var first = TurnedRing(h, c, up, share, over, margin, ringW);
+        float scale = 1f, shift = 0f;
+        (float Lo, float Hi, List<Vector2> Core, float Reach) Fit()
+        {
+            var ring = TurnedRing(h, c, up, share, over, margin, ringW);
+            if (ring.Hi - ring.Lo > top - bottom)
+            {
+                // the least scale about the cover's middle that brings the ring within the housing's height (its reach past the cover does not scale)
+                var mid = c.Aggregate(Vector2.Zero, (a, b) => a + b) / c.Count;
+                List<Vector2> At(List<Vector2> pts, float k) => [.. pts.Select(q => mid + (q - mid) * k)];
+                float lo = 0.3f, hi = 1f;
+                for (int i = 0; i < 24; i++)
+                {
+                    float k = (lo + hi) / 2;
+                    var rk = TurnedRing(At(h, k), At(c, k), up, share, over, margin, ringW);
+                    if (rk.Hi - rk.Lo <= top - bottom) lo = k; else hi = k;
+                }
+                h = At(h, lo); c = At(c, lo); scale *= lo;
+                ring = TurnedRing(h, c, up, share, over, margin, ringW);
+            }
+            float s = ring.Hi > top ? top - ring.Hi : ring.Lo < bottom ? bottom - ring.Lo : 0f;
+            if (s == 0f) return ring;
+            h = [.. h.Select(q => q + up * s)]; c = [.. c.Select(q => q + up * s)]; shift += s;
+            return TurnedRing(h, c, up, share, over, margin, ringW);
+        }
+        for (int pass = 0; pass < 6; pass++)
+        {
+            var ring = Fit();
+            // the housing's corners left just past the ring: under it again, their height held within the housing's less the ring's reach
+            var show = corners.Where(q => GlassRound.Distance(ring.Core, q) - ring.Reach is > 0 and var d && d < tuck)
+                .Select(q => q + up * (Math.Clamp(q.Dot(up), bottom + over, MathF.Max(bottom + over, top - over)) - q.Dot(up))).ToList();
+            if (show.Count == 0) break;
+            var grown = GlassRound.Hull([.. c, .. show]);
+            if (grown.Count > GlassRound.MaxCorners || grown.Count == c.Count && grown.All(c.Contains)) break;
+            c = grown;
+            if (pass == 5) Fit();
+        }
+        return (h, c, scale, shift, first.Hi - (top + margin), (bottom - margin) - first.Lo);
+    }
+
     /// <summary>The face's sample points in its own units: its rounded outline and a grid across it (where the housing may lie behind it).</summary>
     public static IEnumerable<Vector2> Samples(Shape s)
     {

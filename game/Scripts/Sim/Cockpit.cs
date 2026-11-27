@@ -2498,7 +2498,18 @@ public partial class Cockpit : Node
             g.Mat.SetShaderParameter("band", new Vector2(band.From, band.To));
             g.Mat.SetShaderParameter("hidden", _mirrorMode == 0);
         }
+        if (HousingKeyHook && on)
+        {
+            // I76_SIDE_MIRROR_KEY=housing: the glass and rims hidden, the housing and its painted glass flat cyan (its extent in a capture)
+            _housingKey ??= new StandardMaterial3D { AlbedoColor = new Color(0, 1, 1), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
+            foreach (var g in _glass) g.Mesh.Visible = false;
+            foreach (var (r, _) in _rims) r.Visible = false;
+            foreach (var (head, _) in Node3D.MirrorHeads) head.MaterialOverride = _housingKey;
+            foreach (var (paint, _) in Node3D.MirrorPaint) { paint.Visible = true; paint.MaterialOverride = _housingKey; }
+        }
     }
+    private static readonly bool HousingKeyHook = System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_KEY") == "housing";
+    private StandardMaterial3D? _housingKey;
 
     /// <summary>
     /// A mesh over each pane of glass, its faces 3 mm toward the eye (over the painted blue), both windings, on the cockpit's layer
@@ -2565,7 +2576,7 @@ public partial class Cockpit : Node
             var plane = GlassRound.Plane([.. v.Zip(t, (p, uv) => (new Vector2(uv.X * aspect, uv.Y), p))]);
             var hull = GlassRound.Hull(uvs.SelectMany(f => f).Select(q => new Vector2(q.X * aspect, q.Y)));
             var cover = plane is { } hp ? GlassRound.Housing(hull, HeadPoints(pane.Left).Distinct().Select(q => GlassRound.Seen(near, hp, q)).OfType<(Vector2, float)>()) : hull;
-            if (holder is not null && plane is { } tp) cover = TurnedCover(hull, cover, tp, near, pane.Left);
+            if (holder is not null && plane is { } tp) { cover = TurnedCover(hull, cover, tp, near, pane.Left); (hull, cover) = TurnedFit(hull, cover, tp, near, pane.Left); }
             _glass.Add(new GlassPane(mi, mat, pane.Left, aspect, centre, hull, mesh, plane, near, cover) { Holder = holder });
             if (PointsHook && plane is { } pl) MarkPoints(host, v, pl, near, pane.Left, aspect, uvs);
             // the rim inside the pane's outline, a hair nearer the eye than the glass, the rear frame's colour (MirrorRim)
@@ -2803,6 +2814,38 @@ public partial class Cockpit : Node
     }
     /// <summary>How far past the ring's outer edge a corner of the art's housing end is taken under it, in the glass's heights.</summary>
     private const float TurnedTuck = 0.05f;
+
+    /// <summary>I76_SIDE_MIRROR_FIT=off: the turned glass as section JR placed it, its ring free to stand above or below the housing (a before | after).</summary>
+    private static readonly bool FitOff = string.Equals(System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_FIT"), "off", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The turned glass (side_mirror_face=turned) kept within the art-placed housing's height as the driver sees it (DoorFace.FitTurned):
+    /// its ring's top no higher than the housing's top and its bottom no lower than its bottom, the glass shifted and, where it is
+    /// taller, scaled; its sides still wrap the housing's end. The screen's up on the glass's plane is the cockpit's up through the
+    /// cover's middle as the eye sees it.
+    /// </summary>
+    private (List<Vector2> Hull, List<Vector2> Cover) TurnedFit(List<Vector2> hull, List<Vector2> cover, (Vector3 O, Vector3 A, Vector3 B) plane, Vector3 near, bool left)
+    {
+        if (FitOff || cover.Count < 3) return (hull, cover);
+        var back = _glassTurn[left ? 0 : 1].AffineInverse();   // the art's points in the turned glass's frame
+        var art = ArtPoints(left).Select(q => GlassRound.Seen(near, plane, back * q)).OfType<(Vector2 Uv, float Depth)>().Select(q => q.Uv).ToList();
+        if (art.Count == 0) return (hull, cover);
+        var c = cover.Aggregate(Vector2.Zero, (a, b) => a + b) / cover.Count;
+        var mid = plane.O + plane.A * c.X + plane.B * c.Y;
+        if (GlassRound.Seen(near, plane, mid + back.Basis * Vector3.Up * 0.01f) is not { } above) return (hull, cover);
+        var up = above.Uv - c;
+        if (up.LengthSquared() < 1e-12f) return (hull, cover);
+        int share = GlassRound.Share(GlassRoundHook, _glassRoundSetting);
+        float grow = GlassRound.Out(RimOutHook, Math.Max(_rimOutSetting, GlassRound.RoundedRimOut)).Widths * MirrorRim.OuterShare;
+        var fit = DoorFace.FitTurned(hull, cover, art, art, up, share, grow, PointMargin, MirrorRim.RingWidth(grow), TurnedTuck);
+        if (TiltLog)
+            GD.Print($"mirror-fit: {(left ? "L" : "R")} ring {fit.Top:+0.0000;-0.0000} above the housing's top, {fit.Bottom:+0.0000;-0.0000} below its bottom (glass heights); scaled {fit.Scale:0.000}, shifted {fit.Shift:+0.0000;-0.0000} up");
+        return (fit.Hull, fit.Cover);
+    }
+
+    /// <summary>The art-placed housing's points (the head's own frame): the head's vertices and its painted glass's.</summary>
+    private IEnumerable<Vector3> ArtPoints(bool left) => HeadPoints(left).Concat(Node3D.MirrorPaint.Where(p => p.Left == left).SelectMany(p => p.Mesh.Mesh is { } m
+        ? Enumerable.Range(0, m.GetSurfaceCount()).SelectMany(si => m.SurfaceGetArrays(si)[(int)Mesh.ArrayType.Vertex].AsVector3Array()) : [])).Distinct();
 
     /// <summary>
     /// The turned glass (side_mirror_face=turned) brought in front of the art's housing without changing what the driver sees: its
