@@ -4,6 +4,17 @@
     <EnableDynamicLoading>true</EnableDynamicLoading>
     <RootNamespace>I76.Game</RootNamespace>
   </PropertyGroup>
+  <!-- the commit the assembly is built from, in its informational version (BuildInfo.Commit: a generated job's reproduction line);
+       nothing when git is not there -->
+  <Target Name="I26CommitStamp" BeforeTargets="AddSourceRevisionToInformationalVersion;GetAssemblyVersion" Condition="'$(SourceRevisionId)' == ''">
+    <Exec Command="git rev-parse --short HEAD" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" EchoOff="true" ContinueOnError="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="I26Commit" />
+      <Output TaskParameter="ExitCode" PropertyName="I26CommitExit" />
+    </Exec>
+    <PropertyGroup Condition="'$(I26CommitExit)' == '0'">
+      <SourceRevisionId>$(I26Commit)</SourceRevisionId>
+    </PropertyGroup>
+  </Target>
   <ItemGroup>
     <ProjectReference Include="../src/I76.Formats/I76.Formats.csproj" />
     <ProjectReference Include="../src/I76.Sim/I76.Sim.csproj" />

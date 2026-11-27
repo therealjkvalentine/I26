@@ -579,7 +579,11 @@ public class RemixMissionTests
             var built = RemixBuilder.Build(install, spec);
             built.WriteTo(dir);
             var vfs = new AssetVfs(install);   // its own: the folder as it is now
-            foreach (var p in RemixCheck.Run(vfs, new I76.Formats.Assembly.ModelAssembler(vfs), spec.Id, spec, RemixMarks.Parse(built.Marks ?? "")))
+            var asm = new I76.Formats.Assembly.ModelAssembler(vfs);
+            foreach (var p in RemixCheck.Run(vfs, asm, spec.Id, spec, RemixMarks.Parse(built.Marks ?? "")))
+                problems.Add($"{spec.Title} ({spec.Base} {spec.Objective.Template}): {p}");
+            // round five: the pacing budget on the map's roads, and every place inside a structure driven out of
+            foreach (var p in RemixPacing.Measure(install, spec).Problems.Concat(RemixDriveOut.Check(vfs, asm, spec)))
                 problems.Add($"{spec.Title} ({spec.Base} {spec.Objective.Template}): {p}");
         }
         Assert.Empty(problems);

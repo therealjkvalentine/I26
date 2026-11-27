@@ -286,14 +286,34 @@ public static class RemixCommand
     private static int Roll(GameInstall install, List<string> argv)
     {
         string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
-        if (!int.TryParse(Opt("--seed"), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int seed))
-        {
-            Console.Error.WriteLine("usage: i76 remix roll --seed N [--id STEM] [--yaml FILE] [--build [--out DIR]]");
-            return 2;
-        }
         RemixSpec spec;
-        try { spec = RemixDirector.Roll(seed, Ask(argv, Opt("--id") ?? RemixDirector.JobStem, Opt("--challenge") is { } ch ? double.Parse(ch, System.Globalization.CultureInfo.InvariantCulture) : 1.0)); }
-        catch (RemixError ex) { Console.Error.WriteLine($"seed {seed}: {ex.Message}"); return 1; }
+        int seed = 0;
+        // a road trip's job (docs/remix-missions.md "Reproducing a job"): the run's number and the picks the game log's line gives
+        if (Opt("--run") is { } runArg)
+        {
+            int number = int.Parse(runArg, System.Globalization.CultureInfo.InvariantCulture);
+            string picks = Opt("--picks") ?? "0";
+            try
+            {
+                var (run, offer, s) = RemixRun.Walk(number, picks);
+                if (Opt("--job") is { } jk && int.Parse(jk, System.Globalization.CultureInfo.InvariantCulture) != run.Legs.Count + 1)
+                    Console.Error.WriteLine($"note: --picks {picks} leads to job {run.Legs.Count + 1}, not job {jk}");
+                Console.Error.WriteLine($"run {number:000000} job {run.Legs.Count + 1}/{RemixRun.Jobs}: #{offer.Seed} {offer.Map} ({offer.Name}) {offer.Template} challenge {offer.Challenge:0.0} builder v{RemixBuilder.Version}");
+                spec = s;
+                seed = offer.Seed;
+            }
+            catch (RemixError ex) { Console.Error.WriteLine($"run {number}: {ex.Message}"); return 1; }
+        }
+        else
+        {
+            if (!int.TryParse(Opt("--seed"), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out seed))
+            {
+                Console.Error.WriteLine("usage: i76 remix roll --seed N | --run N --job K --picks A,Bb,C [--id STEM] [--yaml FILE] [--build [--out DIR]]");
+                return 2;
+            }
+            try { spec = RemixDirector.Roll(seed, Ask(argv, Opt("--id") ?? RemixDirector.JobStem, Opt("--challenge") is { } ch ? double.Parse(ch, System.Globalization.CultureInfo.InvariantCulture) : 1.0)); }
+            catch (RemixError ex) { Console.Error.WriteLine($"seed {seed}: {ex.Message}"); return 1; }
+        }
         var yaml = RemixDirector.ToYaml(spec);
         if (Opt("--yaml") is { } file) { File.WriteAllText(file, yaml); Console.WriteLine($"wrote {file}"); }
         else Console.Write(yaml);

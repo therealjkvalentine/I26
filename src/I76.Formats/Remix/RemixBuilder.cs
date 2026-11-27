@@ -41,7 +41,7 @@ public sealed record RemixOutput(string Stem, byte[] Mission, string Text, strin
 public static class RemixBuilder
 {
     /// <summary>The generator's version, in the stamp: a build by another version is made again.</summary>
-    public const int Version = 4;
+    public const int Version = 5;
     /// <summary>The stock library's routines lead every mission's code: Interstate '76's 15, the Nitro Pack's 28 (docs/mission-scripts.md).</summary>
     public const int LibraryRoutines = 15, NitroLibraryRoutines = 28;
     public const string PathPrefix = "rx_";

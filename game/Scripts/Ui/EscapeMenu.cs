@@ -74,6 +74,13 @@ public sealed partial class EscapeMenu : Control
     public required string Mission { get; init; }
     /// <summary>The 4-item Abort pad / 5-item end menu: no shell trip to go back to, No Salv. Manag., or t01/t13/t17.</summary>
     public required bool NoReconfigure { get; init; }
+    /// <summary>A road trip's job (the play fork's): played once, so the Abort pad has no Replay (docs/remix-missions.md "Busts").</summary>
+    public bool RoadTrip { get; init; }
+    /// <summary>
+    /// A generated job's reproduction label (docs/remix-missions.md "Reproducing a job"): two lines, written on the main pad's free
+    /// rows 9 and 10, under Controls and above Report a Bug, so the run and the job can be read off a screenshot.
+    /// </summary>
+    public string? RemixLabel { get; init; }
     public bool Faithful { get; init; }
     /// <summary>A network melee: the game runs on under it, so there is no Play Options (the cheats) and no replay; Leave Match goes back to the shell.</summary>
     public bool Net { get; init; }
@@ -255,10 +262,18 @@ public sealed partial class EscapeMenu : Control
         // the port's Developer panel, only when it is on (--dev, I76_DEV=1 or shell.cfg's developer=true): the bottom of the pad's
         // list, the line under Report a Bug (row 14)
         if (Developer && !Net) _main.Items.Insert(_main.Items.Count - 1, Action("Developer Tools", BugRow + 1, () => Close(MenuOutcome.Developer)));
+        // a generated job's run and job numbers on the free rows 9 and 10 (the original's rows are untouched)
+        if (RemixLabel is { Length: > 0 } rl && !Net)
+        {
+            var two = rl.Split('\n');
+            _main.Items.Insert(_main.Items.Count - 1, Text(two[0], 9));
+            if (two.Length > 1) _main.Items.Insert(_main.Items.Count - 1, Text(two[1], 10));
+        }
         // the co-op host's choices for the whole group (the fork's), on the free rows under Controls, apart from Leave Match and Exit I76
         if (Net) InsertCoopRows();
 
-        _abort.Items = [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
+        // (a road trip's job is played once: its row stays blank)
+        _abort.Items = RoadTrip ? [] : [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
         if (!four) _abort.Items.Add(Action("Reconfigure", 3, () => Close(MenuOutcome.Reconfigure)));
         _abort.Items.Add(Action("Abort Mission", four ? 3 : 5, () => AskExit(_abort, MenuOutcome.Abort)));
         _abort.Items.Add(Action("Exit Game", four ? 5 : 7, () => AskExit(_abort, MenuOutcome.Exit)));

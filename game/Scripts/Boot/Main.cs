@@ -621,6 +621,7 @@ public partial class Main : Node3D
 		{
 			BugReport = () => WriteBugReport(_menuFrame),
 			Vfs = _builder.Vfs, Palette = pal, InstallDir = _opt.Install, Mission = mission, NoReconfigure = four, Faithful = _mode1997, End = end, Net = _net is not null,
+			RoadTrip = _launch is { RoadTrip: true }, RemixLabel = RemixLabel(),
 			Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry, Developer = DevOn,
 			PausedFrame = () => _pit?.MirrorWhilePaused(), PlayFps = () => _fpsRecorder?.Recent,
 			SelfDestructRefused = _net is null ? null : () => !I76.Net.Hud.NetMenu.CanSelfDestruct(PlayerDead || _ended, _netHud?.Decided == true),
@@ -760,6 +761,24 @@ public partial class Main : Node3D
 				if (bank.Get(snd) is { } st) layer.AddChild(new AudioStreamPlayer { Stream = st, Bus = bus, Autoplay = true, ProcessMode = ProcessModeEnum.Always });
 		_picture = layer;
 		AddChild(layer);
+	}
+
+	/// <summary>
+	/// A generated job's two label lines for the pause pad (docs/remix-missions.md "Reproducing a job"): the shell's for a road trip
+	/// or a RANDOM JOB, else read off the built job's description beside it (a remix started from the command line).
+	/// </summary>
+	private string? RemixLabel()
+	{
+		if (_launch?.RemixLabel is { Length: > 0 } l) return l;
+		if (!I76.Formats.Remix.RemixMarks.IsRemix(_opt.Mission) || GameInstall.UserMissionDir is not { } dir) return null;
+		try
+		{
+			var p = System.IO.Path.Combine(dir, (_opt.Mission ?? "").ToLowerInvariant() + ".job.yaml");
+			if (!System.IO.File.Exists(p)) return $"{(_opt.Mission ?? "").ToUpperInvariant()} v{I76.Formats.Remix.RemixBuilder.Version}";
+			var spec = I76.Formats.Remix.RemixSpec.Load(p);
+			return $"JOB #{spec.Seed}\n({spec.Base} {spec.Objective.Template}) v{I76.Formats.Remix.RemixBuilder.Version}";
+		}
+		catch (System.Exception ex) when (ex is System.IO.IOException or I76.Formats.Remix.RemixError) { return null; }
 	}
 
 	/// <summary>The menu's outcome as the game state it set: resume (5), replay (7; T17's becomes 8), reconfigure (8), abort (2), exit (10).</summary>
@@ -1164,7 +1183,36 @@ public partial class Main : Node3D
 		if (_launch is { RoadTrip: true } && _sim?.World.Player is { } rp)
 		{
 			int kills = _sim.Script?.Host.Entities.Count(e => e.Vehicle is not null && e.Vehicle != rp && e.Dead && e.KilledByPlayer) ?? 0;
-			_lastRun = new I76.Game.Shell.RunResult(won, kills, I76.Sim.Trip.RunCarry.Capture(rp));
+			// how it ended, for the run's bust rule and the debrief page: the failure line (none: walked away), the objectives as they stood
+			int fm = _script?.Host.End is { Success: false } fe ? fe.FailMessage : -1;
+			bool aborted = !won && _script?.Result is null;
+			string why = aborted ? "You walked away from the job."
+				: !won && _objectives is { } ft && fm >= 0 && fm < ft.Failures.Count ? ft.Failures[fm] : "";
+			var obs = new List<(string, bool, bool)>();
+			if (_objectives is { } ot && _script?.Host.Objectives is { } of)
+				for (int i = 0; i < ot.Objectives.Count && i < of.Flags.Length; i++)
+				{
+					if ((of.Flags[i] & I76.Sim.Missions.Objectives.Hidden) != 0) continue;
+					obs.Add((I76.Formats.Remix.RemixBuilder.Plain(ot.Objectives[i].Text), (of.Flags[i] & I76.Sim.Missions.Objectives.Succeeded) != 0, (of.Flags[i] & I76.Sim.Missions.Objectives.Failed) != 0));
+				}
+			// a won job's wrecks: the trip's thinning, without the stock mission's own scripted salvage (its .fsi)
+			List<I76.Sim.Trip.SalvageItem>? items = null;
+			if (won && _salvage is { } rpool && _builder?.Vfs is { } rvfs)
+			{
+				try
+				{
+					var rng = new System.Random();
+					items = rpool.Finish(n => n.EndsWith(".fsi", System.StringComparison.OrdinalIgnoreCase) ? null : rvfs.TryRead(n), () => rng.Next(0x8000));
+				}
+				catch (System.Exception ex) { GD.PrintErr($"road trip salvage: not taken: {ex.Message}"); }
+			}
+			_lastRun = new I76.Game.Shell.RunResult(won, kills, I76.Sim.Trip.RunCarry.Capture(rp))
+			{
+				FailMessage = fm, PlayerDead = PlayerDead || I76.Sim.Damage.DamageModel.IsDead(rp), Aborted = aborted, Why = why, Objectives = obs,
+				Salvage = items, Parts = I76.Sim.Trip.CarState.Capture(rp),
+			};
+			GD.Print($"remix: road trip job ended: {(won ? "won" : aborted ? "walked away" : $"failed on line {fm + 1}")}, {kills} kills{(items is null ? "" : $", {items.Count} salvage items")}");
+			_salvage = null;   // the trip's own salvage hand-back below is the trip's alone
 		}
 		_lastLaunch = _launch;
 		_launch = null;
@@ -1317,8 +1365,18 @@ public partial class Main : Node3D
 			_salvage.Watch(setup.Damage, world.Player);
 			if (setup.Script is { } salvScript) { var pool = _salvage; salvScript.Host.Salvaged += f => pool.Add(f, -1, true); }
 		}
-		// a road trip's job: the car's damage carried from the last job (RunCarry: armour and chassis too, the port's)
-		if (_launch is { RoadTrip: true, Carry: { } carry } && world.Player is { } rtp) I76.Sim.Trip.RunCarry.Apply(carry, rtp);
+		// a road trip's job: the parts' state from the run's garage (the trip's CarState), then the damage carried from the last job
+		// (RunCarry: armour and chassis too, the port's); its wrecks feed a salvage pool at the level of the trip mission whose map it is
+		if (_launch is { RoadTrip: true } rtl && world.Player is { } rtp)
+		{
+			if (rtl.State is { } rts) rts.Apply(rtp);
+			if (rtl.Carry is { } carry) I76.Sim.Trip.RunCarry.Apply(carry, rtp);
+			if (rtl.RunBase is { Length: > 0 } rb)
+			{
+				_salvage = new I76.Sim.Trip.SalvagePool(I76.Formats.Remix.RemixRun.SalvageStem(rb));
+				_salvage.Watch(setup.Damage, world.Player);
+			}
+		}
 		MissionBuilder.Trace("spawn: session");
 		var ground = setup.Ground;
 		var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);
@@ -5278,6 +5336,8 @@ public partial class Main : Node3D
 			// a co-op game that goes on after its mission (the fork's, MainNetCoop.cs): no way back to the menus, the next mission follows
 			if (NetCoopEnded(result)) _endMenuShown = true;
 			else if (result && !I76.Game.Shell.CheatMarker.Set) EndMission(true);
+			// a road trip's job failed: no end menu (no Replay: a job is played once), straight to its debrief page in the shell
+			else if (!result && _launch is { RoadTrip: true }) { _endMenuShown = true; EndMission(false); }
 			else
 			{
 				if (result) GD.Print("mission won with the cheats marker set: the cheater's end menu");
