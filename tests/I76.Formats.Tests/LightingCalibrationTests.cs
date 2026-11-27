@@ -239,12 +239,16 @@ public class LightingCalibrationTests
         Assert.Equal(1, r.SunGain);
         Assert.Equal(M.Solve(Sand, flat, Car(0.785), M.ToneCurve.Card), r);
         // the shipped floor: the sun at least SunlitMinGain, the ground's mean kept by a lower exposure
-        var shipped = M.SolveSunlit(Sand, flat, Car(0.785), flat, M.ToneCurve.Card);
+        var shipped = M.SolveSunlit(Sand, flat, Car(0.785), flat, M.ToneCurve.Card, floorOnTop: false);
         Assert.Equal(M.SunlitMinGain, shipped.SunGain);
         Assert.True(shipped.Exposure < r.Exposure);
         var target = M.Target(Sand, flat);
         var shown = M.Modern(Sand, M.Scaled(flat, shipped.SunGain), shipped.Exposure, shipped.GroundTint, 1, M.ToneCurve.Card);
         for (int c = 0; c < 3; c++) Assert.Equal(target[c], shown[c], 3);
+        // on top: the plain solve's exposure, the sun the floor's (the sunlit ground brighter than the mean asks)
+        var top = M.SolveSunlit(Sand, flat, Car(0.785), flat, M.ToneCurve.Card);
+        Assert.Equal(M.SunlitMinGain, top.SunGain);
+        Assert.Equal(r.Exposure, top.Exposure, 9);
     }
 
     [Fact]

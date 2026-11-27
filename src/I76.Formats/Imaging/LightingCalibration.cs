@@ -455,11 +455,15 @@ public static class LightingCalibration
     /// sun (the sky's light alone) darken; its lower bound goes down with the sun (<see cref="MinExposure"/> over the factor), so a dusk
     /// keeps its mean. A sun already giving that contrast or more is left at 1.
     /// </summary>
-    public static Result SolveSunlit(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card, double keep = SunlitKeep, double minGain = SunlitMinGain)
+    public static Result SolveSunlit(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card, double keep = SunlitKeep, double minGain = SunlitMinGain, bool floorOnTop = SunlitFloorOnTop)
     {
         if (ground.Count == 0 || texels.Length < 3) return Result.None;
-        double gain = Math.Clamp(Math.Max(SunGainFor(texels, ground, contrast, curve), minGain), 1, MaxSunGain);
-        var r = Solve(texels, Scaled(ground, gain), Scaled(objects, gain), curve, MinExposure / gain) with { SunGain = gain };
+        double solved = SunGainFor(texels, ground, contrast, curve);
+        double gain = Math.Clamp(Math.Max(solved, minGain), 1, MaxSunGain);
+        // the floor over the solve's own sun on top of its exposure (the sunlit ground brighter, the shade as solved), or within the mean
+        var r = floorOnTop
+            ? Solve(texels, Scaled(ground, solved), Scaled(objects, solved), curve, MinExposure / solved) with { SunGain = gain }
+            : Solve(texels, Scaled(ground, gain), Scaled(objects, gain), curve, MinExposure / gain) with { SunGain = gain };
         if (keep <= 0 || gain == 1) return r;
         // the exposure part of the way back to the plain solve's (log): the sky-lit faces kept nearer its level, the sunlit ones brighter than the mean asks
         double plain = Solve(texels, ground, objects, curve).Exposure;
@@ -481,6 +485,12 @@ public static class LightingCalibration
     /// 1997 look's with its shade no lighter; the round-two comps' x2.8 by eye).
     /// </summary>
     public const double SunlitMinGain = 3;
+
+    /// <summary>
+    /// The floor's extra sun added over the solve's exposure (true) rather than within the ground's mean (false): within the mean, a
+    /// dusk valley in the terrain's own shadow (T15) went twice as dark as the 1997 look's, its exposure lowered for sunlit ground elsewhere.
+    /// </summary>
+    public const bool SunlitFloorOnTop = true;
 
     /// <summary>The sun's factor <see cref="SolveSunlit"/> takes (1 when the contrast cells have no spread of light).</summary>
     public static double SunGainFor(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card)
