@@ -148,12 +148,17 @@ public static class CoopRoutines
     /// <summary>
     /// The leave-map routine: at least two isWithinSqNav(exit, actor, r) on the same pair of parameters with one r at
     /// least 250, and a failAllObj(delay, 2) ("abandoned"). Returns the actor's and the exit's parameters and the
-    /// edge radius (the second largest).
+    /// edge radius (the second largest). A negated test is not the routine's: T17's leash (!isWithinSqNav(chicken, user,
+    /// 1000 / 1250 / 1500), "you're a coward") fails when the player is away from the arena, not near an exit, and stays
+    /// the group's ("no human within": every living human away).
     /// </summary>
     internal static (int Actor, int Path, int Edge)? LeaveMap(List<Op> ops)
     {
-        var tests = ops.Where(o => o.Name == "iswithinsqnav" && o.Args.Length == 3 && o.Args[0].Kind == 'p' && o.Args[1].Kind == 'p' && o.Args[2].Kind == 'i').ToList();
-        if (tests.Count < 2 || !tests.Any(o => o.Args[2].Value >= 250)) return null;
+        bool Test(Op o) => o.Name == "iswithinsqnav" && o.Args.Length == 3 && o.Args[0].Kind == 'p' && o.Args[1].Kind == 'p' && o.Args[2].Kind == 'i';
+        var tests = ops.Where(Test).ToList();
+        // the warnings: positive tests (the drive-off's own negated ones, at 100 and 200, come after the fail)
+        var warns = ops.Where((o, i) => Test(o) && !(i + 1 < ops.Count && ops[i + 1].Name == "<not>")).ToList();
+        if (warns.Count < 2 || !warns.Any(o => o.Args[2].Value >= 250)) return null;
         var pairs = tests.Select(o => (o.Args[0].Value, o.Args[1].Value)).Distinct().ToList();
         if (pairs.Count != 1) return null;
         if (!ops.Any(o => o.Name == "failallobj" && o.Args.Length == 2 && o.Args[1].IsImm(2))) return null;
