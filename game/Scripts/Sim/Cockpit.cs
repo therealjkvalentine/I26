@@ -2500,16 +2500,17 @@ public partial class Cockpit : Node
         }
         if (HousingKeyHook && on)
         {
-            // I76_SIDE_MIRROR_KEY=housing: the glass and rims hidden, the housing and its painted glass flat cyan (its extent in a capture)
+            // I76_SIDE_MIRROR_KEY=housing: the glass and rims hidden, the housing flat cyan and its end's painted glass flat yellow (their extent in a capture)
             _housingKey ??= new StandardMaterial3D { AlbedoColor = new Color(0, 1, 1), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
+            _paintKey ??= new StandardMaterial3D { AlbedoColor = new Color(1, 1, 0), ShadingMode = BaseMaterial3D.ShadingModeEnum.Unshaded };
             foreach (var g in _glass) g.Mesh.Visible = false;
             foreach (var (r, _) in _rims) r.Visible = false;
             foreach (var (head, _) in Node3D.MirrorHeads) head.MaterialOverride = _housingKey;
-            foreach (var (paint, _) in Node3D.MirrorPaint) { paint.Visible = true; paint.MaterialOverride = _housingKey; }
+            foreach (var (paint, _) in Node3D.MirrorPaint) { paint.Visible = true; paint.MaterialOverride = _paintKey; }
         }
     }
     private static readonly bool HousingKeyHook = System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_KEY") == "housing";
-    private StandardMaterial3D? _housingKey;
+    private StandardMaterial3D? _housingKey, _paintKey;
 
     /// <summary>
     /// A mesh over each pane of glass, its faces 3 mm toward the eye (over the painted blue), both windings, on the cockpit's layer
