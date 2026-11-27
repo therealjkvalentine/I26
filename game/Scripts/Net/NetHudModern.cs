@@ -532,7 +532,8 @@ public partial class NetHudModern : Control
         float done = d.Delay > 0 ? (float)Math.Clamp(1 - d.Left / d.Delay, 0, 1) : 1;
         Box(new Rect2(track.Position, new Vector2(Math.Max(U(8), tw * done), track.Size.Y)), d.Left > 0 ? HudStyle.Orange : HudStyle.Amber, 4);
         y += U(20);
-        TextCentre(HudStyle.Regular, d.Left > 0 ? $"Back beside a teammate in {Math.Ceiling(d.Left):0} s" : "Waiting for a living teammate", new Vector2(cx, y), Px(18), HudStyle.Parchment);
+        // a co-op roguetrip has no respawn (docs/remix-missions.md "Roguetrip in co-op"): out of this job, back for the next
+        TextCentre(HudStyle.Regular, d.Delay >= I76.Net.Protocol.CoopNoRespawn / 2 ? "Out of this job: back for the next one" : d.Left > 0 ? $"Back beside a teammate in {Math.Ceiling(d.Left):0} s" : "Waiting for a living teammate", new Vector2(cx, y), Px(18), HudStyle.Parchment);
     }
 
     /// <summary>The end (before the standings): the verdict large over the winner's camera, the original's line under it.</summary>

@@ -44,6 +44,10 @@ public sealed class CoopLobbyScreen : ShellScreen
     public Func<I76.Server.LobbySetup?>? Setup { get; init; }
     /// <summary>The host's new setup to the server; the task's answer is null when made, else why not.</summary>
     public Func<I76.Server.LobbySetup, System.Threading.Tasks.Task<string?>>? ChangeSetup { get; init; }
+    /// <summary>A co-op roguetrip's run as the host last told it (docs/remix-missions.md "Roguetrip in co-op"), null in any other game.</summary>
+    public Func<RoguetripState?>? Roguetrip { get; init; }
+    /// <summary>The route map's view of the run for this player (the host's choices to its server), opened by ROUTE MAP.</summary>
+    public Func<RoguetripCoopView?>? RouteMap { get; init; }
     public override bool EscapeOpensOptions => false;
 
     // the join form's hotspots (MeleeScreen's table): the list's arrows and rows, MAKE / MODEL, VARIANT, CONFIGURE CHASSIS, JOIN GAME, CANCEL and
@@ -57,6 +61,10 @@ public sealed class CoopLobbyScreen : ShellScreen
     /// <summary>The host's change being made (the server builds the new mission), or null.</summary>
     private System.Threading.Tasks.Task<string?>? _change;
     private bool CanSetUp => State() is { IsHost: true } && Setup?.Invoke() is not null;
+    /// <summary>A co-op roguetrip's ROUTE MAP button (everyone's: the host chooses on it, the others watch), where GAME SETUP is.</summary>
+    private bool CanRoute => Roguetrip?.Invoke() is not null && RouteMap is not null;
+    /// <summary>The run's phase last seen: the debrief and the run's end open the sheet by themselves, once each.</summary>
+    private string? _routePhase;
     private const int Row = 17;
     private ShellFont _font = null!;
     private SpriteBank _cars = null!;
@@ -124,7 +132,7 @@ public sealed class CoopLobbyScreen : ShellScreen
         if (s is null) return;
         BakeButton();
         Frame.Text(_font, 12, 45, _renaming ? _name + "_" : _renamedTo ?? s.Me?.Name ?? "");
-        string title = I76.Formats.Mission.MissionTitles.CoopTitle(Shell.Install, s.Mission);
+        string title = Roguetrip?.Invoke() is { } rt ? RouteTitle(rt) : I76.Formats.Mission.MissionTitles.CoopTitle(Shell.Install, s.Mission);
         var sh = Shown;
         // the box line: the game, as the roster's top line shows the highlighted game
         Frame.Text(_font, 34, BoxY, AddressBookPopup.Fit(_font, $"{title} ({s.Members.Count}/{s.Max})", 176));
@@ -141,7 +149,8 @@ public sealed class CoopLobbyScreen : ShellScreen
             if (tag.Length > 0) Frame.Text(_font, 203 - tagW, y, tag);
         }
         // under the list: what the game waits for, and the chat
-        string wait = s.Host == LobbyState.NoHost
+        string wait = CanRoute && Roguetrip!.Invoke() is { } rw ? (rw.Phase is "over" or "done" ? "Run over: ROUTE MAP" : s.IsHost ? "ROUTE MAP; START" : "Host: ROUTE MAP")
+            : s.Host == LobbyState.NoHost
             ? (s.AutoMin > 1 ? $"Starts at {s.AutoMin}+ ready." : "Starts when all ready.")
             : s.IsHost ? (s.Members.Count > 1 && s.Members.All(m => m.Id == s.Host || m.Ready) ? "All ready: START." : "START when ready (Del boots).")
             : "The host starts the mission.";
@@ -150,7 +159,7 @@ public sealed class CoopLobbyScreen : ShellScreen
         var shown = _chat.Skip(Math.Max(0, _chat.Count - rows)).ToList();
         for (int k = 0; k < shown.Count; k++) Frame.Text(_font, 14, top + 16 * k, AddressBookPopup.Fit(_font, shown[k], 200));
         // (a line higher with the host's GAME SETUP under it)
-        Frame.Text(_font, 14, CanSetUp ? 432 : 440, AddressBookPopup.Fit(_font, _typing ? "> " + _line + "_" : "Enter: chat", 200));
+        Frame.Text(_font, 14, CanSetUp || CanRoute ? 432 : 440, AddressBookPopup.Fit(_font, _typing ? "> " + _line + "_" : "Enter: chat", 200));
         // the car panel: the highlighted player's
         if (sh is { } who)
         {
@@ -167,6 +176,7 @@ public sealed class CoopLobbyScreen : ShellScreen
         }
         DrawLeftButton(s);
         if (CanSetUp) DrawSetupButton();
+        else if (CanRoute) DrawSetupButton("ROUTE MAP");
     }
 
     private (Pcx Art, Rect2I Border, ArtButtons.ArtLabel Word)? _cancelArt;
@@ -175,7 +185,7 @@ public sealed class CoopLobbyScreen : ShellScreen
     /// GAME SETUP (the host's): the art's CANCEL button drawn again under the list without its word, and GAME SETUP lettered as the art letters
     /// CANCEL, as the internet roster's SERVERS is drawn on the same art in the same place.
     /// </summary>
-    private void DrawSetupButton()
+    private void DrawSetupButton(string label = "GAME SETUP")
     {
         if (_cancelArt is null)
         {
@@ -190,7 +200,7 @@ public sealed class CoopLobbyScreen : ShellScreen
         byte P(int x, int y) => art.Pixels[Math.Clamp(y, 0, art.Height - 1) * art.Width + Math.Clamp(x, 0, art.Width - 1)];
         var dest = new Rect2I(Hot[39].X0 + b.Position.X - Hot[15].X0, b.Position.Y, b.Size.X, b.Size.Y);
         ArtButtons.Face(Frame, P, b, word0.Box.Position.X, dest, 4);
-        ArtButtons.Letter(Frame, Shell.Db.Font(0x47), "GAME SETUP", word0, "CANCEL", dest);
+        ArtButtons.Letter(Frame, Shell.Db.Font(0x47), label, word0, "CANCEL", dest);
     }
 
     /// <summary>
@@ -215,6 +225,36 @@ public sealed class CoopLobbyScreen : ShellScreen
                 Draw();
             },
         });
+    }
+
+    // ---- a co-op roguetrip (docs/remix-missions.md "Roguetrip in co-op") ----
+
+    /// <summary>The box line of a roguetrip's lobby: the run and where it is.</summary>
+    private static string RouteTitle(RoguetripState rt) => rt.Phase switch
+    {
+        "debrief" => $"JOB {rt.Legs.Count} DONE",
+        "over" or "done" => "RUN OVER",
+        _ => $"ROGUETRIP #{Math.Min(I76.Formats.Remix.RemixRun.Jobs, rt.Legs.Count + 1)}",
+    };
+
+    /// <summary>ROUTE MAP: the roguetrip's sheet over the lobby (the choice, the debrief or the run's end), back to the lobby with Esc.</summary>
+    internal void OpenRoute()
+    {
+        if (RouteMap?.Invoke() is not { } view || Roguetrip?.Invoke() is not { } st) return;
+        _routePhase = st.Phase;
+        view.Close = Back;
+        Shell.Overlay(null);
+        Shell.Go(new RoguetripScreen { Run = st.ToRun(view.Me()), CoopView = view });
+    }
+
+    /// <summary>The debrief, or the run's end, has come since the sheet was last opened: it opens by itself on every game.</summary>
+    private bool RouteDue()
+    {
+        if (!CanRoute || Roguetrip!.Invoke() is not { } st) return false;
+        if (st.Phase == _routePhase) return false;
+        if (st.Phase is "debrief" or "over" or "done") return true;
+        _routePhase = st.Phase;
+        return false;
     }
 
     /// <summary>
@@ -274,7 +314,7 @@ public sealed class CoopLobbyScreen : ShellScreen
                 l.Add(PadRegion.Of(Hot[0].X0, FirstRowY + Row * k, Hot[0].X1 - Hot[0].X0, Row, d => d == NavDir.Up && kk == 0 ? Scroll(-1) : d == NavDir.Down && kk == n - 1 ? Scroll(1) : false));
             }
             if (s?.Me is not null && Shown?.Id == s.You) foreach (int id in new[] { 3, 4, 5 }) l.Add(PadRegion.Of(Hot[id].X0, Hot[id].Y0, Hot[id].X1 - Hot[id].X0, Hot[id].Y1 - Hot[id].Y0));
-            foreach (int id in CanSetUp ? new[] { 14, 39, 6, 15 } : [14, 6, 15]) l.Add(PadRegion.Of(Hot[id].X0, Hot[id].Y0, Hot[id].X1 - Hot[id].X0, Hot[id].Y1 - Hot[id].Y0));
+            foreach (int id in CanSetUp || CanRoute ? new[] { 14, 39, 6, 15 } : [14, 6, 15]) l.Add(PadRegion.Of(Hot[id].X0, Hot[id].Y0, Hot[id].X1 - Hot[id].X0, Hot[id].Y1 - Hot[id].Y0));
             return l;
         }
     }
@@ -289,7 +329,7 @@ public sealed class CoopLobbyScreen : ShellScreen
         if (CanSetUp && g.X0 < p.X && p.X < g.X1 && g.Y0 < p.Y && p.Y < g.Y1)
             return ("GAME SETUP (S): pick another mission or change the game's settings for everyone here; the players stay in the lobby.", new Rect2I(g.X0, g.Y0, g.X1 - g.X0, g.Y1 - g.Y0));
         if (State() is not { } s || p.X < 28 || p.X > 214 || p.Y < BoxY - 2 || p.Y > BoxY + 16) return null;
-        string title = I76.Formats.Mission.MissionTitles.CoopTitle(Shell.Install, s.Mission);
+        string title = Roguetrip?.Invoke() is { } rt ? RouteTitle(rt) : I76.Formats.Mission.MissionTitles.CoopTitle(Shell.Install, s.Mission);
         string what = I76.Formats.Mission.MissionTitles.CoopSummary(Shell.Install, s.Mission, Shell.Vfs);
         return (what.Length > 0 ? $"{title}: {what}" : title, new Rect2I(28, BoxY - 2, 186, 18));
     }
@@ -338,6 +378,8 @@ public sealed class CoopLobbyScreen : ShellScreen
         if (_renaming) { redraw |= Renaming(); if (redraw) Draw(); return; }
         if (Shell.Keys.Contains(Key.Escape)) { Quit(); return; }
         if (Shell.Keys.Contains(Key.S) && CanSetUp) { Shell.Sound(82); OpenSetup(); return; }
+        if (Shell.Keys.Contains(Key.R) && CanRoute) { Shell.Sound(82); OpenRoute(); return; }
+        if (RouteDue()) { OpenRoute(); return; }
         if (Shell.Keys.Contains(Key.Enter) || Shell.Keys.Contains(Key.KpEnter)) { _typing = true; _line = ""; Draw(); return; }
         if (Shell.Keys.Contains(Key.Down)) { Select(s, 1); redraw = true; }
         if (Shell.Keys.Contains(Key.Up)) { Select(s, -1); redraw = true; }
@@ -424,6 +466,7 @@ public sealed class CoopLobbyScreen : ShellScreen
                 Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = NoRename, Closed = Draw });
                 return false;
             case 14: _renaming = true; _name = _renamedTo ?? s.Me?.Name ?? ""; return true;
+            case 39 when CanRoute: OpenRoute(); return false;
             case 39: return false;
             case 3 or 4 or 5 when Shown?.Id != s.You: _notice = "Highlight yourself to pick a car."; return true;
             case 3: ModelPopup(); return false;

@@ -1145,7 +1145,7 @@ from the server.
   so a successor builds it again from the options. The co-op host form's DAMAGE TAKEN row (a click steps it) and CO-OP DAMAGE in the Nitro
   form's co-op game options set it (shell.cfg [port] `coop_damage`, written only when not 1). The game's answer lists it after the makes and
   models (`SessionInfo.CoopDamage`, in hundredths; protocol 23) and the session popup says "Co-op damage x0.5" when it is not x1.
-- **Not done yet:** the trip campaign.
+- **Not done yet:** the trip campaign (its generated cousin, ROGUETRIP, plays in co-op: below, "ROGUETRIP in co-op").
 
 ### Each player's car
 
@@ -1433,6 +1433,22 @@ lobby, whether the game has just been hosted or has come back to it (Back to Lob
   mission; the refusals (not a story mission, too few seats, a bad factor, once started; a guest's messages change nothing) and the change after
   Back to Lobby; a hidden car put back in the mission's own with its notice; a dedicated server's console; a host migration's successor
   with the changed options.
+
+### ROGUETRIP in co-op (the play fork's, `PeerFeatures.Roguetrip`)
+
+The co-op host form's last row, ROGUETRIP, hosts the roguetrip (docs/remix-missions.md "Roguetrip") as a lobby game whose missions are
+the host's run's generated jobs (docs/remix-missions.md "Roguetrip in co-op" has the rules). On the wire: `MsgType.RoguetripState` (66,
+server to client, reliable ordered, only to a peer whose join says the bit): the run (number, builder version, the host's build, phase,
+busts, wins, kills, the map it is on, the jobs played), the route map's offers and the host's pick, the job being played (`CoopJob`:
+run, builder, job index, map, template, seed, challenge as a double, crew size) with the SHA-256 of the host's build of it, the last
+job's objectives and the crew's cars (armour, chassis and ammunition left, killed or not). It goes out on every change of the run, with
+every `LobbyState` of the lobby, and before every join accept, so a client has built the job (and checked its hash) before it reads the
+accept, whose mission fingerprint is then checked as for any mission. The host's choices (the pick, CONTINUE, a new run) are in-process
+calls of the listen host (`RoguetripSelect`, `RoguetripContinue`, `RoguetripNewRun`): no message carries them. A joiner without the bit
+is turned away (`Protocol.RoguetripNeeded`). The seats' respawn delay is `Protocol.CoopNoRespawn` (a killed player is out of the job),
+sent as the accept's own respawn delay; the HUD's death card says so. After a job the plan is always the lobby (`CoopPlan` Lobby): no
+Replay, no Next Mission; the host's Back to Lobby during a job is a bust. Host migration is off for such a game. Protocol 26 and the
+savestate's version 31 are unchanged (no sim state: the respawn delay is the existing `CoopSetup` field). Tests: `RoguetripCoopTests`.
 
 ### Hosting and joining from the shell
 

@@ -191,7 +191,7 @@ public partial class NetHudClassic : Control
                 ? $"Next round in {Math.Max(0, (int)Math.Ceiling(nr))} s{(f.Host ? "  (Enter: now)" : "")}   Ctrl+F10 leaves"
                 : "Ctrl+F10 leaves");
         else if (f.Death is { } cd && f.Coop)
-            _banner.Text = "DESTROYED\n" + (cd.Left > 0 ? $"back beside a teammate in {Math.Ceiling(cd.Left):0} s" : "waiting for a living teammate");
+            _banner.Text = "DESTROYED\n" + (cd.Delay >= I76.Net.Protocol.CoopNoRespawn / 2 ? "out of this job: back for the next one" : cd.Left > 0 ?$"back beside a teammate in {Math.Ceiling(cd.Left):0} s" : "waiting for a living teammate");
         else if (f.Death is { } d)
             _banner.Text = "DESTROYED\n" + (d.Left > 0 ? $"{d.RaiseKey} in {Math.Ceiling(d.Left):0} s" : $"{d.RaiseKey}: come back")
                 + "\nEnter: reconfigure" + (d.NextCar is { } rc ? $"\nnext car: {rc}" : "");

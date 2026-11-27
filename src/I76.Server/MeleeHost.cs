@@ -227,6 +227,13 @@ public sealed record ServerOptions
     /// Off (a dedicated server, the default) nothing of it runs.
     /// </summary>
     public bool HostMigration { get; init; }
+    /// <summary>
+    /// A co-op ROGUETRIP (docs/remix-missions.md "Roguetrip in co-op"): the host's run, which the server plays job by job (each built as
+    /// <see cref="I76.Formats.Remix.CoopJob.Stem"/> for the crew at the start), told to the players (<see cref="PeerFeatures.Roguetrip"/>);
+    /// null in any other game. Shared by reference between the game's builds (the run goes on); never serialized.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public I76.Formats.Remix.CoopRun? Roguetrip { get; init; }
     /// <summary>A downloaded custom map's folder to play from (a successor taking over a game on a map it downloaded); null: the install's own.</summary>
     public string? MapDir { get; init; }
     /// <summary>What the host says it understands beyond upstream's protocol (<see cref="Protocol.Features"/>; fewer in a test's upstream host): its accept says these, and it uses no other.</summary>
@@ -364,11 +371,13 @@ public sealed partial class MeleeHost : IModeHost
         // a base arena is a .msn; Nitro's are .cbt, .rac and .cf2/.cf3/.cf4 (named with the extension)
         var msn = install.FindMission(Arena) ?? throw new FileNotFoundException($"no arena miss16/{Arena} in {o.Install}");
         // the port's generated remix scenarios (docs/remix-missions.md) are single player: a client would need the file, and no
-        // network game lists them; one named here by mistake (a command line, a stale setting) is refused, never hosted
-        if (GameInstall.IsUserMission(msn)) throw new NotSupportedException($"{Arena} is a generated remix scenario: single player only");
+        // network game lists them; one named here by mistake (a command line, a stale setting) is refused, never hosted. A co-op
+        // roguetrip's job is the exception: every player builds it from the job the host names (RoguetripState), so nothing is sent
+        bool roguetrip = o.Roguetrip is not null && o.Coop is not null && Arena.Equals(I76.Formats.Remix.CoopJob.Stem, StringComparison.OrdinalIgnoreCase);
+        if (GameInstall.IsUserMission(msn) && !roguetrip) throw new NotSupportedException($"{Arena} is a generated remix scenario: single player only");
         var world = new MissionWorld(Vfs, asm, msn);
         Map = MapFingerprint.Of(install, Arena);
-        MapSet = MapFileSet.Resolve(install, Arena, Vfs);
+        MapSet = roguetrip ? null : MapFileSet.Resolve(install, Arena, Vfs);
         if (MapSet is { } set)
         {
             var data = set.Files.Select(f => File.ReadAllBytes(f.Path)).ToList();

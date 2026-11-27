@@ -60,6 +60,8 @@ public sealed partial class NetMeleeServer
         if (_changing) return "the game is being changed: a moment";
         var waiting = _lobby.Where(m => m.Peer.Id != _hostPeer && !m.Ready).Select(m => m.Request.Name).ToList();
         if (waiting.Count > 0 && !force) return $"not ready: {string.Join(", ", waiting)}";
+        // a co-op roguetrip's job is built now, for the players here (NetMeleeServer.Roguetrip.cs)
+        if (RoguetripStarting() is { } no) return no;
         StartNow(waiting);
         return null;
     }
@@ -73,6 +75,7 @@ public sealed partial class NetMeleeServer
         Log?.Invoke($"lobby: the mission starts with {members.Count} players{(notReady.Count > 0 ? $" ({string.Join(", ", notReady)} not ready)" : "")}");
         // every seat is dealt before any accept is written: each accept names every seat's car
         var seated = members.Select(m => (m.Peer, Seat: SeatIn(m.Peer, m.Request))).ToList();
+        RoguetripSeated(seated.Select(x => x.Seat));
         foreach (var (peer, seat) in seated) SendAccept(peer, seat);
     }
 
@@ -106,6 +109,8 @@ public sealed partial class NetMeleeServer
             { Features = Options.Features & to.Request.Features & PeerFeatures.LobbyRename }.Write(_msg);
             to.Peer.Send(_msg.Span, DeliveryMethod.ReliableOrdered);
         }
+        // a co-op roguetrip's run with it: the route map, the debrief (NetMeleeServer.Roguetrip.cs)
+        if (RoguetripNow() is { } rt) foreach (var to in _lobby) SendRoguetrip(to.Peer, rt);
     }
 
     /// <summary>A lobby player leaves or drops: out of the list, the others told; the listen host's going closes the lobby.</summary>

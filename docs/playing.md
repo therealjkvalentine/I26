@@ -65,6 +65,19 @@ the region offers the first jobs. Esc steps back one screen at a time, to MELEE.
 ROGUETRIP goes straight back to it. One-off generated jobs stay on the SCENARIO form as RANDOM JOB. The main menu also answers
 the arrow keys and Enter (as a pad's D-pad and A).
 
+**Roguetrip in co-op.** Host it as any co-op game: MELEE > MULTI MELEE > HOST, the MELEE / CO-OP button to CO-OP, then ROGUETRIP, the
+last row of AREA OF PLAY, and BROADCAST GAME. The others join from the roster as for any co-op game and pick their cars in the lobby
+(everyone on the same build of I26: a game that cannot build the jobs is told so at the join). In the lobby the host's **ROUTE MAP**
+(or R) opens the run's map of the region: pick one of the offers (Up, Down, 1-3 or a ring), Enter goes back to the lobby, START plays
+it. Everyone else's ROUTE MAP shows the same map, the host's pick ringed in red, as it changes. Each player builds the job on their own
+machine from the host's numbers; the enemies grow with the crew (two players about 1.75 times a single player's job, four 3.25). Your
+car's damage carries from job to job as long as you keep the same car. Killed in a job, you are out of it (no respawn: the death card
+says so) and back for the next with your car patched to half armour; the run ends only when the whole crew is killed. A failed job
+otherwise is a bust (the next a step harder). After each job everyone is back in the lobby on the debrief; the host's CONTINUE (or
+Enter) goes on to the next choice: there is no field salvage or garage in co-op, a won job patches 30 % armour onto each car still
+running and reloads its guns. The host keeps the run (user://remix/coop-run.yaml): host ROGUETRIP again and the run goes on, with the
+same or fewer players. Players who leave mid-job do not end it; new players can join between jobs in the lobby.
+
 The install is looked for in this order: `--install DIR`, the `I76_INSTALL` environment variable, the executable's
 folder and its parent, `i76` and `nitro` inside the executable's folder, `i76` and `nitro` in the local user folder, then
 GOG offline installers (in the executable's folder, its parent and the local user folder). I26 remembers no install
