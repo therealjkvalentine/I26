@@ -7,7 +7,7 @@ namespace I76.Game.Shell;
 /// renderer (every port row at the original's value, the original's own rows at the default profile); Balanced is a first start's
 /// defaults; High and Ultra are steps up for a strong graphics card (Ultra close to a 200 % supersampled playtest setup). The window,
 /// the monitor, Field of View, VSync, Max FPS, Menu Width, 1997 Mode and the rows that are taste rather than cost (Mirrors, Mirror
-/// Haze, Hood Gloss, Palette Grade, Crash Blur, Ext. Instrum. Disp., Terrain Detail, 3D Garage, Radar Sweep, Shimmer Strength) are
+/// Haze, Hood Gloss, Palette Grade, Crash Blur, Motion Blur, Clouds, Ext. Instrum. Disp., Terrain Detail, 3D Garage, Radar Sweep, Shimmer Strength) are
 /// not in it. The texture rows ask
 /// for a size and take the largest the installed packs offer up to it; with no pack they are left out. No engine here.
 /// </summary>

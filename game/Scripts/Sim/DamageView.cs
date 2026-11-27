@@ -11,7 +11,8 @@ namespace I76.Game.Sim;
 /// top BDYT; DamageTextures.Condition of the zone's level, a dead car the worst
 /// there is) and the zone's face slots their damage textures (DamageTextures.Frame), destroyed
 /// structures turn into their 'A' parts or vanish, flung wheels and chunks
-/// tumble as debris (Godot physics, visual only), tyres pop, cars explode.
+/// tumble as debris (Godot physics, visual only), knocked-off signs fly as the
+/// original's thrown pieces (ThrownPiece), tyres pop, cars explode.
 /// </summary>
 public partial class DamageView : Node3D
 {
@@ -27,6 +28,10 @@ public partial class DamageView : Node3D
     /// <summary>How far the frame is between sim ticks (SimDriver.Alpha), for the 1997 damage smoke; unset: at the last tick.</summary>
     public Func<float>? Alpha { get; init; }
     private readonly List<(RigidBody3D Body, double Until)> _debris = [];
+    /// <summary>Placements thrown whole (a knocked-off sign), each flown by its ThrownPiece.</summary>
+    private readonly List<(Node3D Node, ThrownPiece Piece, string Name)> _thrown = [];
+    private readonly DebrisTable _debrisTable = new();
+    private readonly HashSet<ThrownPiece> _rested = [];
     /// <summary>The modern look's fire on each burning wreck (WreckFire), until it has burnt out or the car is renewed.</summary>
     private readonly Dictionary<CarNode, WreckFire> _fires = [];
 
@@ -625,22 +630,24 @@ public partial class DamageView : Node3D
                 case SignKnocked k when PlacementOf.TryGetValue(k.Object, out var sp):
                 {
                     Builder.Scenery!.Destroy(sp, null);
-                    // the thrown copy is the placement as it stood: a part shot down before is its wreck
+                    UnpaintThrown(sp);
+                    // the thrown copy is the placement as it stood: a part shot down before is its wreck; its lot stays on the ground
                     var thrown = k.Object;
                     var model = sp.Definition is not { } d ? null : thrown.Nodes.Any(n => n.Destroyed)
                         ? new ModelAssembler(Builder.Vfs) { DestroyedNode = name => thrown.Nodes.FindIndex(n => n.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is var ni and >= 0 && thrown.Nodes[ni].Destroyed }.Assemble(d)
                         : Builder.Assembler!.Assemble(d);
-                    var mesh = model is null ? null : Builder.Meshes!.Build(model);
-                    var body = new RigidBody3D
-                    {
-                        Transform = new Transform3D(Coords.ToGodot(sp.Object.Rotation), G(Builder.World is { } sw ? sw.GroundedPosition(sp) : sp.Object.Position)),
-                        LinearVelocity = Coords.ToGodot(k.Velocity),
-                        AngularVelocity = new Vector3((float)GD.RandRange(-4, 4), (float)GD.RandRange(-4, 4), (float)GD.RandRange(-4, 4)),
-                    };
-                    if (mesh is not null) body.AddChild(new MeshInstance3D { Mesh = mesh });
-                    body.AddChild(new CollisionShape3D { Shape = new BoxShape3D { Size = new Vector3(0.5f, 1.5f, 0.5f) }, Position = new Vector3(0, 0.75f, 0) });
-                    AddChild(body);
-                    _debris.Add((body, _t + 8));
+                    var mesh = model is null ? null : Builder.Meshes!.Build(model, include: part => !model.Lots.Contains(part.NodeName));
+                    // it flies as the original's thrown pieces do (ThrownPiece), turning about the middle of its bounds
+                    var at = Builder.World is { } sw ? sw.GroundedPosition(sp) : sp.Object.Position;
+                    var pivot = mesh is null ? System.Numerics.Vector3.Zero : Coords.ToGame(mesh.GetAabb().GetCenter());
+                    var piece = ThrownPiece.Throw(at, I76.Sim.Math.Rows.FromEngine(sp.Object.Rotation), pivot, k.Velocity, _debrisTable);
+                    var node = new Node3D { Transform = new Transform3D(Coords.ToGodot(sp.Object.Rotation), G(at)) };
+                    if (mesh is not null) node.AddChild(new MeshInstance3D { Mesh = mesh });
+                    // tumbling, and resting where it came down (a flat piece on its edge, half in the ground), its back turns to
+                    // the camera as often as not: the modern look draws it from both sides (1997's as the original, culled)
+                    if (Builder.Materials is { Mode1997: false } mats) mats.ShowBothSides(node);
+                    AddChild(node);
+                    _thrown.Add((node, piece, sp.Object.Name));
                     break;
                 }
                 case StructureDestroyed s:
@@ -666,6 +673,21 @@ public partial class DamageView : Node3D
         }
         for (int i = _debris.Count - 1; i >= 0; i--)
             if (_t > _debris[i].Until) { _debris[i].Body.QueueFree(); _debris.RemoveAt(i); }
+        for (int i = _thrown.Count - 1; i >= 0; i--)
+        {
+            var (node, piece, name) = _thrown[i];
+            if (!piece.Step((float)delta, GroundUnder))
+            {
+                GD.Print($"thrown: {name} gone after {piece.Age:0.0} s{(piece.Age > ThrownPiece.Life ? "" : ", still rising at the ground")}");
+                node.QueueFree();
+                _thrown.RemoveAt(i);
+                _rested.Remove(piece);
+                continue;
+            }
+            if (piece.Resting && _rested.Add(piece))
+                GD.Print($"thrown: {name} rests after {piece.Age:0.0} s at {piece.Centre.X:0.0},{piece.Centre.Y:0.0},{piece.Centre.Z:0.0}, up {piece.Rot.Up.X:0.00},{piece.Rot.Up.Y:0.00},{piece.Rot.Up.Z:0.00}");
+            node.Transform = new Transform3D(Coords.ToGodot(piece.Rot.ToEngine()), G(piece.Origin));
+        }
         List<(CarNode, WreckFire)>? done = null;
         foreach (var (car, fire) in _fires) if (fire.Finished) (done ??= []).Add((car, fire));
         if (done is not null)
@@ -675,6 +697,21 @@ public partial class DamageView : Node3D
                 fire.QueueFree();
             }
     }
+
+    /// <summary>
+    /// A placement thrown whole takes its painted ground faces with it (an intersection piece's road, a building's floor):
+    /// where it stood is bare ground. Its lot is not the placement's (it is drawn with the ground) and stays.
+    /// </summary>
+    private void UnpaintThrown(Placement p)
+    {
+        if (World.GroundDecals.Applies(p) && p.Definition is { } d && Builder.Assembler!.Assemble(d) is { } whole
+            && Builder.Unpaint(p, World.GroundDecals.ThrownOut(whole)) is { } area)
+            (_roads ??= new Editor.RoadTools.RoadPainter(Builder)).Request(area);
+    }
+
+    /// <summary>The ground under a thrown piece: the height and normal there (flat at 0 without a ground).</summary>
+    private (float Height, System.Numerics.Vector3 Normal) GroundUnder(System.Numerics.Vector3 p) =>
+        Ground is { } g ? g.Query(p.X, p.Y, p.Z) : (0f, System.Numerics.Vector3.UnitY);
 
     /// <summary>
     /// A structure's destroyed look: each dead node's 'A' part or nothing, the
@@ -690,7 +727,7 @@ public partial class DamageView : Node3D
         if (LinksOf.TryGetValue(o, out var links)) { DestroyLinks(o, links); return; }
         if (!PlacementOf.TryGetValue(o, out var p)) return;
         // thrown (a restore, a join): gone from where it stood
-        if (o.Thrown) { Builder.Scenery!.Destroy(p, null); return; }
+        if (o.Thrown) { Builder.Scenery!.Destroy(p, null); UnpaintThrown(p); return; }
         Mesh? alt = null;
         I76.Formats.Assembly.AssembledModel? altModel = null;
         bool Dead(string name) => o.Nodes.FindIndex(n => n.Name.Equals(name, StringComparison.OrdinalIgnoreCase)) is var i and >= 0 ? o.Nodes[i].Destroyed : o.Destroyed;

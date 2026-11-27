@@ -295,6 +295,7 @@ public partial class Main : Node3D
 		if (QuietWindow.Active) QuietWindow.Apply(first, needsFrames: _opt.Screenshot is not null || FrameProfiler.Enabled);   // I76_QUIET_WINDOW: a window of the size asked for, behind the others
 		else WindowApplier.Apply(first, atStart: true);   // Resolution: a saved window size
 		I76.Sim.Views.ViewFov.Apply(first.FieldOfView);
+		if (VolumetricSupported && CloudsMode(first) == I76.Formats.Imaging.CloudNoise.Volumetric) StartCloudNoise();   // MainClouds.cs: ready before the first sky
 		RenderScale.Apply(first);
 		if (ShaderSmoke.Requested) { SetProcess(false); AddChild(new ShaderSmoke()); return; }
 		SwitchProbe.Install(GetTree());
@@ -1535,7 +1536,7 @@ public partial class Main : Node3D
 		{
 			melee.Spawned += (v, d) => carNodes[v] = MakeNode(v, d);
 			melee.Removed += v => { if (carNodes.Remove(v, out var n)) { _sim.Cars.Remove(n); n.QueueFree(); } };
-			melee.PlayerRenewed += v => { if (carNodes.GetValueOrDefault(v) is { } n) damageView.Restore(n); };
+			melee.PlayerRenewed += v => { if (carNodes.GetValueOrDefault(v) is { } n) damageView.Restore(n); if (v == world.Player) I76.Game.Sim.MotionBlur.Cut(); };
 			// Play Options' Melee A.I. (the port's; docs/deviations.md): the opponents' opening skill, the original's 3 unless the player chose
 			melee.OpenAt(I76.Sim.Missions.MeleeGame.OpeningStep(playSettings.MeleeAi, playSettings.Difficulty));
 			melee.Start();
@@ -2054,6 +2055,7 @@ public partial class Main : Node3D
 		AddChild(new CabClip { Name = "CabClip", Player = () => _car, Cars = () => _carNodes.Values });
 		var wiggle = new Wiggle { Name = "Wiggle", InCockpit = () => _car?.CockpitCamera?.Current == true, Player = () => _car?.Sim };
 		AddChild(wiggle);
+		AddChild(new I76.Game.Sim.MotionBlur { Name = "MotionBlur", Faithful = () => _mode1997 });   // the modern look's motion blur
 		if (combat.Damage is I76.Sim.Damage.DamageModel wdm) wdm.Damaging += wiggle.Damaging;
 		Hud hud;
 		AddChild(hud = new Hud { Staged = true, Car = () => _car?.Sim, Debug = () => _overlay?.Visible == true, Combat = combat, Origin = () => _origin, CarOf = v => _carNodes.GetValueOrDefault(v), InCockpit = () => _car?.CockpitCamera?.Current == true, ExtInstruments = () => _extInstruments, Pit = () => _pit, Cutscene = () => _scriptCam?.Current == true, Transmitting = () => _netHud?.CbTransmitting == true, Network = () => _net is not null, HostAllowsCrosshair = () => _net?.Client.CrosshairAllowed == true, Script = _script, Objectives = _objectives, Name = "Hud", Visible = System.Environment.GetEnvironmentVariable("I76_NO_OVERLAY") != "1",
@@ -2130,11 +2132,14 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>The script's camera, while it holds the view (pushCam ... popCam).</summary>
+	private int _scriptCuts;
+
 	private void UpdateScriptCamera()
 	{
 		if (_script is null || _scriptCam is null || System.Environment.GetEnvironmentVariable("I76_NO_SCRIPT_CAM") == "1") return;   // the capture hook: keep the cockpit through the intro cutscene
 		var view = _script.Host.View;
 		if (_car is not null) _car.SeenFromOutside = view.Active;
+		if (view.Cuts != _scriptCuts) { _scriptCuts = view.Cuts; I76.Game.Sim.MotionBlur.Cut(); }   // a cut between the scene's shots: no blur across it
 		if (!view.Active)
 		{
 			if (_scriptCam.Current) (_car?.CockpitCamera is { } k && _cockpitBeforeScript ? k : _presetBeforeScript ? _preset : _tvBeforeScript && _tvMode != 0 ? _tv : (Camera3D?)_chase)?.MakeCurrent();
@@ -3243,6 +3248,7 @@ public partial class Main : Node3D
 		I76.Game.Sim.OriginalBehavior.SkySpeed = I76.Sim.Views.PresentationSpeed.Factor(shellNow.SkySpeed);   // [port] sky_speed, before the materials take it
 		_lighting = LightingOf(shellNow);   // the calibration is solved here, before ApplyGraphics
 		if (_builder?.SkyTexture is not { } tex) yield break;
+		if (VolumetricSupported && CloudsMode(shellNow) == I76.Formats.Imaging.CloudNoise.Volumetric) StartCloudNoise();   // MainClouds.cs
 		var mat = _sky1997 = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/sky_dome.gdshader") };
 		mat.SetShaderParameter("clouds", tex);
 		mat.SetShaderParameter("far_clip", Far1997);
@@ -3325,9 +3331,11 @@ public partial class Main : Node3D
 	/// <summary>
 	/// The modern sky's colours (sky_modern.gdshaderinc): zenith, horizon, clouds and their shade, its gain, the gain its ambient
 	/// light was tuned at (the scene's light from the sky is its colours times that and the ambient energy), and whether each point
-	/// of the dome takes the texture's own colour.
+	/// of the dome takes the texture's own colour; Albedo, upstream's cloud_albedo: how much the clouds are drawn in the texture's own
+	/// colours by the modern sky's own rule (the original's sky takes them through Texture instead, and the volumetric clouds then
+	/// take them whole, sky_volumetric.gdshaderinc).
 	/// </summary>
-	private readonly record struct SkyColours(Color Zenith, Color Horizon, Color Cloud, Color Shade, float Gain, float AmbientGain, bool Texture);
+	private readonly record struct SkyColours(Color Zenith, Color Horizon, Color Cloud, Color Shade, float Gain, float AmbientGain, bool Texture, float Albedo = 0f);
 
 	/// <summary>The modern look's own sky colours (lighting_calibration off or filmic) and the original's (on).</summary>
 	private SkyColours _skyModern, _skyOriginal;
@@ -3521,6 +3529,7 @@ public partial class Main : Node3D
 				m?.SetShaderParameter("cloud_color", sc.Cloud);
 				m?.SetShaderParameter("cloud_shade", sc.Shade);
 				m?.SetShaderParameter("texture_colours", sc.Texture);
+				m?.SetShaderParameter("cloud_albedo", sc.Albedo);
 				m?.SetShaderParameter("sky_gain", sc.Gain * back);
 				m?.SetShaderParameter("radiance_chroma", (float)RadianceChroma(_lighting));
 			}
@@ -3600,7 +3609,8 @@ public partial class Main : Node3D
 	/// </summary>
 	private ShaderMaterial ModernSky(ShaderMaterial dome, I76.Formats.Mission.LightPreset light)
 	{
-		var m = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/sky_modern.gdshader") };
+		var m = _modernSkyMat = new ShaderMaterial { Shader = GD.Load<Shader>("res://Shaders/sky_modern.gdshader") };
+		_cloudCover = _cloudAlbedo = null;   // the mission's own (MainClouds.cs)
 		foreach (var p in new[] { "clouds", "horizon", "has_horizon", "sprite", "has_sprite", "sprite_dir", "sprite_radius" })
 			m.SetShaderParameter(p, dome.GetShaderParameter(p));
 		// the panels a pack serves (the dome's are the originals' then, MissionBuilder.Horizon1997)
@@ -3610,17 +3620,31 @@ public partial class Main : Node3D
 		bool day = light.IsDay;
 		if (_builder?.Palette is { } pal)
 		{
-			// the modern look's own: by day the haze and the clouds are lifted toward white; a night sky keeps the texture's own
-			// dark blues (the original's night is navy with violet clouds, and the lift greyed it), scaled against Filmic's toe
+			// the modern look's own (upstream's): by day the haze and the clouds are lifted toward white; a night sky keeps the
+			// texture's own dark blues (the original's night is navy with violet clouds, and the lift greyed it), scaled against
+			// Filmic's toe. Only pale clouds brighter than the sky are lifted, and the less the more coloured they are: a sunset's
+			// rust-red clouds, darker than its blue, stay rust-red, a blue-grey sky's slate clouds stay slate, and orange-pink ones
+			// do not turn peach-white
+			float lift = pal.Cloud.Luminance > pal.Sky.Luminance ? 0.4f * (1f - pal.Cloud.S) : 0f;
+			// clouds of their own colour, unlike the sky's (a sunset's orange to red-brown under lavender): drawn in the texture's own
+			// colours, its variation inside them kept, with a horizon that darkens as the original's does rather than paling (day
+			// clouds white or of the sky's own hue keep the measured colours)
+			float hueGap = Mathf.Abs(Mathf.Wrap(pal.Cloud.H - pal.Sky.H + 0.5f, 0f, 1f) - 0.5f) * 360f;
+			float albedo = day ? Mathf.SmoothStep(0.15f, 0.35f, pal.Cloud.S) * Mathf.SmoothStep(30f, 60f, hueGap) : 0f;
+			GD.Print($"sky: clouds in the texture's own colours {albedo:0.00} (cloud hue {hueGap:0} deg from the sky's, saturation {pal.Cloud.S:0.00})");
+			var darkHorizon = pal.Sky.Lerp(_builder.SkyAverage, 0.4f).Darkened(0.25f);
 			_skyModern = day
-				? new SkyColours(pal.Sky.Darkened(0.12f), pal.Sky.Lerp(_builder.SkyAverage, 0.6f).Lerp(Colors.White, 0.25f), pal.Cloud.Lerp(Colors.White, 0.4f),
-					pal.Shade.Lerp(pal.Sky, 0.35f).Darkened(0.1f), 1f, 1f, false)
+				? new SkyColours(pal.Sky.Darkened(0.12f), pal.Sky.Lerp(_builder.SkyAverage, 0.6f).Lerp(Colors.White, 0.25f).Lerp(darkHorizon, albedo), pal.Cloud.Lerp(Colors.White, lift),
+					pal.Shade.Lerp(pal.Sky, 0.35f).Darkened(0.1f), 1f, 1f, false, albedo)
 				: new SkyColours(pal.Sky, pal.Sky.Lerp(_builder.SkyAverage, 0.5f), pal.Cloud, pal.Shade.Lerp(pal.Cloud, 0.5f), NightSkyGain, NightSkyGain, false);
-			// the original's: the texture's colours as measured, its average at the horizon (what the dome's far texels average
-			// to), and each point of the dome in the texture's own colour there, by day and by night, unscaled (the card's curve
-			// has no toe to undo); the light it gives as tuned
-			_skyOriginal = new SkyColours(pal.Sky, _builder.SkyAverage, pal.Cloud, pal.Shade, 1f, _skyModern.AmbientGain, true);
-			m.SetShaderParameter("sky_lum", pal.SkyLum);
+			// the original's: the texture's colours as measured (by brightness, as the calibration was tuned: SkyPalette.Sorted),
+			// its average at the horizon (what the dome's far texels average to), and each point of the dome in the texture's own
+			// colour there, by day and by night, unscaled (the card's curve has no toe to undo); the light it gives as tuned
+			var (oSky, oCloud, oShade) = pal.Sorted;
+			_skyOriginal = new SkyColours(oSky, _builder.SkyAverage, oCloud, oShade, 1f, _skyModern.AmbientGain, true);
+			// a texel's cloudiness: its place on the sky-to-cloud colour line (upstream's; was its brightness)
+			m.SetShaderParameter("sky_ref", new Vector3(pal.SkyRef.X, pal.SkyRef.Y, pal.SkyRef.Z));
+			m.SetShaderParameter("cloud_ref", new Vector3(pal.CloudRef.X, pal.CloudRef.Y, pal.CloudRef.Z));
 			_nightSkyNorm = 1;
 			if (!day)
 			{
@@ -3633,9 +3657,8 @@ public partial class Main : Node3D
 					gi.Convert(Image.Format.Rgb8); gi.Resize(1, 1, Image.Interpolation.Lanczos); gl = L(gi.GetPixel(0, 0));
 				}
 				_nightSkyNorm = System.Environment.GetEnvironmentVariable("I76_NIGHT_NORM") == "0" ? 1 : I76.Game.World.NightDial.SkyNorm(L(_builder.SkyAverage));
-				GD.Print($"night levels: sky {L(pal.Sky):0.0000} average {L(_builder.SkyAverage):0.0000} cloud {L(pal.Cloud):0.0000} shade {L(pal.Shade):0.0000} ground {gl:0.0000} preset {light.Index} intensity {light.Intensity:0.000} ambient {light.Ambient:0.000} sky norm {_nightSkyNorm:0.00}");
+				GD.Print($"night levels: sky {L(oSky):0.0000} average {L(_builder.SkyAverage):0.0000} cloud {L(oCloud):0.0000} shade {L(oShade):0.0000} ground {gl:0.0000} preset {light.Index} intensity {light.Intensity:0.000} ambient {light.Ambient:0.000} sky norm {_nightSkyNorm:0.00}");
 			}
-			m.SetShaderParameter("cloud_lum", pal.CloudLum);
 		}
 		else _skyModern = _skyOriginal = new SkyColours(new Color(0.25f, 0.42f, 0.75f), new Color(0.7f, 0.75f, 0.8f), Colors.White, new Color(0.55f, 0.58f, 0.65f), 1f, 1f, false);
 		var sc = SkyFor(_lighting);
@@ -3644,6 +3667,7 @@ public partial class Main : Node3D
 		m.SetShaderParameter("cloud_color", sc.Cloud);
 		m.SetShaderParameter("cloud_shade", sc.Shade);
 		m.SetShaderParameter("texture_colours", sc.Texture);
+		m.SetShaderParameter("cloud_albedo", sc.Albedo);
 		m.SetShaderParameter("sky_gain", sc.Gain);
 		m.SetShaderParameter("light_strength", light.IsDay ? light.Intensity : 0.3f);
 		// by day a drawn sun in place of the sprite; by night a drawn moon (NASA's map of it) in place of the mission's moon sprite
@@ -4051,7 +4075,9 @@ public partial class Main : Node3D
 	{
 		_origin = gameOrigin;
 		_worldRoot.Position = -Coords.ToGodot(gameOrigin);
+		I76.Game.Sim.MotionBlur.Cut();   // everything moved at once: no frame to blend from
 		_sky1997?.SetShaderParameter("origin_y", gameOrigin.Y);   // the horizon ring sinks with the eye's game height
+		_modernSkyMat?.SetShaderParameter("world_origin", new Vector3(gameOrigin.X, gameOrigin.Y, gameOrigin.Z));   // the volumetric clouds stand in the world
 	}
 
 	private float _skyExtra;
@@ -4784,6 +4810,7 @@ public partial class Main : Node3D
 	private void SelectView(int cmd)
 	{
 		if (CameraHeld || _car is null || _chase is null) return;
+		I76.Game.Sim.MotionBlur.Cut();   // a view key: the next frame is another view, not a move
 		if (cmd is 0x18 or 0x19 or 0x12) { EnterFollowView(cmd); return; }
 		if (cmd is 0xe or 0xd && !_car.HasInterior) cmd = 0xf;   // no cockpit model (the Armadillo): the chase view stands in
 		// every other view's setup first pops the camera stack when the camera is in mode 4 (a target view); the projectile camera
@@ -4910,6 +4937,7 @@ public partial class Main : Node3D
 	private void ApplyExternalView(int cmd)
 	{
 		if (_car is null || _chase is null) return;
+		I76.Game.Sim.MotionBlur.Cut();
 		switch (cmd)
 		{
 			case 0xf: _chase.MakeCurrent(); break;                                                     // F2: chase
@@ -5285,6 +5313,7 @@ public partial class Main : Node3D
 		ActiveCamera.Far = I76.Formats.Imaging.DrawDistance.CameraFar(DrawDistanceNow);
 		UpdateSkyScroll((float)delta);
 		UpdateSoftwareBand();   // MainSoftware.cs
+		UpdateClouds(delta);   // MainClouds.cs
 		if (_pit?.Binoculars == true && ActiveCamera == _car?.CockpitCamera) ActiveCamera.Far = System.Math.Min(ActiveCamera.Far * 8, 100000f);   // Far = zoom * far, zoom 8
 		bool free = ActiveCamera == _cam;   // the fly camera (--cam): the origin follows it, not the car, or a far view loses depth precision
 		if (_car is not null && !free && _car.Position.Length() > RebaseDistance)
@@ -5311,9 +5340,18 @@ public partial class Main : Node3D
 			if (fa.Length == 6) _cam.Fov = fa[5];
 			_car?.SetCockpit(false);
 			if (!_cam.Current) _cam.MakeCurrent();
-			Rebase(new System.Numerics.Vector3(fa[0], fa[1], fa[2]));
+			// I76_FREECAM_VEL=vx,vy,vz[,yaw] (game units, degrees a second) moves and turns it on the mission's clock: a capture of the camera travelling
+			var held = new System.Numerics.Vector3(fa[0], fa[1], fa[2]);
+			float yaw = fa[3];
+			if (System.Environment.GetEnvironmentVariable("I76_FREECAM_VEL") is { } fv && fv.Split(',').Select(t => float.Parse(t, System.Globalization.CultureInfo.InvariantCulture)).ToArray() is { Length: 3 or 4 } va)
+			{
+				float secs = I76.Game.Sim.SimClock.Now * I76.Game.Sim.SimClock.Tick;
+				held += new System.Numerics.Vector3(va[0], va[1], va[2]) * secs;
+				if (va.Length == 4) yaw += va[3] * secs;
+			}
+			Rebase(held);
 			_cam.Position = Vector3.Zero;
-			_cam.SetYawPitch(fa[3], fa[4]);
+			_cam.SetYawPitch(yaw, fa[4]);
 		}
 		LeaveDeadCockpit();
 		if (PlayerDead && _net is null && (FrameProfiler.Enabled || FrameSections.On)) FrameProfiler.PlayerDied();

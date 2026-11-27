@@ -58,8 +58,10 @@ uniform vec3 zenith_color : source_color = vec3(0.25, 0.42, 0.75);
 uniform vec3 horizon_color : source_color = vec3(0.7, 0.75, 0.8);
 uniform vec3 cloud_color : source_color = vec3(1.0);
 uniform vec3 cloud_shade : source_color = vec3(0.55, 0.58, 0.65);
-uniform float sky_lum = 0.15;
-uniform float cloud_lum = 0.8;
+uniform float sky_own = 0.8;       // with cloud_albedo, how much of the open sky is the texture's own there
+uniform float cloud_albedo = 0.0;   // 0: the clouds in the measured colours; 1: in the texture's own (a sunset's coloured clouds)
+uniform vec3 sky_ref = vec3(0.05, 0.12, 0.45);   // the open sky's colour and the clouds' (linear): a texel's cloudiness is its place
+uniform vec3 cloud_ref = vec3(0.8);               // between them (SkyColours.Measure), so clouds darker than the sky are clouds
 uniform float detail = 0.35;      // how much the noise reshapes the texture's clouds
 // the original's colours (lighting_calibration on): each point of the dome in the texture's own colour there, as the 1997
 // dome shows it, at the lightness the cloud model gives it (its billows, lit edges and shaded undersides); the palette
@@ -74,6 +76,7 @@ uniform float radiance_chroma = 1.0;
 // (Godot ignores Environment.ambient_light_energy while ambient_light_sky_contribution is 1, so the sky's light is scaled here.)
 uniform float radiance_gain = 1.0;
 uniform vec3 radiance_tint = vec3(1.0);
+uniform float vol_haze = 0.12;    // the volumetric clouds' haze toward the horizon (the flat clouds' is 0.12)
 
 // a lattice point's random level, without a sine: sin of the large arguments the finer octaves reach (dot products in the
 // hundreds of thousands) loses its precision on the GPU and neighbouring points came out alike, which left the noise flat over
@@ -115,20 +118,43 @@ vec3 sky_texel(vec2 uv) {
 		+ (i76_sky_tex(texture(clouds, vec2(t0.x, t1.y))).rgb * s0.x + i76_sky_tex(texture(clouds, vec2(t1.x, t1.y))).rgb * s1.x) * s1.y;
 }
 
-// the texture's cloudiness at a dome coordinate (c its colour there), reshaped by noise
-float density_of(vec3 c, vec2 uv, int octaves) {
-	float span = cloud_lum - sky_lum;
-	float base = smoothstep(sky_lum - span * 0.1, cloud_lum + span * 0.15, dot(c, vec3(0.299, 0.587, 0.114)));
+// a cloud's light: the measured shade where the way toward the sun is through cloud (lit 0), a little brighter than the
+// measured cloud colour where it is clear (lit 1), the thickest cores (core 0..1) darker, a silver lining on the thin parts
+// toward the sun (cs: the view's cosine to it). With cloud_albedo the cloud is the texture's own colour there (tex) lit
+// the same way: a sunset's clouds keep the texture's vivid orange to deep red-brown and its variation inside them, which
+// one measured colour flattened into a dusty pink-brown. albedo: cloud_albedo, or the volumetric clouds' own (sky_volumetric)
+vec3 cloud_light(vec3 tex, float lit, float core, float cs, float albedo) {
+	vec3 cl = mix(I76_COL(cloud_shade) * 0.9, I76_COL(cloud_color) * 1.08, lit);
+	cl = mix(cl, I76_COL(cloud_shade) * 0.8, core * core * 0.35);
+	vec3 own = tex * mix(0.75, 1.12, lit) * (1.0 - core * core * 0.2);
+	cl = mix(cl, own, albedo);
+	return cl + (procedural_moon ? vec3(0.75, 0.82, 1.0) : vec3(1.0, 0.92, 0.78)) * pow(max(cs, 0.0), 10.0) * (1.0 - core) * 0.7 * light_strength;   // silver lining (the moon's cold)
+}
+
+// the texture's cloudiness at a dome coordinate, reshaped by noise; c: the texture's colour there, softened
+float density_col(vec2 uv, int octaves, out vec3 c) {
+	// read through the spline (sky_texel): its texels span tens of metres on the dome, and the ramp would sharpen their edges
+	c = sky_texel(uv);
+	vec3 axis = cloud_ref - sky_ref;
+	float base = smoothstep(-0.1, 1.15, dot(c - sky_ref, axis) / max(dot(axis, axis), 1e-6));
 	// billows: large lumps inside, fine erosion at the edges
 	float n = fbm(uv * 5.0, octaves);
 	float e = fbm(uv * 17.0 + n, octaves > 1 ? octaves - 1 : 1);
 	float edge = 1.0 - abs(base * 2.0 - 1.0);
 	return clamp(base + (n - 0.5) * detail * 1.6 + (e - 0.5) * detail * 1.4 * edge, 0.0, 1.0);
 }
+float density(vec2 uv, int octaves) { vec3 c; return density_col(uv, octaves, c); }
 
-float density(vec2 uv, int octaves) { return density_of(sky_texel(uv), uv, octaves); }
+// the engine's dome projection: where a direction (game frame) meets the dome, relative to the eye
+vec2 dome_xz(vec3 g) {
+	float b = g.y * drop;
+	float t = -b + sqrt(b * b - (drop * drop - radius * radius));
+	return (t * g).xz;
+}
 
-vec3 modern_sky(vec3 eyedir, float time, bool cubemap) {
+// vol: when use_vol, the volumetric clouds already marched for this direction (sky_volumetric.gdshaderinc): their light in
+// rgb, what they let through in a; they take the place of the flat cloud layer (the high faint layer stays behind them)
+vec3 modern_sky_with(vec3 eyedir, float time, bool cubemap, bool use_vol, vec4 vol) {
 	vec3 d = normalize(eyedir);
 	vec3 g = vec3(d.x, d.y, -d.z);    // Godot -> game: mirror Z
 	vec3 s = normalize(sprite_dir);
@@ -144,7 +170,19 @@ vec3 modern_sky(vec3 eyedir, float time, bool cubemap) {
 
 	// what reaches the eye from the sun or moon through the clouds and the haze, added once the sky is done
 	float transmit = 1.0;
-	if (g.y > 0.0) {
+	if (use_vol) {
+		// the clouds' own light (the high layer's with it) over the sky behind
+		col = col * vol.a + vol.rgb;
+		// clouds thin into the haze near the horizon, as the flat ones do
+		if (g.y > 0.0) col = mix(I76_COL(horizon_color), col, smoothstep(0.0, vol_haze, g.y));
+		transmit = vol.a;
+		// a cloud in front of the sun glows round it (forward scattering), brightest where it is thin
+		// (as over the flat clouds: their cover, less over the thickest)
+		float vc = 1.0 - vol.a;
+		vec3 forward = procedural_sun ? vec3(1.0, 0.95, 0.85) * (pow(sun, 300.0) * 1.6 + pow(sun, 40.0) * 0.25) * vc * (1.0 - 0.5 * vc * vc) * light_strength : vec3(0.0);
+		// (in the texture's colours, lighting_calibration on, after them and their gain, as over the flat clouds)
+		if (texture_colours) glow += forward; else col += forward;
+	} else if (g.y > 0.0) {
 		// the engine's dome projection
 		float b = g.y * drop;
 		float t = -b + sqrt(b * b - (drop * drop - radius * radius));
@@ -152,17 +190,17 @@ vec3 modern_sky(vec3 eyedir, float time, bool cubemap) {
 		float off = time * scroll_per_second;
 		vec2 uv = (xz / radius + 0.5) * 4.0 + vec2(off);
 		int oct = cubemap ? 2 : 5;
-		vec3 texel = sky_texel(uv);
-		float den = density_of(texel, uv, oct);
+		vec3 tex;
+		float den = density_col(uv, oct, tex);
 		// light from the sun's side: cloud between here and the sun shades this point
 		vec2 toward = normalize(vec2(s.x, -s.z) + vec2(1e-4)) * 0.035;
 		float acc = 0.0;
 		for (int i = 1; i <= 3; i++) acc += density(uv + toward * float(i), cubemap ? 1 : 3);
 		float lit = exp(-acc * 0.75);
 		float thick = smoothstep(0.2, 0.95, den);
-		vec3 cl = mix(I76_COL(cloud_shade) * 0.9, I76_COL(cloud_color) * 1.08, lit);
-		cl = mix(cl, I76_COL(cloud_shade) * 0.8, thick * thick * 0.35);
-		cl += (procedural_moon ? vec3(0.75, 0.82, 1.0) : vec3(1.0, 0.92, 0.78)) * pow(sun, 10.0) * (1.0 - thick) * 0.7 * light_strength;   // silver lining (the moon's cold)
+		vec3 cl = cloud_light(tex, lit, thick, dot(d, s), cloud_albedo);
+		// and between them the texture's own sky (the measured one is muddied by the clouds' colour round it)
+		col = mix(col, tex, cloud_albedo * sky_own);
 		float cover = smoothstep(0.03, 0.75, den);
 		// a fainter, higher layer drifting slower, for depth
 		vec2 uv2 = (xz / radius + 0.5) * 2.0 + vec2(off * 0.4, -off * 0.25) + vec2(0.37, 0.61);
@@ -173,8 +211,8 @@ vec3 modern_sky(vec3 eyedir, float time, bool cubemap) {
 			// the texture's colour (hue and chroma as the 1997 dome shows them) at a luminance half the model's, half the texture's own
 			// (its dark cores and bright edges), within a factor of two of the texture's
 			const vec3 LUM = vec3(0.2126, 0.7152, 0.0722);
-			float lt = dot(texel, LUM);
-			col = texel * clamp(mix(dot(col, LUM), lt, texture_light) / max(lt, 1e-4), 0.5, 2.0);
+			float lt = dot(tex, LUM);
+			col = tex * clamp(mix(dot(col, LUM), lt, texture_light) / max(lt, 1e-4), 0.5, 2.0);
 		}
 		// clouds thin into the haze near the horizon
 		col = mix(I76_COL(horizon_color), col, smoothstep(0.0, 0.12, g.y));
@@ -278,3 +316,5 @@ vec3 modern_sky(vec3 eyedir, float time, bool cubemap) {
 	if (cubemap) col *= radiance_gain * radiance_tint;
 	return col;
 }
+
+vec3 modern_sky(vec3 eyedir, float time, bool cubemap) { return modern_sky_with(eyedir, time, cubemap, false, vec4(0.0, 0.0, 0.0, 1.0)); }

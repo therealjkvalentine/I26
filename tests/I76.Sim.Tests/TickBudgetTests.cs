@@ -31,13 +31,15 @@ public class TickBudgetTests
     /// held garage-saved copies of vppirna1.vcf and the like (the player's car of these missions, not in the install identity),
     /// and every later change to what the sim computes moves these (the upstream merge of 2026-11-18 moved T05's and T06's at
     /// tick 0, the smarter A.I. of 2026-11-25 T01's). A change that is meant to leave the sim alone keeps them; one that changes it on purpose records them again.
+    /// T05's tick 1000 and chain recorded again at the upstream merge of 2026-11-27 (upstream's sphere parts: a car meets a sign's
+    /// parts with its own box grown by the part's radius; ticks 0 to 800 and T01 and T06 unchanged).
     /// </summary>
     private const int Ticks = 1100;
 
     private static readonly Dictionary<string, (ulong Install, ulong Chain, ulong[] Every200)> Recorded = new()
     {
         ["t01"] = (0x8b239626afba8769UL, 0x57ec2406c05bc3f9UL, [0x635a94d56429fd61UL, 0xf4436dda9d6b9abeUL, 0x6df801b9df77b556UL, 0x85523977b9b31553UL, 0x2c1209d252459f07UL, 0x2fb785ce410f5194UL]),
-        ["t05"] = (0xa723cc84a0765255UL, 0x5d862317bca74f5eUL, [0x56b8dfa360f72f25UL, 0x57d690f2f5c71bccUL, 0x97e168f622ce1d0bUL, 0x56c6d2753ebc0720UL, 0x4297863c1d617558UL, 0x0ee14c52975ac3aeUL]),
+        ["t05"] = (0xa723cc84a0765255UL, 0x5c88c8b6c2391bdaUL, [0x56b8dfa360f72f25UL, 0x57d690f2f5c71bccUL, 0x97e168f622ce1d0bUL, 0x56c6d2753ebc0720UL, 0x4297863c1d617558UL, 0xee47ecbf9367dc31UL]),
         ["t06"] = (0x60c4190c3a0bd095UL, 0x4894692ca71a7996UL, [0xbfb679933afa151aUL, 0x9874c5d7fc2546b3UL, 0x94530efb8c292b55UL, 0xdc78f5389d65c653UL, 0xf503e6be6bb02a49UL, 0xfb72b31327b9aa59UL]),
     };
 

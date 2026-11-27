@@ -129,7 +129,7 @@ public partial class FrameProfiler : Node
         if (_firstMeasured == 0) { _firstMeasured = now; GD.Print($"frame-profile: window starts at stopwatch {now:0.0} ms"); }   // t_ms + this: the clock of an in-run A | B (I76_SMOKE_HAZE_AB)
         int n0 = _frames - _skip - 1;   // frames measured before this one: the collections so far, per 100 frames
         foreach (var p in Passes) Add("gpu." + p, _frame.GetValueOrDefault(p));
-        foreach (var (k, v) in _frame) if (k.StartsWith("vp")) Add("gpu." + k, v);
+        foreach (var (k, v) in _frame) if (k.StartsWith("vp") || k.StartsWith("sky:")) Add("gpu." + k, v);
         Add("gpu.total", gpuTotal);
         Add("gpu.viewport", RenderingServer.ViewportGetMeasuredRenderTimeGpu(vp));
         Add("cpu.render", RenderingServer.ViewportGetMeasuredRenderTimeCpu(vp));
@@ -286,6 +286,7 @@ public partial class FrameProfiler : Node
             if (b < a) continue;
             string pass = PassOf(name);
             _frame[pass] = _frame.GetValueOrDefault(pass) + ms;
+            if (pass == "sky") { var k = "sky:" + name.Replace(' ', '_'); _frame[k] = _frame.GetValueOrDefault(k) + ms; }   // the sky's own passes (screen, reduced, radiance) apart
             if (vpName != "") _frame[vpName] = _frame.GetValueOrDefault(vpName) + ms;
         }
         return (last - first) / 1e6;

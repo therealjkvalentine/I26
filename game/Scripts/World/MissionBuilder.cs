@@ -167,11 +167,13 @@ public sealed class MissionBuilder(AssetVfs vfs)
 
     /// <summary>
     /// A destroyed placement's painted ground faces of the parts <paramref name="gone"/> names (GroundDecals.PaintedOut): left
-    /// out of the road layer from now on (their texture none, so the chunk index stays). The world rectangle (x0, z0, x1, z1)
+    /// out of the road layer from now on (their texture none, so the chunk index stays), and their parts drawn level hidden. The world rectangle (x0, z0, x1, z1)
     /// to paint again, or null when none of its faces was painted.
     /// </summary>
     public System.Numerics.Vector4? Unpaint(I76.Formats.Assembly.Placement p, Func<string, bool> gone)
     {
+        // what of them stood clear of the ground, drawn as a mesh (GroundSplit), goes with them
+        Scenery?.HideRaised(p, gone);
         if (RoadPieceTris is not { } tris || RoadPieceOwners is not { } owners) return null;
         var area = new System.Numerics.Vector4(float.MaxValue, float.MaxValue, float.MinValue, float.MinValue);
         for (int i = 0; i < tris.Count && i < owners.Count; i++)
@@ -200,14 +202,24 @@ public sealed class MissionBuilder(AssetVfs vfs)
     public SkyPalette? Palette { get; private set; }
     /// <summary>The mission's .act.</summary>
     public Palette? ActPalette { get; private set; }
-    public sealed record SkyPalette(Color Sky, Color Cloud, Color Shade, float SkyLum, float CloudLum);
+    /// <summary>The sky texture's colours (sRGB) and the ends of its sky-to-cloud colour line (linear): SkyColours.Measure.</summary>
+    public sealed record SkyPalette(Color Sky, Color Cloud, Color Shade, System.Numerics.Vector3 SkyRef, System.Numerics.Vector3 CloudRef)
+    {
+        /// <summary>
+        /// The colours by brightness, as measured before upstream told sky and clouds apart by colour (the darkest third the open
+        /// sky, the brightest sixth the clouds, the band between their shade): the fork's Lighting 1997 and 1997 Sunlit take their
+        /// sky and the calibration's sky light from these, as tuned (Main.ModernSky).
+        /// </summary>
+        public (Color Sky, Color Cloud, Color Shade) Sorted { get; init; } = (Sky, Cloud, Shade);
+    }
 
     /// <summary>
     /// The faces <see cref="RoadPieceTops"/> paints, without their textures: each painted face facing up, of each road-piece placement and
-    /// grounded scenery (GroundDecals.PaintedFaces, honouring <paramref name="groundList"/>), its corners placed in the game frame's XZ.
+    /// grounded scenery (GroundDecals.PaintedFaces, honouring <paramref name="groundList"/>), its corners placed in the game frame's XZ
+    /// (<c>W</c>) and in the game frame (<c>At</c>: where the placement stands them).
     /// </summary>
     public static IEnumerable<(I76.Formats.Assembly.Placement P, bool Decals, I76.Formats.Assembly.AssembledModel Model, I76.Formats.Assembly.ModelPart Part,
-        I76.Formats.Geo.GeoFace Face, System.Numerics.Vector2[] W)> PaintedTops(I76.Formats.Assembly.MissionWorld world, I76.Formats.Assembly.ModelAssembler asm, bool groundList)
+        I76.Formats.Geo.GeoFace Face, System.Numerics.Vector2[] W, System.Numerics.Vector3[] At)> PaintedTops(I76.Formats.Assembly.MissionWorld world, I76.Formats.Assembly.ModelAssembler asm, bool groundList)
     {
         var lowestOf = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
         float Lowest(I76.Formats.Assembly.Placement p, I76.Formats.Assembly.AssembledModel m) =>
@@ -221,8 +233,28 @@ public sealed class MissionBuilder(AssetVfs vfs)
             {
                 var n = place.Rotate(part.ToModel.Rotate(new System.Numerics.Vector3(f.Plane.X, f.Plane.Y, f.Plane.Z)));
                 if (n.LengthSquared() < 0.5f || -n.Y / n.Length() < 0.6f) continue;   // outward is -plane: only tops
-                var w = f.Vertices.Select(v => place.Apply(part.ToModel.Apply(part.Mesh.Vertices[v.Index]))).Select(v => new System.Numerics.Vector2(v.X, v.Z)).ToArray();
-                yield return (p, decals, model, part, f, w);
+                var at = f.Vertices.Select(v => place.Apply(part.ToModel.Apply(part.Mesh.Vertices[v.Index]))).ToArray();
+                yield return (p, decals, model, part, f, at.Select(v => new System.Numerics.Vector2(v.X, v.Z)).ToArray(), at);
+            }
+        }
+    }
+
+    /// <summary>
+    /// <see cref="PaintedTops"/> triangle by triangle (each face's fan from its first corner), with what of each is painted and what drawn
+    /// level as a mesh: cut along the ground (GroundSplit) when <paramref name="split"/>, else all painted.
+    /// </summary>
+    public static IEnumerable<(I76.Formats.Assembly.Placement P, bool Decals, I76.Formats.Assembly.AssembledModel Model, I76.Formats.Assembly.ModelPart Part,
+        I76.Formats.Geo.GeoFace Face, List<GroundSplit.Corner[]> Painted, List<GroundSplit.Corner[]> Raised)> SplitTops(I76.Formats.Assembly.MissionWorld world,
+        I76.Formats.Assembly.ModelAssembler asm, bool groundList, bool split)
+    {
+        var height = GroundSplit.Heights(world);
+        foreach (var (p, decals, model, part, f, _, at) in PaintedTops(world, asm, groundList))
+        {
+            var c = f.Vertices.Select((v, i) => new GroundSplit.Corner(at[i], new(v.U, v.V))).ToArray();
+            for (int k = 1; k + 1 < c.Length; k++)
+            {
+                var (low, high) = split ? GroundSplit.Split(c[0], c[k], c[k + 1], height) : ([[c[0], c[k], c[k + 1]]], []);
+                yield return (p, decals, model, part, f, low, high);
             }
         }
     }
@@ -237,10 +269,13 @@ public sealed class MissionBuilder(AssetVfs vfs)
     /// originals' in the same order (the 1997 look's, BakeFaithfulRoads), and the originals' with a stock texture's slip repaired
     /// (TextureRepairs: the 1997 look's Software renderer's); and whose ground face each triangle is (GroundDecals: its placement and
     /// part; null for a road piece's top). On a map that draws no ground list (<paramref name="groundList"/> false: no road data) the
-    /// road pieces and every lot are left out.
+    /// road pieces and every lot are left out. With <paramref name="raised"/> each face is cut along the ground (GroundSplit, upstream's):
+    /// what of it stands clear of the ground is added there, to be drawn as a mesh, level, and only the rest painted; without (the map
+    /// editor's own view, its refresh) every face is painted whole.
     /// </summary>
     private static (List<RoadRaster.FlatTri>, List<RoadRaster.Tex?>, List<RoadRaster.Tex?>, List<RoadRaster.Tex?>, List<(I76.Formats.Assembly.Placement, string)?>) RoadPieceTops(I76.Formats.Assembly.MissionWorld world,
-        I76.Formats.Assembly.ModelAssembler asm, I76.Formats.Assembly.TextureResolver resolver, Assets.TextureFactory textures, bool originals, bool groundList)
+        I76.Formats.Assembly.ModelAssembler asm, I76.Formats.Assembly.TextureResolver resolver, Assets.TextureFactory textures, bool originals, bool groundList,
+        List<RaisedFace>? raised = null)
     {
         var tris = new List<RoadRaster.FlatTri>();
         var owners = new List<(I76.Formats.Assembly.Placement, string)?>();
@@ -261,27 +296,34 @@ public sealed class MissionBuilder(AssetVfs vfs)
             }
             return i;
         }
-        foreach (var (p, decals, model, part, f, w) in PaintedTops(world, asm, groundList))
+        I76.Formats.Geo.GeoFace? last = null;
+        int ti = -1;
+        foreach (var (p, decals, model, part, f, low, high) in SplitTops(world, asm, groundList, raised is not null))
         {
-            int ti;
-            if (f.Texture.Length > 0 && f.Unk_0x20 != 0 && resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps) is { } member)
-                // the modern look's: as served, or where the build serves the originals (a 1997 start) the repaired copy the modern look
-                // will serve, so a change of look draws the forecourt repaired (TextureRepairs)
-                ti = Tex(member, () => textures.Hd ? textures.GetRgba(member) : textures.GetRepairedRgba(member) ?? textures.GetRgba(member),
-                    () => textures.GetOriginalRgba(member), () => textures.GetRepairedRgba(member));
-            else
+            if (!ReferenceEquals(f, last))
             {
-                var flatColour = new RoadRaster.Tex(1, 1, [f.R, f.G, f.B, 255]);
-                ti = Tex($"#{f.R:x2}{f.G:x2}{f.B:x2}", () => flatColour, () => flatColour);
+                last = f;
+                if (f.Texture.Length > 0 && f.Unk_0x20 != 0 && resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps) is { } member)
+                    // the modern look's: as served, or where the build serves the originals (a 1997 start) the repaired copy the modern look
+                    // will serve, so a change of look draws the forecourt repaired (TextureRepairs)
+                    ti = Tex(member, () => textures.Hd ? textures.GetRgba(member) : textures.GetRepairedRgba(member) ?? textures.GetRgba(member),
+                        () => textures.GetOriginalRgba(member), () => textures.GetRepairedRgba(member));
+                else
+                {
+                    var flatColour = new RoadRaster.Tex(1, 1, [f.R, f.G, f.B, 255]);
+                    ti = Tex($"#{f.R:x2}{f.G:x2}{f.B:x2}", () => flatColour, () => flatColour);
+                }
             }
-            var uv = f.Vertices.Select(v => new System.Numerics.Vector2(v.U, v.V)).ToArray();
-            for (int k = 1; k + 1 < w.Length; k++)
-            {
-                var min = System.Numerics.Vector2.Min(System.Numerics.Vector2.Min(w[0], w[k]), w[k + 1]);
-                var max = System.Numerics.Vector2.Max(System.Numerics.Vector2.Max(w[0], w[k]), w[k + 1]);
-                tris.Add(new RoadRaster.FlatTri(w[0], w[k], w[k + 1], uv[0], uv[k], uv[k + 1], ti, min, max));
-                owners.Add(decals ? (p, part.NodeName) : null);
-            }
+            foreach (var q in low)
+                for (int j = 1; j + 1 < q.Length; j++)
+                {
+                    System.Numerics.Vector2 a = new(q[0].P.X, q[0].P.Z), b = new(q[j].P.X, q[j].P.Z), c = new(q[j + 1].P.X, q[j + 1].P.Z);
+                    var min = System.Numerics.Vector2.Min(System.Numerics.Vector2.Min(a, b), c);
+                    var max = System.Numerics.Vector2.Max(System.Numerics.Vector2.Max(a, b), c);
+                    tris.Add(new RoadRaster.FlatTri(a, b, c, q[0].Uv, q[j].Uv, q[j + 1].Uv, ti, min, max));
+                    owners.Add(decals ? (p, part.NodeName) : null);
+                }
+            foreach (var q in high) raised!.Add(new RaisedFace(p, model, part, f, q));
         }
         return (tris, texList, origList, repList, owners);
     }
@@ -462,37 +504,44 @@ public sealed class MissionBuilder(AssetVfs vfs)
         GD.Print($"road layers ({how}): {layers.Count}, raster hash {(raw is null ? "-" : hr.ToString("x16"))}, texture data hash {hf:x16}");
     }
 
-    /// <summary>
-    /// Sorts the texture's pixels by brightness: the darkest third is the open
-    /// sky, the brightest sixth the clouds, the band between their shade.
-    /// Luminances are linear, as the shader samples a source_color texture.
-    /// </summary>
     /// <summary><see cref="MeasureSky"/> for another image of a sky (the mood prototypes' upscales, Main.MoodApply).</summary>
     public static SkyPalette MeasureSkyOf(Image img) => MeasureSky(img);
 
+    /// <summary>
+    /// The texture's open sky, clouds and the shade between, told apart by colour (SkyColours.Measure: the bluer of the
+    /// pixels' two groups is the sky, so clouds darker than the sky, a sunset's rust-red under its blue, are clouds).
+    /// Linear, as the shader samples a source_color texture.
+    /// </summary>
     private static SkyPalette MeasureSky(Image img)
     {
         img = (Image)img.Duplicate();
         if (img.IsCompressed()) img.Decompress();
         img.Resize(64, 64, Image.Interpolation.Bilinear);
-        var px = new List<(float L, Color C)>();
+        var px = new float[64 * 64 * 3];
         for (int y = 0; y < 64; y++)
             for (int x = 0; x < 64; x++)
             {
                 var c = img.GetPixel(x, y).SrgbToLinear();
-                px.Add((0.299f * c.R + 0.587f * c.G + 0.114f * c.B, c));
+                int i = (y * 64 + x) * 3;
+                px[i] = c.R; px[i + 1] = c.G; px[i + 2] = c.B;
             }
-        px.Sort((a, b) => a.L.CompareTo(b.L));
-        (float L, Color C) Mean(double from, double to)
+        var m = I76.Formats.Imaging.SkyColours.Measure(px);
+        static Color Srgb(System.Numerics.Vector3 v) => new Color(v.X, v.Y, v.Z).LinearToSrgb();
+        // and by brightness (Sorted): the darkest third, the brightest sixth, the band from half to seven tenths
+        var byLum = new (float L, int I)[64 * 64];
+        for (int i = 0; i < byLum.Length; i++) byLum[i] = (0.299f * px[i * 3] + 0.587f * px[i * 3 + 1] + 0.114f * px[i * 3 + 2], i);
+        System.Array.Sort(byLum, (a, b) => a.L.CompareTo(b.L));
+        Color Mean(double from, double to)
         {
-            int a = (int)(px.Count * from), b = System.Math.Max(a + 1, (int)(px.Count * to));
-            float l = 0, r = 0, g = 0, bl = 0;
-            for (int i = a; i < b; i++) { l += px[i].L; r += px[i].C.R; g += px[i].C.G; bl += px[i].C.B; }
+            int a = (int)(byLum.Length * from), b = System.Math.Max(a + 1, (int)(byLum.Length * to));
+            float r = 0, g = 0, bl = 0;
+            for (int i = a; i < b; i++) { int k = byLum[i].I * 3; r += px[k]; g += px[k + 1]; bl += px[k + 2]; }
             int n = b - a;
-            return (l / n, new Color(r / n, g / n, bl / n).LinearToSrgb());
+            return new Color(r / n, g / n, bl / n).LinearToSrgb();
         }
-        var sky = Mean(0, 0.33); var cloud = Mean(0.84, 1); var shade = Mean(0.5, 0.7);
-        return new SkyPalette(sky.C, cloud.C, shade.C, sky.L, MathF.Max(cloud.L, sky.L + 0.05f));
+        var pal = new SkyPalette(Srgb(m.Sky), Srgb(m.Cloud), Srgb(m.Shade), m.Sky, m.CloudEnd) { Sorted = (Mean(0, 0.33), Mean(0.84, 1), Mean(0.5, 0.7)) };
+        GD.Print($"sky: palette sky #{pal.Sky.ToHtml(false)} cloud #{pal.Cloud.ToHtml(false)} shade #{pal.Shade.ToHtml(false)}");
+        return pal;
     }
     public I76.Formats.Mission.WorldSettings? Settings { get; private set; }
     /// <summary>Graphic Detail's Vegetation as the build started (set by the main thread for a build on its own thread): the sward's texture is reserved for it.</summary>
@@ -844,7 +893,9 @@ public sealed class MissionBuilder(AssetVfs vfs)
         Stage("road pieces");
         // road-piece objects (ODEF types 0x50–0x5f, the intersections): their tops painted over the roads,
         // their textures numbered after the road set's
-        var (pieceTris, pieceTex, pieceOriginal, pieceRepaired, pieceOwners) = RoadPieceTops(world, asm, resolver, textures, originalsOnly, GroundListDrawn);
+        // what of them stands clear of the ground is drawn as a mesh, level (GroundSplit); the map editor's own view paints them whole
+        var raised = I76.Game.Editor.EditorSession.Active && !I76.Game.Editor.EditorSession.Playtest ? null : new List<RaisedFace>();
+        var (pieceTris, pieceTex, pieceOriginal, pieceRepaired, pieceOwners) = RoadPieceTops(world, asm, resolver, textures, originalsOnly, GroundListDrawn, raised);
         // the 1997 look's Software renderer's: the originals with a stock texture's slip repaired (TextureRepairs), as the original's
         // software path drew the 8-bit art, which has no slip; the 3D card's draws the file as it is
         var roadTexSoftware = new Dictionary<int, RoadRaster.Tex?>(roadTexOriginal);
@@ -1103,6 +1154,7 @@ public sealed class MissionBuilder(AssetVfs vfs)
         Scenery = new ScenerySpawner { Name = "Placements", Night = !Light.IsDay, GroundListDrawn = GroundListDrawn };
         Stage("scenery spawn");
         Scenery.Spawn(world, asm, Meshes, SkipVehicles);
+        if (raised is { Count: > 0 }) Scenery.AddRaised(raised, Meshes);
         root.AddChild(Scenery);
         Stage("done");
         return root;

@@ -651,6 +651,9 @@ public sealed partial class EscapeMenu : Control
             case GraphicsRow.PaletteGrade: return Setting(Cycle, "1997 Palette Grade", 0, 2, offOn, s => s.PaletteGrade ? 1 : 0, (s, v) => s.PaletteGrade = v != 0, apply: live);
             // the software renderer's double image on a big cockpit hit (the original's in the 1997 look, smooth in the modern look), live
             case GraphicsRow.CrashBlur: return Setting(Cycle, "Crash Blur", 0, 2, I76.Sim.Views.CrashBlurMode.Names, s => Math.Clamp(s.CrashBlur, 0, 1), (s, v) => s.CrashBlur = v, apply: live);
+            // upstream's: the modern look's motion blur (Forward+ only) and clouds (Flat or Volumetric, Forward+ and Mobile), live
+            case GraphicsRow.MotionBlur: return Setting(Cycle, "Motion Blur", 0, 2, ["Off", "On" + mark], s => s.MotionBlur ? 1 : 0, (s, v) => s.MotionBlur = v != 0, apply: live);
+            case GraphicsRow.Clouds: return Setting(Cycle, "Clouds", 0, 2, CloudsRow.Names, CloudsRow.Index, (s, v) => s.Clouds = v, apply: live);
             // [port] smoke_lighting and heat_shimmer (HeatRows): the modern look's, live
             case GraphicsRow.SmokeLighting: return Setting(Cycle, SmokeLightingRow.Label, 0, 2, SmokeLightingRow.Names, SmokeLightingRow.Index, SmokeLightingRow.Put, apply: live);
             // [port] smoke_haze (SmokeLingerRow): the modern look's, live (the haze starts with the puffs that end after it)
