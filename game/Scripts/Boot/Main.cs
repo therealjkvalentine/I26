@@ -731,6 +731,17 @@ public partial class Main : Node3D
 			if (I76.Formats.Remix.RemixVoice.Of(l.Name) is not { } v || !GodotObject.IsInstanceValid(line)) return;
 			GD.Print($"[voice] on the air: {v.Id} ({v.Speaker}, {l.Length:0.00} s): {v.Text}");
 			line.Radio(v.Speaker, v.Text, l.Length);
+			// I76_REMIX_VOICE_SHOTS=PREFIX (docs/dev-hooks.md): the screen a second into each spoken line, PREFIX-NNN-ID.png
+			if (System.Environment.GetEnvironmentVariable("I76_REMIX_VOICE_SHOTS") is { Length: > 0 } prefix)
+			{
+				int n = ++_voiceShots;
+				GetTree().CreateTimer(1.0, processAlways: true).Timeout += () =>
+				{
+					var path = $"{prefix}-{n:000}-{v.Id}.png";
+					GetViewport().GetTexture().GetImage().SavePng(path);
+					GD.Print($"[voice] shot {path}");
+				};
+			}
 		}
 		_script.Host.Cb.Started += Spoken;
 		if (_script.Host.Cb.Current is { } now) Spoken(now);
@@ -741,8 +752,11 @@ public partial class Main : Node3D
 		{
 			if (words is not null && words.TryGetValue(System.IO.Path.GetFileNameWithoutExtension(name), out var w) && GodotObject.IsInstanceValid(line)) line.Say(w);
 		};
-		OpenPicture(MissionPicture.Kind.Notepad);
+		// (a capture of the spoken lines runs on without the notepad's key)
+		if (System.Environment.GetEnvironmentVariable("I76_REMIX_VOICE_SHOTS") is not { Length: > 0 }) OpenPicture(MissionPicture.Kind.Notepad);
 	}
+
+	private static int _voiceShots;
 
 	private void OpenPicture(MissionPicture.Kind kind)
 	{

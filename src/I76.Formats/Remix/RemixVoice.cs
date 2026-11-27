@@ -13,7 +13,7 @@ public sealed class VoiceLine
     /// <summary>taurus, jade or groove (the player).</summary>
     [JsonPropertyName("voice")] public string Voice { get; set; } = "";
     [JsonPropertyName("text")] public string Text { get; set; } = "";
-    /// <summary>good, or okay (rebuilt after an "okay").</summary>
+    /// <summary>good (the owner heard it and rated it good), unheard (rebuilt or reworded since, from heard pieces), or okay.</summary>
     [JsonPropertyName("rating")] public string Rating { get; set; } = "";
     /// <summary>Its voice's pieces are Nitro Pack clips.</summary>
     [JsonPropertyName("nitro")] public bool Nitro { get; set; }
@@ -26,6 +26,8 @@ public sealed class VoiceLine
     [JsonPropertyName("total")] public int Total { get; set; }
     [JsonPropertyName("gain")] public double Gain { get; set; } = 1;
     [JsonPropertyName("seed")] public long Seed { get; set; }
+    /// <summary>Silent from this sample on (a line as it was first heard, trimmed there), or null.</summary>
+    [JsonPropertyName("silence_from")] public int? SilenceFrom { get; set; }
     [JsonPropertyName("pieces")] public List<SplicePiece> Pieces { get; set; } = [];
 
     /// <summary>The sound name a job's script plays it by (its CB name: under the radio's 15 characters).</summary>
@@ -175,7 +177,7 @@ public static class RemixVoice
     /// <summary>A line rendered with the radio, or null when a clip of its voice is missing here (the bursts and Nitro bed are optional).</summary>
     public static double[]? Render(VoiceLine l, Source src)
     {
-        if (SpliceRender.Plain(l.Pieces, l.Total, l.Gain, src.Clip) is not { } plain) return null;
+        if (SpliceRender.Plain(l.Pieces, l.Total, l.Gain, src.Clip, l.SilenceFrom) is not { } plain) return null;
         return SpliceRender.Radio(plain, Data.Radio, l.Seed, src.Clip);
     }
 
@@ -230,8 +232,10 @@ public static class RemixVoice
         foreach (var slot in slots)
         {
             var fit = Fitting(slot.Moment, slot.Facts).Where(l => !used.Contains(l.Id)).ToList();
-            var good = fit.Where(l => l.Rating == "good").ToList();
-            var pool = good.Count > 0 ? good : fit;
+            // the owner's good lines first, then those rebuilt from heard pieces but not heard whole, then okay ones
+            var pool = fit.Where(l => l.Rating == "good").ToList();
+            if (pool.Count == 0) pool = fit.Where(l => l.Rating == "unheard").ToList();
+            if (pool.Count == 0) pool = fit;
             if (pool.Count == 0) { o.Add((slot, null)); continue; }
             var l = pool[Next(pool.Count)];
             used.Add(l.Id);

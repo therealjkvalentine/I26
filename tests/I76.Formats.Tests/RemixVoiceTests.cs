@@ -15,7 +15,7 @@ public class RemixVoiceTests
     public void TheTableHoldsOurLinesAndNumbersOnly()
     {
         var lines = RemixVoice.Lines;
-        Assert.Equal(119, lines.Count);
+        Assert.Equal(116, lines.Count);
         Assert.Equal(lines.Count, lines.Select(l => l.Sound).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         foreach (var l in lines)
         {
@@ -29,7 +29,7 @@ public class RemixVoiceTests
             Assert.True(RemixVoice.Seconds(l) > l.Total / 11025f, l.Id);
         }
         Assert.Null(RemixVoice.Of("gdsgc32.wav"));
-        Assert.Equal(48, lines.Count(l => l.Nitro));
+        Assert.Equal(lines.Count(l => l.Pieces.Any(p => p.Game == "nitro")), lines.Count(l => l.Nitro));
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class RemixVoiceTests
     public void WithoutTheNitroPackItsVoicesAreSkippedAndTheBaseLinesBuildWithoutBursts()
     {
         var src = new RemixVoice.Source(TestInstall.Vfs, null);
-        Assert.Equal(71, RemixVoice.Lines.Count(l => RemixVoice.WhyNot(l, src) is null));
+        Assert.Equal(RemixVoice.Lines.Count(l => !l.Nitro), RemixVoice.Lines.Count(l => RemixVoice.WhyNot(l, src) is null));
         Assert.Contains("no Nitro Pack", RemixVoice.WhyNot(RemixVoice.ById("taurus-44")!, src));
         var l = RemixVoice.ById("taurus-108")!;
         var x = RemixVoice.Render(l, src)!;
@@ -121,11 +121,16 @@ public class RemixVoiceTests
     {
         if (Environment.GetEnvironmentVariable("I76_VOICE_REF") is not { Length: > 0 } refDir || !Directory.Exists(refDir)) return;
         var src = new RemixVoice.Source(TestInstall.Vfs, new AssetVfs(new GameInstall(NitroFactAttribute.Dir!)));
-        string[] ids = ["taurus-108", "taurus-110", "taurus-77", "taurus-44", "taurus-21", "jade-58", "jade-122", "groove-64", "groove-61", "groove-104"];
+        // stretched (taurus-110's "county line"; groove-61 and 104's "the warehouse" at x0.80), Nitro and matched (taurus-44, 21, jade),
+        // and lines as first heard (taurus-11, 77, 119: fades before the match, silence from a sample)
+        string[] ids = ["taurus-108", "taurus-110", "taurus-11", "taurus-77", "taurus-119", "taurus-44", "taurus-21", "jade-58", "jade-122", "groove-64", "groove-61", "groove-104"];
+        Assert.Contains(ids, id => RemixVoice.ById(id)!.SilenceFrom is not null);
+        Assert.Contains(ids, id => RemixVoice.ById(id)!.Pieces.Any(p => p.FadeBeforeMatch));
+        Assert.Contains(ids, id => RemixVoice.ById(id)!.Pieces.Any(p => Math.Abs(p.Stretch - 0.8) < 0.01));
         foreach (var id in ids)
         {
             var l = RemixVoice.ById(id)!;
-            var plain = SpliceRender.Plain(l.Pieces, l.Total, l.Gain, src.Clip)!;
+            var plain = SpliceRender.Plain(l.Pieces, l.Total, l.Gain, src.Clip, l.SilenceFrom)!;
             var radio = RemixVoice.Render(l, src)!;
             var (rp, rr) = (Read16(Path.Combine(refDir, id + "-plain.wav")), Read16(Path.Combine(refDir, id + "-radio.wav")));
             Assert.Equal(rp.Length, plain.Length);

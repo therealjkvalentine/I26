@@ -64,7 +64,7 @@ internal static class RemixVoiceCommand
                 if (argv.Count < 3 || RemixVoice.ById(argv[2]) is not { } l || Opt("--out") is not { } outFile) { Console.Error.WriteLine("usage: i76 remix say ID [--nitro DIR] --out FILE.wav"); return 2; }
                 var src = new RemixVoice.Source(i76, nitro);
                 var t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-                double[]? x = argv.Contains("--plain") ? SpliceRender.Plain(l.Pieces, l.Total, l.Gain, src.Clip) : RemixVoice.Render(l, src);
+                double[]? x = argv.Contains("--plain") ? SpliceRender.Plain(l.Pieces, l.Total, l.Gain, src.Clip, l.SilenceFrom) : RemixVoice.Render(l, src);
                 if (x is null) { Console.Error.WriteLine($"{l.Id}: cannot be built here ({RemixVoice.WhyNot(l, src)})"); return 1; }
                 File.WriteAllBytes(outFile, SpliceRender.Wav(x));
                 Console.WriteLine($"wrote {outFile}: {l.Id} \"{l.Text}\" {x.Length / (double)SpliceRender.Rate:0.00} s in {System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds:0} ms");

@@ -21,6 +21,8 @@ public sealed class SplicePiece
     [JsonPropertyName("stretch")] public double Stretch { get; set; }
     /// <summary>A Nitro Pack take filtered toward the 1997 session's spectrum.</summary>
     [JsonPropertyName("match")] public SpliceMatch? Match { get; set; }
+    /// <summary>The fades before the match filter (the order a line was first heard in), not after the stretch.</summary>
+    [JsonPropertyName("fade_before_match")] public bool FadeBeforeMatch { get; set; }
 }
 
 public sealed class SpliceMatch
@@ -81,7 +83,7 @@ public static class SpliceRender
     public delegate float[]? Clips(string game, string clip);
 
     /// <summary>The line without the radio: the pieces at their places, times <paramref name="gain"/>.</summary>
-    public static double[]? Plain(IReadOnlyList<SplicePiece> pieces, int total, double gain, Clips clips)
+    public static double[]? Plain(IReadOnlyList<SplicePiece> pieces, int total, double gain, Clips clips, int? silenceFrom = null)
     {
         var o = new double[total];
         foreach (var p in pieces)
@@ -91,6 +93,8 @@ public static class SpliceRender
             int a = p.At, b = Math.Min(total, a + seg.Length);
             for (int i = a; i < b; i++) o[i] += seg[i - a];
         }
+        // a line trimmed where it was first heard: silent from there on
+        if (silenceFrom is int s) for (int i = Math.Max(0, s); i < o.Length; i++) o[i] = 0;
         for (int i = 0; i < o.Length; i++) o[i] *= gain;
         return o;
     }
@@ -99,15 +103,21 @@ public static class SpliceRender
     {
         var seg = new double[p.End - p.Start];
         for (int i = 0; i < seg.Length; i++) seg[i] = x[p.Start + i];
+        if (p.FadeBeforeMatch) Fades(seg, p);
         if (p.Match is { } m) seg = MatchEq(seg, m);
         if (p.TiltDb != 0) seg = Filter(seg, HighShelf(p.TiltDb));
         if (p.Stretch != 0) seg = Wsola(seg, p.Stretch);
-        int fi = Math.Min(p.FadeIn, seg.Length), fo = Math.Min(p.FadeOut, seg.Length);
-        if (p.FadeIn > 0) { var f = Fade(p.FadeIn); for (int i = 0; i < fi; i++) seg[i] *= f[i]; }
-        if (p.FadeOut > 0) { var f = Fade(p.FadeOut); for (int i = 0; i < fo; i++) seg[seg.Length - fo + i] *= f[fo - 1 - i]; }
+        if (!p.FadeBeforeMatch) Fades(seg, p);
         double g = Math.Pow(10, p.GainDb / 20);
         for (int i = 0; i < seg.Length; i++) seg[i] *= g;
         return seg;
+    }
+
+    private static void Fades(double[] seg, SplicePiece p)
+    {
+        int fi = Math.Min(p.FadeIn, seg.Length), fo = Math.Min(p.FadeOut, seg.Length);
+        if (p.FadeIn > 0) { var f = Fade(p.FadeIn); for (int i = 0; i < fi; i++) seg[i] *= f[i]; }
+        if (p.FadeOut > 0) { var f = Fade(p.FadeOut); for (int i = 0; i < fo; i++) seg[seg.Length - fo + i] *= f[fo - 1 - i]; }
     }
 
     /// <summary>sin² over n samples, 0 to 1 (numpy's linspace(0, 1, n): both ends included).</summary>

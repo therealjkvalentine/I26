@@ -499,8 +499,9 @@ know. A description's `radio.words` gives each clip's words: an install without 
 The owner: "Eventually we could try to remix the audio files to say different things", "would prefer to use audio recorded from the
 same game when possible", lines short and mostly nameless. A generated job's radio moments say new lines recombined from the game's
 own recorded dialogue (Taurus, Jade, and Groove where the stock game has the player speak), rebuilt at run time from the player's
-install. The splice work (outside the repository) cut and joined the takes and the owner rated them; 119 lines are in the table: 88
-rated good, 31 okay and rebuilt.
+install. The splice work (outside the repository) cut and joined the takes and the owner rated them over five rounds; 116 lines are
+in the table (its round-five set): 104 the owner heard and rated good, 11 rebuilt or reworded since from heard pieces but not heard
+whole ("unheard"), 1 okay.
 
 **What is in the repository** (`src/I76.Formats/Remix/Voice/lines.json`, embedded; `RemixVoice`): each line's text (ours: the
 sentence we composed, lettered on screen), its voice and rating, the radio moments it may be said at and what must be true of the job
@@ -509,14 +510,15 @@ end in samples at 11025 Hz, where it lands, its gain, fades, an optional high sh
 stretch (WSOLA) and an optional EQ match of a Nitro Pack take toward the 1997 session ([Hz, dB] points, a level, a seeded noise
 floor); per line its length and level; once, the CB treatment (320-3200 Hz, a 3:1 compressor, tanh drive, the static bed and the
 squelch bursts as cuts of clips) and the CRC-32 of every source clip's 8-bit PCM. No audio, no transcript of an original line, no
-ratings. `tools/remix-voice-table.py APPROVED.json` writes the table from the splice work's approved set; the moments and needs of
+ratings. Two recipe options replay a line exactly as it was first heard: the fades before the match filter, and silence from a
+sample on. `tools/remix-voice-table.py APPROVED.json` writes the table from the splice work's approved set; the moments and needs of
 each line are written in that script by hand (a line it does not list stays unused).
 
 **Rebuilt as the job loads** (`game/Scripts/Assets/RemixVoiceBank.cs`, the DSP in `src/I76.Formats/Audio/SpliceRender.cs`): the
 lines the job names are rendered on a worker (their clips read first on the main thread), about 0.1 s for a job's nine; the radio
 plays them by sound name (`rxvt108`: rxv, the voice's letter, the number). A clip whose checksum differs (another release or
 language) or that this machine lacks makes its line silent: its text is lettered all the same. Lines of a Nitro Pack voice play only
-with the Nitro Pack beside the base game (`I76_NITRO_INSTALL` or the places the game looks for the other game); 71 of the 119 build
+with the Nitro Pack beside the base game (`I76_NITRO_INSTALL` or the places the game looks for the other game); 69 of the 116 build
 from the base game alone. The squelch bursts and two of the three static-bed cuts are Nitro Pack clips: without it the bursts are
 left out and the base game's bed cut loops alone. The renderer is held to the splice work's reference renderer (`RemixVoiceTests`):
 the plain line sample for sample, the radio within 1.5 dB in every 50 ms (its hiss and the match's noise floor are our own seeded
@@ -536,8 +538,8 @@ from `Voice/places.yaml`: a node table's start, node, cluster or route end tagge
 Pecos bridge on 380" but not "the riverbed north of the bridge"), `rendezvous` (a home or hideout node away from the start), `clear`
 (a tail lost, a finish with nobody near), `plural` (two cars or more), `police`, `convoy`, `lead:truck` (a milk truck), `count:2/3`,
 `left:120` (two minutes on a clock of three or more), `from:east` (a reinforcement's entry east of where the player is then), and
-so on. A line is said only where its moment is one of its own and every need is a fact; the owner's good lines first, an okay one
-only where no good one fits; never one line twice in a job; a moment no line fits keeps its stock clip of that intent, or none.
+so on. A line is said only where its moment is one of its own and every need is a fact; the owner's good lines first, then the
+unheard ones, an okay one only where neither fits; never one line twice in a job; a moment no line fits keeps its stock clip of that intent, or none.
 New radio moments the templates gained for it: a reinforcement's own line (its first car says it), a count as the group reaches it
 ("Two down, one to go": a raid's targets, a convoy's escorts after the lead; three or five), the clock (two minutes and 45 seconds
 before a deadline, an escape's or an arrival's time runs out, while that step is open), the convoy's lead alive within 600 m of its

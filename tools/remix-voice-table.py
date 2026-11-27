@@ -35,7 +35,7 @@ U = {
  'jade-55': ('lost', 'police more'), 'jade-101': ('police', 'police'), 'jade-56': ('police', 'police'),
  'jade-58': ('done', ''), 'jade-59': ('done', ''), 'jade-100': ('fight', 'plural'), 'jade-120': ('fight', 'plural'),
  # Taurus
- 'taurus-00': ('go', 'place:truck stop'), 'taurus-01': 'stay close: Taurus is not there', 'taurus-27': 'stay close',
+ 'taurus-00': ('go', 'place:truck stop'), 'taurus-01': 'stay close: Taurus is not there', 'taurus-27': ('lost return', 'place:hideout'),
  'taurus-72': 'stay close', 'taurus-03': ('go', 'place:truck stop guarded'),
  'taurus-04': 'airfield', 'taurus-12': 'airfield', 'taurus-39': 'airfield', 'taurus-40': 'depot',
  'taurus-05': ('go', 'place:truck stop'), 'taurus-06': ('go', 'place:tatum'), 'taurus-07': ('go', 'place:water tower'),
@@ -64,7 +64,8 @@ U = {
  'taurus-09': ('go', 'place:oil field'), 'taurus-109': ('go', 'place:truck stop'), 'taurus-110': ('go', 'place:county line'),
  'taurus-112': ('go', 'place:bridge'), 'taurus-81': ('go', 'place:bridge'), 'taurus-114': ('contact', 'plural'),
  'taurus-118': ('return', 'fought'), 'taurus-23': ('return', 'place:rendezvous fought'), 'taurus-26': 'lost them, then back',
- 'taurus-32': 'leaving the map (the stock warning says it)', 'taurus-41': ('contact', 'convoy road:380:west'),
+ 'taurus-32': 'leaving the map (the stock warning says it)', 'taurus-41': ('go contact', 'convoy'), 'taurus-84': ('go', 'convoy'),
+ 'jade-52': 'Jade asks for help',
  'taurus-91': 'clean, then the truck stop', 'taurus-92': ('return', 'place:hideout fought'), 'taurus-95': ('lost', 'place:hideout clear'),
 }
 
@@ -87,14 +88,21 @@ for l in d['lines']:
         if p.get('tilt_db'): q['tilt_db'] = p['tilt_db']
         if p.get('stretch'): q['stretch'] = p['stretch']
         if p.get('match'): q['match'] = p['match']
+        if p.get('fade_before_match'): q['fade_before_match'] = True
         pieces.append(q)
     # a line never said that is one recorded span (no join) keeps no text: its words would be the take's own
     text = '' if isinstance(u, str) and l.get('joins', 1) == 0 else l['text']
-    e = {'id': l['id'], 'voice': l['voice'], 'text': text, 'rating': 'good' if l['owner_rating'] == 'good' else 'okay',
+    # good: heard and rated good by the owner (round 3 or 4, or put back as heard); unheard: rebuilt or reworded since, its pieces
+    # heard but not the line; okay: rated okay (approved-r4's lines carry only owner_rating: good or okay)
+    latest = l.get('owner_rating_latest') or ('good' if l['owner_rating'] == 'good' else 'okay')
+    rating = 'good' if latest.startswith('good') else 'unheard' if latest in ('reworded-r5', 'okay-rebuilt-r5') else 'okay'
+    e = {'id': l['id'], 'voice': l['voice'], 'text': text, 'rating': rating,
          'nitro': l['needs_nitro_pack']}
     if isinstance(u, str): e['unused'] = u
     else: e['moments'] = u[0].split(); e['needs'] = u[1].split()
-    e |= {'total': r['total_samples'], 'gain': r['out_gain'], 'seed': seed, 'pieces': pieces}
+    e |= {'total': r['total_samples'], 'gain': r['out_gain'], 'seed': seed}
+    if r.get('silence_from') is not None: e['silence_from'] = int(r['silence_from'])
+    e['pieces'] = pieces
     lines.append(e)
 for g, c, *_ in radio['bed']['sources'] + [radio['head'], radio['tail']]:
     if f'{g}:{c}' not in crcs: sys.exit(f'{g}:{c}: no checksum for a radio clip (add it to RADIO_CRCS: i76 remix lines --crc prints it)')

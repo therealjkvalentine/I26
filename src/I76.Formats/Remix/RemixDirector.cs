@@ -469,7 +469,7 @@ public static class RemixDirector
                 spec.Radio.Trap.Add(RightOn);
                 spec.Radio.Reinforce.Add(Bandits);
                 spec.Radio.Win.Add(LastOfThem);
-                spec.Text.Objectives.AddRange([$"{job}: {gang}'s {what} comes along the road below you; it'll pass in about {(passIn < 75 ? "a minute" : $"{(int)Math.Round(passIn / 60.0)} minutes")}. Hit it before it gets through.", "(hidden)Take out its escorts.", $"(hidden)Get away to {awayWords}, with nobody on your tail."]);
+                spec.Text.Objectives.AddRange([$"{job}: {gang}'s {what} comes along the road below you; it'll pass in about {(passIn < 90 ? "a minute" : $"{(int)Math.Round(passIn / 60.0)} minutes")}. Hit it before it gets through.", "(hidden)Take out its escorts.", $"(hidden)Get away to {awayWords}, with nobody on your tail."]);
                 spec.Text.Notes.AddRange([$"You wait at {start.Called}. The {what} comes from the {Compass(pts[iA], park)}, {Distance(pts[iA], park)} up the road, and runs on {Compass(pts[iA], exit)}.", $"Away: {(away is null ? "where you waited" : Where(away.At, away.Called))}."]);
                 spec.Text.Deaths.AddRange([$"You were killed before you could stop the {what}.", $"{gang}'s escorts got you.", "You were killed getting away."]);
                 spec.Text.Failures.AddRange([Deaths0, left, "They got through. The ambush is blown."]);
