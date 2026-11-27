@@ -3243,6 +3243,8 @@ public partial class Main : Node3D
 		bool sunlit = _lighting == Lighting.Sunlit && light.IsDay;
 		// (I76_MOOD sunlitkeep=X: another share of the plain exposure kept, for the comparisons)
 		double keep = _mood.TryGetValue("sunlitkeep", out var sk) && double.TryParse(sk, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double kv) ? kv : I76.Formats.Imaging.LightingCalibration.SunlitKeep;
+		double Num(string k, double d) => _mood.TryGetValue(k, out var t) && double.TryParse(t, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double v) ? v : d;
+		double expGain = Num("sunlitexp", I76.Formats.Imaging.LightingCalibration.SunlitExposure), sunBoost = Num("sunlitsun", I76.Formats.Imaging.LightingCalibration.SunlitBoost);
 		bool floorTop = _mood.TryGetValue("sunlitfloor", out var sfl) ? sfl != "mean" : I76.Formats.Imaging.LightingCalibration.SunlitFloorOnTop;
 		double minGain = _mood.TryGetValue("sunlitmin", out var sm) && double.TryParse(sm, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double mv) ? mv : I76.Formats.Imaging.LightingCalibration.SunlitMinGain;
 		// the objects' sky light as the solve takes it: with the sky's light at its energy (SkyLightFixed) the estimate itself; else as measured before
@@ -3257,7 +3259,7 @@ public partial class Main : Node3D
 		long solveMs = 0;
 		I76.Formats.Imaging.LightingCalibration.Result Solve(out int kinds)
 		{
-			string key = I76.Formats.Imaging.CalibrationCache.KeyOf(pixels, world.Terrain.ContentHash(), luma, light.Direction, light.Intensity, light.Ambient, light.IsDay, sun, skyUp, skyDown, curve, $"{(sunlit ? $"sunlit {keep} {minGain} {floorTop} " : "")}objects {objectSky}");
+			string key = I76.Formats.Imaging.CalibrationCache.KeyOf(pixels, world.Terrain.ContentHash(), luma, light.Direction, light.Intensity, light.Ambient, light.IsDay, sun, skyUp, skyDown, curve, $"{(sunlit ? $"sunlit {keep} {minGain} {floorTop} {expGain} {sunBoost} " : "")}objects {objectSky}");
 			int n = 0;
 			var r = I76.Formats.Imaging.CalibrationCache.GetOrSolve(cache, key, () => Solved(out n), out bool hit);
 			kinds = hit ? -1 : n;
@@ -3277,7 +3279,7 @@ public partial class Main : Node3D
 			{
 				// the sun's share too, for the 1997 look's contrast over the map's slopes as they are (each cell alike)
 				var contrast = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp, castShadows: true);
-				return I76.Formats.Imaging.LightingCalibration.SolveSunlit(pixels, ground, objects, contrast, curve, keep, minGain, floorTop);
+				return I76.Formats.Imaging.LightingCalibration.SolveSunlit(pixels, ground, objects, contrast, curve, keep, minGain, floorTop, expGain, sunBoost);
 			}
 			return I76.Formats.Imaging.LightingCalibration.Solve(pixels, ground, objects, curve);
 		}

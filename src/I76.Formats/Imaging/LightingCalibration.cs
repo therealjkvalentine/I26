@@ -455,7 +455,7 @@ public static class LightingCalibration
     /// sun (the sky's light alone) darken; its lower bound goes down with the sun (<see cref="MinExposure"/> over the factor), so a dusk
     /// keeps its mean. A sun already giving that contrast or more is left at 1.
     /// </summary>
-    public static Result SolveSunlit(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card, double keep = SunlitKeep, double minGain = SunlitMinGain, bool floorOnTop = SunlitFloorOnTop)
+    public static Result SolveSunlit(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card, double keep = SunlitKeep, double minGain = SunlitMinGain, bool floorOnTop = SunlitFloorOnTop, double exposureGain = SunlitExposure, double sunBoost = SunlitBoost)
     {
         if (ground.Count == 0 || texels.Length < 3) return Result.None;
         double solved = SunGainFor(texels, ground, contrast, curve);
@@ -464,6 +464,7 @@ public static class LightingCalibration
         var r = floorOnTop
             ? Solve(texels, Scaled(ground, solved), Scaled(objects, solved), curve, MinExposure / solved) with { SunGain = gain }
             : Solve(texels, Scaled(ground, gain), Scaled(objects, gain), curve, MinExposure / gain) with { SunGain = gain };
+        r = r with { Exposure = r.Exposure * exposureGain, SunGain = r.SunGain * sunBoost };
         if (keep <= 0 || gain == 1) return r;
         // the exposure part of the way back to the plain solve's (log): the sky-lit faces kept nearer its level, the sunlit ones brighter than the mean asks
         double plain = Solve(texels, ground, objects, curve).Exposure;
@@ -492,6 +493,14 @@ public static class LightingCalibration
     /// within the mean, a dusk valley in the terrain's own shadow (T15) goes darker (its exposure lowered for sunlit ground elsewhere).
     /// </summary>
     public const bool SunlitFloorOnTop = false;
+
+    /// <summary>
+    /// The drawn frame's own correction over the solve, measured on the captures: the sunlit look's exposure times this and its sun times
+    /// <see cref="SunlitBoost"/> after the solve. With the solve alone, over every day mission's two views, the sunlit ground came out
+    /// darker than the 1997 look's (Oklab L -0.06, its brightest tenth -0.12) and the shade lighter (+0.025): the drawn ground has less
+    /// contrast than its cells, whatever the sun.
+    /// </summary>
+    public const double SunlitExposure = 1, SunlitBoost = 1;
 
     /// <summary>The sun's factor <see cref="SolveSunlit"/> takes (1 when the contrast cells have no spread of light).</summary>
     public static double SunGainFor(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card)
