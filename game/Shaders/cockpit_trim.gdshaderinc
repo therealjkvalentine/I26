@@ -10,9 +10,13 @@ uniform int trim_style = 0;   // CockpitTrim.Style: 1 perforated, 2 charcoal, 3 
 const float TRIM_PI = 3.14159265;
 
 float trim_hash(vec3 p) {
-	p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
-	p *= 17.0;
-	return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+	// an integer hash of the lattice corner (a float sine or fract hash shows streaks this far from the origin in cells)
+	uvec3 q = uvec3(ivec3(p) + ivec3(1 << 20));
+	uint h = (q.x * 73856093u) ^ (q.y * 19349663u) ^ (q.z * 83492791u);
+	h = (h ^ (h >> 16u)) * 0x7feb352du;
+	h = (h ^ (h >> 15u)) * 0x846ca68bu;
+	h ^= h >> 16u;
+	return float(h) * (1.0 / 4294967295.0);
 }
 
 // value noise in -1..1, quintic between the lattice's corners
@@ -88,7 +92,7 @@ void trim_surface(vec3 base, vec3 p, vec3 nl, float fw, out vec3 alb, out float 
 	bool roof = trim_part == 1, pillar = trim_part == 2;
 	// the styles: tints (linear, at the grey's luminance), grain, sheen
 	vec3 tint = vec3(1.0);
-	float cell = 0.0022, grain_k = 0.10, grain_a = 0.10;
+	float cell = 0.0022, grain_k = 0.08, grain_a = 0.07;
 	rough = 0.82;
 	spec = 0.3;
 	if (trim_style == 1) {          // B: black vinyl: neutral, a hair cool
@@ -99,7 +103,7 @@ void trim_surface(vec3 base, vec3 p, vec3 nl, float fw, out vec3 alb, out float 
 		tint = vec3(1.05, 1.0, 0.95);
 		rough = roof ? 0.66 : 0.5;
 		spec = roof ? 0.36 : 0.42;
-		grain_a = 0.08;
+		grain_a = 0.06;
 	} else if (trim_style == 3) {   // D: basket-weave headliner
 		tint = vec3(0.98, 1.0, 1.03);
 		rough = roof ? 0.88 : 0.66;
