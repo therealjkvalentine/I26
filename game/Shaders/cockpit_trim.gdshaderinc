@@ -6,6 +6,7 @@
 
 uniform int trim_part = 0;    // CockpitTrim.Part: 1 roof (the headliner), 2 pillar (header, A pillars, rails), 3 door
 uniform int trim_style = 0;   // CockpitTrim.Style: 1 perforated, 2 charcoal, 3 basket, 4 accent, 5 moulded
+uniform vec4 trim_knobs = vec4(1.0, -1.0, -1.0, 1.0);   // tuning (I76_TRIM_KNOBS): the relief's scale, a roughness and a specular over the style's (negative: the style's), the albedo's scale
 
 const float TRIM_PI = 3.14159265;
 
@@ -140,13 +141,13 @@ void trim_surface(vec3 base, vec3 p, vec3 nl, float fw, out vec3 alb, out float 
 	if (roof) {
 		vec2 q = vec2(p.x, p.z);
 		if (trim_style == 3) {
-			float wc = 0.009;
+			float wc = 0.0048;
 			float ww = trim_band(wc / 3.0, fw);
 			float e = wc * 0.02;
 			float h0 = trim_weave(q, wc), hx = trim_weave(q + vec2(e, 0.0), wc), hz = trim_weave(q + vec2(0.0, e), wc);
-			m *= mix(1.0, 0.86 + 0.24 * h0, ww);
-			mod_mean *= mix(1.0, 0.86 + 0.24 * 0.6, ww);
-			vec3 gq = (vec3(hx - h0, 0.0, 0.0) + vec3(0.0, 0.0, hz - h0)) / e * 0.0006 * ww;
+			m *= mix(1.0, 0.93 + 0.1 * h0, ww);
+			mod_mean *= mix(1.0, 0.93 + 0.1 * 0.6, ww);
+			vec3 gq = (vec3(hx - h0, 0.0, 0.0) + vec3(0.0, 0.0, hz - h0)) / e * 0.00025 * ww;
 			grad += gq - n * dot(gq, n);
 			rough += 0.05 * (1.0 - ww);
 		} else {
@@ -180,7 +181,9 @@ void trim_surface(vec3 base, vec3 p, vec3 nl, float fw, out vec3 alb, out float 
 		vec3 gy = vec3(0.0, slope, 0.0);
 		grad += gy - n * dot(gy, n);
 	}
-	alb *= m / mod_mean;
+	alb *= m / mod_mean * trim_knobs.w;
+	if (trim_knobs.y >= 0.0) rough = trim_knobs.y;
+	if (trim_knobs.z >= 0.0) spec = trim_knobs.z;
 	rough = clamp(rough, 0.2, 1.0);
-	dn = -(grad - n * dot(grad, n));
+	dn = -(grad - n * dot(grad, n)) * trim_knobs.x;
 }

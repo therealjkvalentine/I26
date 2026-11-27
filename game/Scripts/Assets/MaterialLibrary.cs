@@ -849,6 +849,7 @@ public sealed class MaterialLibrary(TextureFactory textures)
         mat.SetShaderParameter("albedo_color", Color.Color8(r, g, b));
         mat.SetShaderParameter("trim_part", (int)part);
         mat.SetShaderParameter("trim_style", (int)style);
+        if (I76.Game.Sim.CockpitTrim.Knobs() is { } k) mat.SetShaderParameter("trim_knobs", k);
         return _cache[key] = mat;
     }
 

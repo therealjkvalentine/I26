@@ -46,6 +46,17 @@ public static class CockpitTrim
     /// <summary>I76_COCKPIT_TRIM: a style's word in place of the setting for the run (a review sheet); null when unset.</summary>
     public static Style? Hook() => System.Environment.GetEnvironmentVariable("I76_COCKPIT_TRIM") is { Length: > 0 } h ? Parse(h) : null;
 
+    /// <summary>I76_TRIM_KNOBS=relief,roughness,specular,albedo: the shader's tuning for the run (a negative roughness or specular keeps the style's); null when unset or unreadable.</summary>
+    public static Vector4? Knobs()
+    {
+        var s = System.Environment.GetEnvironmentVariable("I76_TRIM_KNOBS")?.Split(',');
+        if (s is not { Length: 4 }) return null;
+        var v = new float[4];
+        for (int i = 0; i < 4; i++)
+            if (!float.TryParse(s[i], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v[i])) return null;
+        return new Vector4(v[0], v[1], v[2], v[3]);
+    }
+
     /// <summary>Which trim a face is.</summary>
     public enum Part { None = 0, Roof = 1, Pillar = 2, Door = 3 }
 
