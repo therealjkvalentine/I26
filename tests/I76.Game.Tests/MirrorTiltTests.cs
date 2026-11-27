@@ -39,10 +39,10 @@ public class MirrorTiltTests
     public void TheRightGlassTiltsByDefaultTheLeftDoesNotAndTheHeadStays()
     {
         var s = new ShellSettings();
-        Assert.Equal(15, s.SideMirrorTiltRight);
+        Assert.Equal(30, s.SideMirrorTiltRight);   // 15 until the proud face (DoorFace) took the turn: the inset glass turned 15 is side_mirror_tilt_right=15
         Assert.Equal(0, s.SideMirrorTiltLeft);
         Assert.False(s.SideMirrorHeadTurned);   // the housing where the art places it
-        Assert.Equal(15, MirrorAim.GlassTilt(s.SideMirrorHeadTurned, s.SideMirrorTiltRight));
+        Assert.Equal(30, MirrorAim.GlassTilt(s.SideMirrorHeadTurned, s.SideMirrorTiltRight));
         Assert.Equal(0, MirrorAim.GlassTilt(s.SideMirrorHeadTurned, s.SideMirrorTiltLeft));
         // with the head turned the glass is not tilted on top; out of range is clamped
         Assert.Equal(0, MirrorAim.GlassTilt(true, 15));

@@ -385,12 +385,14 @@ public static class MirrorAim
     public static bool HeadTurned(string? word) => string.Equals(word?.Trim(), "turned", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// [port] side_mirror_tilt_right / side_mirror_tilt_left: with the heads where the art places them, each door mirror's glass alone
-    /// turned that many degrees toward the driver inside its housing (Tilt), as an adjustable glass pivots in its shell. The Piranha's
-    /// right glass is seen 79 degrees off its face from the seat, a sliver: DefaultTiltRight turns it toward the driver; the left
-    /// glasses (60 and 48 degrees off) stay as the art sets them by default.
+    /// [port] side_mirror_tilt_right / side_mirror_tilt_left: with the heads where the art places them, each door mirror's face turned
+    /// that many degrees toward the driver (Tilt): the proud face (DoorFace) about its middle, standing out of the housing; the inset
+    /// glass (side_mirror_face=inset) alone inside its housing, as an adjustable glass pivots in its shell. The Piranha's right glass is
+    /// seen 79 degrees off its face from the seat, a sliver: DefaultTiltRight turns it toward the driver (30, the paint-over's look with
+    /// the proud face; 15 for the inset glass, whose rounded outline the housing's edge cuts from 20); the left glasses (60 and 48
+    /// degrees off) stay as the art sets them by default.
     /// </summary>
-    public const int DefaultTiltRight = 15, DefaultTiltLeft = 0, MaxTilt = 45;
+    public const int DefaultTiltRight = 30, DefaultTiltLeft = 0, MaxTilt = 45;
 
     /// <summary>The glass's tilt in degrees for a setting: none with the head turned (the whole head faces the driver then), else the setting within 0..MaxTilt.</summary>
     public static int GlassTilt(bool headTurned, int setting) => headTurned ? 0 : Math.Clamp(setting, 0, MaxTilt);
