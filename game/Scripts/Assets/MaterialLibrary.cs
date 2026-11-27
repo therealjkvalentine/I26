@@ -832,6 +832,37 @@ public sealed class MaterialLibrary(TextureFactory textures)
         return _cache[key] = mat;
     }
 
+    private static Shader? _trim;
+    private static Shader Trim => _trim ??= GD.Load<Shader>("res://Shaders/cockpit_trim.gdshader");
+
+    /// <summary>
+    /// The modern look's cockpit trim (CockpitTrim, [port] cockpit_trim): a flat face of the cockpit's roof or side part in its own
+    /// colour with the style's procedural vinyl (cockpit_trim.gdshaderinc); in the 1997 look the plain opaque shader, as ForColour's.
+    /// </summary>
+    public Material ForTrim(byte r, byte g, byte b, I76.Game.Sim.CockpitTrim.Part part, I76.Game.Sim.CockpitTrim.Style style, bool prop = false,
+        I76.Formats.Imaging.PropMaterial.Family family = I76.Formats.Imaging.PropMaterial.Family.General)
+    {
+        CheckThread("ForTrim");
+        prop &= PropMaps;
+        var key = $"trim|#{r:x2}{g:x2}{b:x2}|{(int)part}|{(int)style}" + (prop ? $"|prop{(int)family}" : "");
+        if (_cache.TryGetValue(key, out var m)) return m;
+        var mat = new ShaderMaterial { Shader = Mode1997 ? Back97 : Trim };
+        _oneSided1997[mat] = (Trim, Back97);
+        mat.SetShaderParameter("albedo_color", Color.Color8(r, g, b));
+        mat.SetShaderParameter("trim_part", (int)part);
+        mat.SetShaderParameter("trim_style", (int)style);
+        // the flat face's own sheen, as ForColour weighs it: the styles' sheen is over it
+        if (prop)
+        {
+            var (rough, metal, spec) = I76.Formats.Imaging.PropMaterial.ForColour(r, g, b, family);
+            mat.SetShaderParameter("base_roughness", rough);
+            mat.SetShaderParameter("base_metallic", metal);
+            mat.SetShaderParameter("base_specular", spec);
+        }
+        if (I76.Game.Sim.CockpitTrim.Knobs() is { } k) mat.SetShaderParameter("trim_knobs", k);
+        return _cache[key] = mat;
+    }
+
     /// <summary>
     /// The modern look's round wheel's tread: matte rubber of the tyre's colour with the shader's tread pattern (object.gdshaderinc, UVs
     /// as <see cref="MeshBuilder"/> lays them). In the 1997 look it swaps to the plain shader like any other, which never draws it (the

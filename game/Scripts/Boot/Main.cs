@@ -1864,7 +1864,9 @@ public partial class Main : Node3D
 			}
 			heads.Sort((a, b) => (a.Left ? 0 : 1) - (b.Left ? 0 : 1));
 			// a helicopter's interior carries its main rotor (RotorBlades): apart, so the modern look can draw its disc there instead
-			cabin = builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && !HandgunMuzzle(p.NodeName) && !Ring(p, '6') && !Hood(p) && Head(p) is null && !CarNode.IsRotor(p));
+			// the modern look's cockpit trim ([port] cockpit_trim, off by default; I76_COCKPIT_TRIM for the run): the roof and side parts' flat faces' own materials
+			var trim = I76.Game.Sim.CockpitTrim.Hook() ?? I76.Game.Shell.ShellSettings.Load().CockpitTrim;
+			cabin = builder.Meshes!.Build(interior, wheels: false, include: p => !LowResTwin(interior, p.NodeName) && !HandgunMuzzle(p.NodeName) && !Ring(p, '6') && !Hood(p) && Head(p) is null && !CarNode.IsRotor(p), trim: trim);
 			yield return null;
 			ring1 = builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '1'));
 			ring6 = builder.Meshes!.Build(interior, wheels: false, include: p => Ring(p, '6'));

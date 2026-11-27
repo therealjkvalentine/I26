@@ -143,6 +143,7 @@ public static class DevSettings
         new("side_mirror_tilt_right", TiltNames(I76.Game.Sim.MirrorAim.DefaultTiltRight), s => Nearest(TiltSteps, s.SideMirrorTiltRight), (s, v) => s.SideMirrorTiltRight = TiltSteps[v], DevWhen.NextMission),
         new("side_mirror_tilt_left", TiltNames(I76.Game.Sim.MirrorAim.DefaultTiltLeft), s => Nearest(TiltSteps, s.SideMirrorTiltLeft), (s, v) => s.SideMirrorTiltLeft = TiltSteps[v], DevWhen.NextMission),
         new("side_mirror_face", ["proud", "inset" + M], s => s.SideMirrorFaceProud ? 0 : 1, (s, v) => s.SideMirrorFaceProud = v == 0, DevWhen.NextMission),
+        new("cockpit_trim", [.. I76.Game.Sim.CockpitTrim.Words.Select((w, i) => i == 0 ? w : w + M)], s => (int)s.CockpitTrim, (s, v) => s.CockpitTrim = (I76.Game.Sim.CockpitTrim.Style)v, DevWhen.NextMission),
         new("side_mirror_face_over_right", FaceOverNames(I76.Game.Sim.DoorFace.DefaultOverRight), s => Nearest(FaceOverSteps, s.SideMirrorFaceOverRight), (s, v) => s.SideMirrorFaceOverRight = FaceOverSteps[v], DevWhen.Live),
         new("side_mirror_face_over_left", FaceOverNames(I76.Game.Sim.DoorFace.DefaultOverLeft), s => Nearest(FaceOverSteps, s.SideMirrorFaceOverLeft), (s, v) => s.SideMirrorFaceOverLeft = FaceOverSteps[v], DevWhen.Live),
         new("side_mirror_rim_out", RimOutNames, s => Nearest(RimOutSteps, s.SideMirrorRimOut), (s, v) => s.SideMirrorRimOut = RimOutSteps[v], DevWhen.Live),
