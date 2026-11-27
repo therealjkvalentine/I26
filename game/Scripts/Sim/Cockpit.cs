@@ -2565,6 +2565,7 @@ public partial class Cockpit : Node
             var plane = GlassRound.Plane([.. v.Zip(t, (p, uv) => (new Vector2(uv.X * aspect, uv.Y), p))]);
             var hull = GlassRound.Hull(uvs.SelectMany(f => f).Select(q => new Vector2(q.X * aspect, q.Y)));
             var cover = plane is { } hp ? GlassRound.Housing(hull, HeadPoints(pane.Left).Distinct().Select(q => GlassRound.Seen(near, hp, q)).OfType<(Vector2, float)>()) : hull;
+            if (holder is not null && plane is { } tp) cover = TurnedCover(cover, tp, near, pane.Left);
             _glass.Add(new GlassPane(mi, mat, pane.Left, aspect, centre, hull, mesh, plane, near, cover) { Holder = holder });
             if (PointsHook && plane is { } pl) MarkPoints(host, v, pl, near, pane.Left, aspect, uvs);
             // the rim inside the pane's outline, a hair nearer the eye than the glass, the rear frame's colour (MirrorRim)
@@ -2780,6 +2781,24 @@ public partial class Cockpit : Node
         }
         g.Mesh.Mesh = g.Grown;
     }
+
+    /// <summary>
+    /// The turned glass's outline to cover (side_mirror_face=turned): the turned head's (as side_mirror_head=turned has it) and the
+    /// corners of the art-placed housing's end and painted glass that the eye sees just past it (within TurnedTuck of its heights), so
+    /// no point of the housing's end shows past the ring; the housing's body, further out, shows behind the glass as the turned head's does.
+    /// </summary>
+    private List<Vector2> TurnedCover(List<Vector2> cover, (Vector3 O, Vector3 A, Vector3 B) plane, Vector3 near, bool left)
+    {
+        var back = _glassTurn[left ? 0 : 1].AffineInverse();   // the art's points in the turned glass's frame: the eye's view of them unchanged
+        var art = HeadPoints(left).Concat(Node3D.MirrorPaint.Where(p => p.Left == left).SelectMany(p => p.Mesh.Mesh is { } m
+            ? Enumerable.Range(0, m.GetSurfaceCount()).SelectMany(si => m.SurfaceGetArrays(si)[(int)Mesh.ArrayType.Vertex].AsVector3Array()) : []))
+            .Distinct().Select(q => GlassRound.Seen(near, plane, back * q)).OfType<(Vector2 Uv, float Depth)>().Select(q => q.Uv)
+            .Where(uv => GlassRound.Distance(cover, uv) is > 0 and < TurnedTuck).ToList();
+        var h = GlassRound.Hull([.. cover, .. art]);
+        return art.Count > 0 && h.Count <= GlassRound.MaxCorners ? h : cover;
+    }
+    /// <summary>How far past the turned head's outline a corner of the art's housing end is taken under the ring, in the glass's heights.</summary>
+    private const float TurnedTuck = 0.10f;
 
     /// <summary>
     /// The turned glass (side_mirror_face=turned) brought in front of the art's housing without changing what the driver sees: its
