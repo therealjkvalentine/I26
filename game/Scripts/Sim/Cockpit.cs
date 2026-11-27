@@ -2798,7 +2798,7 @@ public partial class Cockpit : Node
         return art.Count > 0 && h.Count <= GlassRound.MaxCorners ? h : cover;
     }
     /// <summary>How far past the turned head's outline a corner of the art's housing end is taken under the ring, in the glass's heights.</summary>
-    private const float TurnedTuck = 0.10f;
+    private const float TurnedTuck = 0.04f;
 
     /// <summary>
     /// The turned glass (side_mirror_face=turned) brought in front of the art's housing without changing what the driver sees: its
