@@ -31,7 +31,9 @@ namespace I76.Game.Boot;
 /// from frame I76_SHOT_SEQ_START (90) each step holds I76_SHOT_SEQ_HOLD (45) frames and its last is saved as OUT_name.png; then the
 /// game quits. cam: free:x,y,z,yaw,pitch[,fov] (I76_FREECAM), car:dx,dy,dz,yaw,pitch (I76_CAP_CAM), sun:dyaw,height,back,pitch (behind
 /// and over the player's car looking dyaw degrees from the sun's bearing: 0 into the sun, 180 away), or empty (as the step before; the
-/// cockpit at the start). mood: as I76_MOOD, on top of it.
+/// cockpit at the start; rear:back,height,pitch[,side]: behind the player's car along its heading, looking along it). mood: as I76_MOOD,
+/// on top of it, and for a step: hide=1 (the player's car hidden, nothing else changed), glow=0|1 (Glow, as I76_GLOW), brake=0|1 (the brake held, as I76_HOLD_BRAKE), lampfix=0 (the
+/// lamps' exposure rule off, LampStrength.ExposureRule: their strength as before it).
 /// </summary>
 public partial class Main
 {
@@ -240,6 +242,25 @@ public partial class Main
         // SetYawPitch(yaw): the view along (-sin yaw, -cos yaw) on the ground, so behind it is (+sin, +cos)
         return string.Join(",", new[] { back * Mathf.Sin(r), h, back * Mathf.Cos(r), yaw, pitch }.Select(x => x.ToString("0.###", CultureInfo.InvariantCulture)));
     }
+    /// <summary>
+    /// A sequence step's rear: camera ("back,height,pitch[,side]") as I76_CAP_CAM's text: <paramref name="back"/> behind the player's car
+    /// along its heading (<paramref name="forward"/>, Godot frame), height over it and side to its right, looking along the heading.
+    /// </summary>
+    public static string? RearCam(string args, Vector3 forward)
+    {
+        var v = args.Split(',');
+        if (v.Length is not (3 or 4)) return null;
+        float back = MoodF(v[0]), h = MoodF(v[1]), pitch = MoodF(v[2]), side = v.Length == 4 ? MoodF(v[3]) : 0f;
+        var f = new Vector3(forward.X, 0, forward.Z);
+        if (f.LengthSquared() < 1e-6f) return null;
+        f = f.Normalized();
+        var right = new Vector3(-f.Z, 0, f.X);
+        var at = -f * back + right * side;
+        // SetYawPitch(yaw): the view along (-sin yaw, -cos yaw)
+        float yaw = Mathf.RadToDeg(Mathf.Atan2(-f.X, -f.Z));
+        return string.Join(",", new[] { at.X, h, at.Z, yaw, pitch }.Select(x => x.ToString("0.###", CultureInfo.InvariantCulture)));
+    }
+
     private static readonly int ShotSeqStart = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SHOT_SEQ_START"), out int s0) ? s0 : 90;
     private static readonly int ShotSeqHold = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SHOT_SEQ_HOLD"), out int h0) ? h0 : 45;
 
@@ -258,16 +279,22 @@ public partial class Main
             if (cam.StartsWith("free:")) { System.Environment.SetEnvironmentVariable("I76_FREECAM", cam[5..]); System.Environment.SetEnvironmentVariable("I76_CAP_CAM", null); }
             else if (cam.StartsWith("car:")) { System.Environment.SetEnvironmentVariable("I76_CAP_CAM", cam[4..]); System.Environment.SetEnvironmentVariable("I76_FREECAM", null); }
             else if (cam.StartsWith("sun:") && SunCam(cam[4..], _lightDir) is { } sc) { System.Environment.SetEnvironmentVariable("I76_CAP_CAM", sc); System.Environment.SetEnvironmentVariable("I76_FREECAM", null); }
+            else if (cam.StartsWith("rear:") && _car is not null && RearCam(cam[5..], -_car.GlobalBasis.Z) is { } rc) { System.Environment.SetEnvironmentVariable("I76_CAP_CAM", rc); System.Environment.SetEnvironmentVariable("I76_FREECAM", null); }
             _mood = ParseMood(MoodBase + "&" + (parts.Length > 2 ? parts[2] : ""));
             if (_mood.TryGetValue("look", out var look) && (look == "1997") != _mode1997) SetMode1997(look == "1997");
             // the mask step's: the sky as magenta, the player's car hidden; any other step as drawn
             string mk = _mood.TryGetValue("mask", out var mv) ? mv : "";
             if (_modernEnv is not null) { _modernEnv.BackgroundMode = mk is "1" or "2" ? Godot.Environment.BGMode.Color : Godot.Environment.BGMode.Sky; _modernEnv.BackgroundColor = new Color(1, 0, 1); }
-            if (_car is not null) _car.Visible = mk != "2";
+            if (_car is not null) _car.Visible = mk != "2" && !(_mood.TryGetValue("hide", out var hv) && hv == "1");
+            // glow=0|1: Glow for the step (as I76_GLOW), its threshold set again for the step's lighting
+            if (_mood.TryGetValue("glow", out var gv)) System.Environment.SetEnvironmentVariable("I76_GLOW", gv);
+            I76.Game.Sim.LampStrength.ExposureRule = !(_mood.TryGetValue("lampfix", out var lf) && lf == "0");
+            if (_mood.TryGetValue("brake", out var bv)) I76.Game.Sim.SimDriver.HoldBrake = bv == "1";
             // (and the palette grade off for it, which would move the magenta toward the palette)
             System.Environment.SetEnvironmentVariable("I76_PALETTE_GRADE", mk is "1" or "2" ? "0" : PaletteGradeEnv0);
             MoodLightingChoice();
             ApplyLightingCalibration();
+            if (!_mode1997 && _modernEnv is not null) EnvExtras.Apply(_modernEnv, _glow, _reflections, IsCard(_lighting) ? (float)I76.Formats.Imaging.LightingCalibration.Headroom : 1f);
             GD.Print($"shot seq: step {k} {name} cam {cam}");
         }
         else if (at == ShotSeqHold - 1)

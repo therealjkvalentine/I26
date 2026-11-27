@@ -24,6 +24,9 @@ public static class LampStrength
     /// </summary>
     public static float HeadlampRange(int? throwPercent = null) => HeadlampThrow.Range(throwPercent ?? HeadlampThrow.Current);
 
+    /// <summary>The exposure rule on (I76_SHOT_SEQ lampfix=0 turns it off, for the comparisons).</summary>
+    public static bool ExposureRule { get; set; } = true;
+
     /// <summary>The current mission's daylight (<see cref="Daylight.Current"/>), also for the shaders as the i76_daylight global and the dash lamps.</summary>
     public static void Set(float daylight)
     {
