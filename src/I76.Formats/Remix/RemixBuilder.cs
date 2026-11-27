@@ -90,7 +90,9 @@ public static class RemixBuilder
                 if (!MapProject.IsValidStem(pr.Object) || !vfs.Exists(pr.Object + ".sdf")) throw new RemixError($"prop {i + 1}: no object '{pr.Object}' in the install");
                 if (pr.Type is not (2 or 3 or 4)) throw new RemixError($"prop {i + 1} ({pr.Object}): type {pr.Type}: 2 (building), 3 (small object) or 4 (scenery)");
                 var (x, z) = XZ(pr.At, $"prop {i + 1}");
-                var o = MapObject.Create(pr.Object, pr.Type, new Vector3(x, GroundAt(ter, x, z), z), (float)(pr.Heading * Math.PI / 180));
+                // the lowest ground within 3 m of its centre: on a slope a wide model sinks a little at the high side rather than floating at the low one
+                float y = new[] { (0f, 0f), (3f, 0f), (-3f, 0f), (0f, 3f), (0f, -3f) }.Min(d => GroundAt(ter, x + d.Item1, z + d.Item2));
+                var o = MapObject.Create(pr.Object, pr.Type, new Vector3(x, y, z), (float)(pr.Heading * Math.PI / 180));
                 o.NameFlags = FreeFlags(doc, pr.Object);
                 doc.Objects.Add(o);
             }
@@ -319,7 +321,7 @@ public static class RemixBuilder
     }
 
     /// <summary>The ground's height under a point (world units): the terrain's samples every 5 m, a tenth of a sample each, bilinear (the sim's Ground).</summary>
-    internal static float GroundAt(TerrainTiles ter, float x, float z)
+    public static float GroundAt(TerrainTiles ter, float x, float z)
     {
         float fx = x / MissionFile.WorldScale, fz = z / MissionFile.WorldScale;
         int x0 = (int)MathF.Floor(fx), z0 = (int)MathF.Floor(fz);

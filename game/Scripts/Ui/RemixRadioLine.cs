@@ -46,7 +46,8 @@ public partial class RemixRadioLine : Control
         int size = Mathf.Max(8, Mathf.RoundToInt(15 * s));
         float a = Mathf.Clamp(_left, 0, 1);
         float w = Mathf.Min(Size.X - 40 * s, Lee.GetStringSize(_text, HorizontalAlignment.Left, -1, size).X);
-        var at = new Vector2((Size.X - w) / 2, 34 * s);
+        // under the cockpit's panels (they reach 140 of 480), over the sky
+        var at = new Vector2((Size.X - w) / 2, 168 * s);
         DrawRect(new Rect2(at - new Vector2(10 * s, size + 4 * s), new Vector2(w + 20 * s, size + 14 * s)), new Color(0, 0, 0, 0.55f * a));
         DrawString(Lee, at, _text, HorizontalAlignment.Left, Size.X - 40 * s, size, new Color(1f, 0.93f, 0.62f, a));
     }
