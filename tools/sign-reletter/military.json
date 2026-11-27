@@ -1,0 +1,242 @@
+{
+ "note": "tools/sign-reletter.py's layout: the military restricted-area signs, their lines' places (original texels, x0 y0 x1 y1, upright) and words, the warning box's wording options. 'measured' is `sign-reletter.py measure EXPORT` (grounds, each line's ink colour and painted ink box), kept here so a build does not depend on a measure's rounding. The words are plain sign wording typed for this layout.",
+ "default_option": "D",
+ "print": {
+  "seed": 1976,
+  "soften": 0.18,
+  "wear": {"fade": 0.12, "patch_px": 2.5, "pin": 0.45, "pin_px": 0.35, "pin_cut": 2.6}
+ },
+ "options": {
+  "A": {
+   "label": "closest reading of the original",
+   "note": "the original's two paragraphs as its texels read (3 + 3 lines at its size); the third line of the first is the standard sentence of that length (the texels do not decide it)",
+   "em": 2.32,
+   "pitch": 2.0,
+   "gap": 1.0,
+   "paragraphs": ["It is unlawful to enter this area without permission of the Installation Commander. Unauthorized entry is prohibited.", "While on this installation all personnel and the property under their control are subject to search."]
+  },
+  "B": {
+   "label": "the standard wording, set larger",
+   "note": "the two sentences the texels confirm, nothing guessed, a little larger and airier",
+   "em": 2.35,
+   "pitch": 2.7,
+   "gap": 1.8,
+   "paragraphs": ["It is unlawful to enter this area without permission of the Installation Commander.", "While on this installation all personnel and the property under their control are subject to search."],
+   "top": 41.7
+  },
+  "C": {
+   "label": "with the statutory citation",
+   "note": "the 1950 Act's citation after the first sentence, as the period's Army and Air Force signs print it",
+   "em": 2.2,
+   "pitch": 2.15,
+   "gap": 0.9,
+   "paragraphs": ["It is unlawful to enter this area without permission of the Installation Commander.", "(Sec. 21, Internal Security Act of 1950; 50 U.S.C. 797)", "While on this installation all personnel and the property under their control are subject to search."],
+   "top": 41.6
+  },
+  "D": {
+   "label": "the reading, set for the game",
+   "note": "A's words at the original's size, with a reader's leading, in the box's whole height (the original leaves rows free under it)",
+   "em": 2.32,
+   "pitch": 2.55,
+   "gap": 1.2,
+   "paragraphs": ["It is unlawful to enter this area without permission of the Installation Commander. Unauthorized entry is prohibited.", "While on this installation all personnel and the property under their control are subject to search."],
+   "top": 41.6
+  }
+ },
+ "signs": {
+  "sw1mtr_1": {
+   "note": "WHITE SANDS MISSILE TEST RANGE: Training (A01), one sign",
+   "installation": "U.S. Army Installation",
+   "ground_samples": {
+    "band": [[8, 5, 120, 8], [8, 15, 120, 16.5]],
+    "board": [[5, 18, 125, 19], [80, 28, 125, 30], [70, 56, 125, 58]]
+   },
+   "lines": [
+    {
+     "id": "header",
+     "text": "WHITE SANDS MISSILE TEST RANGE",
+     "font": "Arial",
+     "rect": [5, 1, 124, 5],
+     "ground": "band",
+     "erase": [6.6, 0.6, 121.0, 5.8],
+     "paint": "black"
+    },
+    {
+     "id": "restricted",
+     "text": "RESTRICTED AREA",
+     "font": "ArialRegular",
+     "rect": [3, 8, 125, 16],
+     "ground": "band",
+     "erase": [3.5, 6.6, 124.6, 16.4],
+     "paint": "white"
+    },
+    {
+     "id": "trespassing",
+     "text": "NO TRESPASSING",
+     "font": "ArialRegular",
+     "rect": [6, 19, 124, 28],
+     "ground": "board",
+     "erase": [6, 18.6, 123, 28.4],
+     "paint": "red"
+    },
+    {"id": "beyond", "text": "BEYOND THIS", "font": "Arial", "rect": [6, 29, 76, 35], "ground": "board", "erase": [6, 28.4, 75, 35.6], "paint": "red"},
+    {"id": "point", "text": "POINT", "font": "Arial", "rect": [23, 36, 57, 42], "ground": "board", "erase": [23, 35.6, 56, 42.8], "paint": "red"},
+    {"id": "warning", "text": "WARNING", "font": "Arial", "rect": [83, 31, 127, 36], "ground": "board", "erase": [83, 30.8, 126.5, 36.4], "paint": "red"},
+    {"id": "rule", "role": "rule", "rect": [83, 36, 127, 38], "ground": "board", "width": 0.55, "erase": [83, 36.4, 126.5, 37.8], "paint": "black"},
+    {"id": "sub", "role": "erase", "rect": [81, 38, 127, 41], "ground": "board", "erase": [80.6, 37.8, 126.5, 41.2], "paint": "black"},
+    {
+     "id": "photo",
+     "text": "PHOTOGRAPHY IS",
+     "font": "Arial",
+     "rect": [4, 44, 76, 50],
+     "ground": "board",
+     "erase": [4, 43.4, 76, 50.8],
+     "paint": "black"
+    },
+    {
+     "id": "prohibited",
+     "text": "PROHIBITED",
+     "font": "Arial",
+     "rect": [15, 51, 66, 57],
+     "ground": "board",
+     "erase": [14.5, 50.8, 65, 57.6],
+     "paint": "black"
+    },
+    {"id": "block", "role": "block", "rect": [81, 41, 128, 55], "ground": "board", "erase": [80.6, 41.2, 128, 57.6], "paint": "black"},
+    {
+     "id": "deadly",
+     "text": "USE OF DEADLY FORCE AUTHORIZED",
+     "font": "Arial",
+     "rect": [3, 59, 124, 63],
+     "ground": "board",
+     "erase": [3, 58.4, 124, 64],
+     "paint": "red"
+    }
+   ],
+   "block": {
+    "id": "block",
+    "font": "ArialRegular",
+    "paint": "black",
+    "x0": 82.0,
+    "width": 44.6,
+    "top": 41.3,
+    "sub": {"id": "sub", "font": "Arial", "paint": "black"}
+   },
+   "measured": {
+    "grounds": {"band": [197, 8, 24], "board": [246, 238, 246]},
+    "lines": {
+     "header": {"ink": [65, 12, 16], "box": [6.83, 1.0, 119.5, 5.0]},
+     "restricted": {"ink": [238, 226, 230], "box": [4.92, 8.0, 123.33, 16.0]},
+     "trespassing": {"ink": [176, 58, 28], "box": [8.0, 19.63, 120.0, 27.41]},
+     "beyond": {"ink": [189, 80, 57], "box": [7.84, 29.0, 72.39, 35.0]},
+     "point": {"ink": [189, 89, 65], "box": [25.83, 36.0, 52.5, 42.0]},
+     "warning": {"ink": [180, 60, 32], "box": [85.0, 31.9, 122.41, 36.0]},
+     "rule": {"ink": [139, 141, 148], "box": [84.61, 36.0, 123.0, 38.0]},
+     "sub": {"ink": [110, 109, 110], "box": [83.0, 38.0, 123.49, 41.0]},
+     "photo": {"ink": [82, 76, 82], "box": [6.0, 44.71, 73.0, 50.0]},
+     "prohibited": {"ink": [90, 89, 90], "box": [16.88, 51.69, 62.16, 56.36]},
+     "block": {"ink": [139, 137, 139], "box": [82.55, 41.94, 128.0, 54.14]},
+     "deadly": {"ink": [189, 101, 82], "box": [5.0, 59.0, 123.0, 63.0]}
+    }
+   }
+  },
+  "sw1afb_1": {
+   "note": "CHENNAULT AIR FORCE BASE: the Nitro Pack's P18, one sign",
+   "installation": "U.S. Air Force Installation",
+   "ground_samples": {
+    "band": [[8, 5, 120, 8], [8, 15, 120, 16.5]],
+    "board": [[5, 18, 125, 19], [80, 28, 125, 30], [70, 56, 125, 58]]
+   },
+   "lines": [
+    {
+     "id": "header",
+     "text": "CHENNAULT AIR FORCE BASE",
+     "font": "Arial",
+     "rect": [5, 1, 124, 6],
+     "ground": "band",
+     "erase": [6.6, 0.6, 121.0, 6.6],
+     "paint": "black"
+    },
+    {
+     "id": "restricted",
+     "text": "RESTRICTED AREA",
+     "font": "ArialRegular",
+     "rect": [3, 8, 125, 16],
+     "ground": "band",
+     "erase": [3.5, 6.6, 124.6, 16.4],
+     "paint": "white"
+    },
+    {
+     "id": "trespassing",
+     "text": "NO TRESPASSING",
+     "font": "ArialRegular",
+     "rect": [6, 19, 124, 28],
+     "ground": "board",
+     "erase": [6, 18.6, 123, 28.4],
+     "paint": "red"
+    },
+    {"id": "beyond", "text": "BEYOND THIS", "font": "Arial", "rect": [6, 29, 76, 35], "ground": "board", "erase": [6, 28.4, 75, 35.6], "paint": "red"},
+    {"id": "point", "text": "POINT", "font": "Arial", "rect": [23, 36, 57, 42], "ground": "board", "erase": [23, 35.6, 56, 42.8], "paint": "red"},
+    {"id": "warning", "text": "WARNING", "font": "Arial", "rect": [83, 31, 127, 36], "ground": "board", "erase": [83, 30.8, 126.5, 36.4], "paint": "red"},
+    {"id": "rule", "role": "rule", "rect": [83, 36, 127, 38], "ground": "board", "width": 0.55, "erase": [83, 36.4, 126.5, 37.8], "paint": "black"},
+    {"id": "sub", "role": "erase", "rect": [81, 38, 127, 41], "ground": "board", "erase": [80.6, 37.8, 126.5, 41.2], "paint": "black"},
+    {
+     "id": "dogs",
+     "text": "MILITARY WORKING DOGS",
+     "font": "Arial",
+     "rect": [4, 46, 76, 50],
+     "ground": "board",
+     "erase": [4, 45.3, 75, 50.7],
+     "paint": "red"
+    },
+    {"id": "duty", "text": "ON DUTY", "font": "Arial", "rect": [24, 52, 55, 56], "ground": "board", "erase": [24, 50.7, 55, 55.8], "paint": "red"},
+    {"id": "rule2", "role": "rule", "rect": [5, 44, 74, 45], "ground": "board", "erase": [4, 43.4, 75, 45.3], "paint": "red"},
+    {"id": "rule3", "role": "rule", "rect": [5, 56, 74, 57], "ground": "board", "erase": [4, 55.8, 75, 57.6], "paint": "red"},
+    {"id": "block", "role": "block", "rect": [81, 41, 128, 55], "ground": "board", "erase": [80.6, 41.2, 128, 57.6], "paint": "black"},
+    {
+     "id": "deadly",
+     "text": "USE OF DEADLY FORCE AUTHORIZED",
+     "font": "Arial",
+     "rect": [3, 59, 124, 63],
+     "ground": "board",
+     "erase": [3, 58.4, 124, 64],
+     "paint": "red"
+    }
+   ],
+   "block": {
+    "id": "block",
+    "font": "ArialRegular",
+    "paint": "black",
+    "x0": 82.0,
+    "width": 44.6,
+    "top": 41.3,
+    "sub": {"id": "sub", "font": "Arial", "paint": "black"}
+   },
+   "measured": {
+    "grounds": {"band": [197, 4, 24], "board": [246, 242, 246]},
+    "lines": {
+     "header": {"ink": [65, 0, 8], "box": [17.0, 2.0, 109.25, 6.0]},
+     "restricted": {"ink": [238, 226, 230], "box": [5.68, 8.56, 123.1, 16.0]},
+     "trespassing": {"ink": [172, 56, 24], "box": [8.96, 19.92, 119.14, 28.0]},
+     "beyond": {"ink": [189, 89, 65], "box": [8.59, 29.0, 72.45, 35.0]},
+     "point": {"ink": [189, 93, 74], "box": [26.0, 36.0, 54.43, 42.0]},
+     "warning": {"ink": [180, 68, 41], "box": [84.99, 31.88, 122.04, 36.0]},
+     "rule": {"ink": [197, 190, 189], "box": [84.55, 36.0, 122.3, 38.0]},
+     "sub": {"ink": [106, 105, 106], "box": [82.0, 38.65, 118.47, 41.0]},
+     "dogs": {"ink": [189, 97, 74], "box": [5.0, 46.61, 73.05, 50.0]},
+     "duty": {"ink": [197, 117, 98], "box": [26.78, 52.0, 50.49, 55.38]},
+     "rule2": {"ink": [213, 157, 148], "box": [5.74, 44.0, 73.08, 45.0]},
+     "rule3": {"ink": [213, 157, 148], "box": [5.74, 56.0, 73.08, 57.0]},
+     "block": {"ink": [139, 137, 139], "box": [81.99, 41.85, 127.15, 54.15]},
+     "deadly": {"ink": [197, 109, 90], "box": [5.94, 59.0, 122.27, 63.0]}
+    }
+   }
+  }
+ },
+ "paints": {
+  "note": "the sign's three paints: the pack's own (the median of its most inked texels in the lines, rounded; the original's one-texel strokes never reach their paint)",
+  "red": [160, 32, 16],
+  "black": [22, 20, 24],
+  "white": [250, 250, 250]
+ }
+}

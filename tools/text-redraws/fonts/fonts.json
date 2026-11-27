@@ -98,6 +98,14 @@
     "license": "the machine's own copy (Microsoft core fonts), not shipped",
     "source": "the system's fonts folder"
   },
+  "ArialRegular": {
+    "name": "Arial",
+    "file": "arial.ttf",
+    "system": true,
+    "by": "Monotype (Robin Nicholas, Patricia Saunders)",
+    "license": "the machine's own copy (Microsoft core fonts), not shipped",
+    "source": "the system's fonts folder"
+  },
   "LibreCaslonText": {
     "name": "Libre Caslon Text",
     "file": "LibreCaslonText/LibreCaslonText[wght].ttf",
