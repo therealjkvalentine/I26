@@ -11,6 +11,7 @@ namespace I76.Sim.Tests;
 /// name and is busy for the table's length of it, whatever this machine could build; a cut of a clip keeps its whole name in the
 /// queue.
 /// </summary>
+[Collection("remix")]   // GameInstall.UserMissionDir is one for the process: the remix test classes take turns
 public class RemixVoiceSimTests
 {
     [Fact]
