@@ -19,12 +19,16 @@ public class BotRearFireTests(ITestOutputHelper output)
 {
     private sealed record Rig(MeleeGame Game, ScriptHost Host, MeleePlayer Bot, Weapon Rear, Weapon Drop, MeleePlayer Enemy, MeleePlayer Mate, float Lift);
 
-    private static Rig Make(string dir)
+    /// <summary>
+    /// The bot (a Piranha: vppirna3, whose dropper is the oil slick, unless <paramref name="car"/> says another), an enemy and a teammate,
+    /// in team play unless <paramref name="teamPlay"/> is false (the other two then both enemies).
+    /// </summary>
+    private static Rig Make(string dir, string car = "vppirna3.vcf", bool teamPlay = true)
     {
         var l = new SnapshotRig.Loaded(dir);
-        var (s, setup) = SnapshotRig.Make(l, SnapshotRig.BuildOf(dir, "m01", melee: [], rules: new MeleeRules { Network = true, TeamPlay = true }), SimRate.R20, 7);
+        var (s, setup) = SnapshotRig.Make(l, SnapshotRig.BuildOf(dir, "m01", melee: [], rules: new MeleeRules { Network = true, TeamPlay = teamPlay }), SimRate.R20, 7);
         var game = setup.Melee!;
-        var bot = game.AddBot("vppirna1.vcf", "Bot (bot)", 1, BotSkill.Hard);
+        var bot = game.AddBot(car, "Bot (bot)", 1, BotSkill.Hard);
         var enemy = game.AddPlayer("vppirna1.vcf", "enemy", 2);
         var mate = game.AddPlayer("vppirna1.vcf", "mate", 1);
         s.AssignIds();
@@ -162,5 +166,27 @@ public class BotRearFireTests(ITestOutputHelper output)
         Assert.Equal(0, Tries(r).Drop);
         r.Drop.Ammo = full;
         Assert.True(Tries(r).Drop > 0);
+    }
+
+    /// <summary>
+    /// Mines and Blox lie until a car finds them, and the bots' own side found them as often as the other: in team play a bot keeps its
+    /// mines (vppirna1's Landmines) from an enemy on its tail and fires its rear gun; in a free for all it lays them.
+    /// </summary>
+    [Fact]
+    public void InTeamPlayABotLaysNoMinesInAFreeForAllItDoes()
+    {
+        if (SnapshotRig.Install is not { } dir) return;
+        foreach (bool team in new[] { true, false })
+        {
+            var r = Make(dir, "vppirna1.vcf", team);
+            Assert.True(MeleeGame.LastingDrop(r.Drop), $"{r.Drop.Def.Name} kind {r.Drop.Def.Kind}");
+            Drive(r);
+            Place(r, r.Enemy, 15f);
+            Place(r, r.Mate, null);
+            var (rear, drop, _) = Tries(r);
+            output.WriteLine($"team play {team}: rear gun {rear}/40, mines {drop}/40");
+            Assert.True(rear > 0);
+            if (team) Assert.Equal(0, drop); else Assert.True(drop > 0, "no mine in a free for all");
+        }
     }
 }

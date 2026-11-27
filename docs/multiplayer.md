@@ -549,7 +549,7 @@ but `Combat.IsBot` makes its weapons fire as an AI car's, with no missile lock h
   mounted weapon; a dropper drops when the car behind is about to drive over its spot, `Combat.AiDrop`). The radar keeps the target ahead when there is one.
   An attacking bot's droppers go through the same decision against its target, as the original's computer drivers' do.
 - *Droppers are held* (`HoldWeapon`, `MeleeGame.BotHoldsWeapon`): none in the game's first 10 s (the start grid's bunch), none under 10 m/s (a bot in a pinch would lay them
-  on itself), none while a teammate is within 100 m of it (ahead or behind: in an arena the cars circle and come back over a drop), and the last quarter of a full load kept. (Before #199 no bot laid any.)
+  on itself), none while a teammate is within 100 m of it (ahead or behind: in an arena the cars circle and come back over a drop), the last quarter of a full load kept, and in team play no mines or Blox at all (`MeleeGame.LastingDrop`: they lie until a car finds them, and on m05, four Hard bots a side for ten minutes, they mined three enemies and three teammates, one killed; oil, caltrops and fire, which go, are still laid). (Before #199 no bot laid any.)
   Over 15 game minutes of six Hard bots on m02 two teams: about 2100 hits on the other side, one on a teammate.
 
 **Over the network** the protocol is unchanged (13): a bot is a car whose `CarInfo.Owner` is a slot, a row of the scoreboard with an alive flag and
