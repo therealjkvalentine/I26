@@ -13,7 +13,8 @@ namespace I76.Game.Boot;
 ///   cal=off|card|filmic|sunlit   the lighting calibration for the run (as [port] lighting_calibration: card is on), solved again live
 ///   skyfix=0              the sky's light on the scene as before the fix (its whole radiance, the ambient energy ignored: Main.ApplyLightingCalibration)
 ///   look=1997|modern      (an I76_SHOT_SEQ step) the look switched for the step, as F12 would, without saving it
-///   mask=1                (an I76_SHOT_SEQ step, the modern look) the sky drawn flat magenta and the player's car hidden: the regions' mask for a measurement
+///   mask=1|2              (an I76_SHOT_SEQ step, the modern look) the sky drawn flat magenta (2: and the player's car hidden): the regions' masks for a measurement
+///   sunlitkeep=X          the sunlit look's share of the plain exposure kept (LightingCalibration.SunlitKeep)
 ///   sky=tex|model         the sky in the texture's own colours (the calibrated sky's mapping) or the modern model's (its default under off/filmic)
 ///   skytex=PATH           the sky's cloud texture replaced by that image (an upscale of the original made outside the game), its colours measured again
 ///   amb=R,G,B|zenith|grey the ambient light's colour (sRGB) instead of the sky's radiance (ambsky= how much of the radiance stays, 0 by default with amb)
@@ -259,9 +260,9 @@ public partial class Main
             _mood = ParseMood(MoodBase + "&" + (parts.Length > 2 ? parts[2] : ""));
             if (_mood.TryGetValue("look", out var look) && (look == "1997") != _mode1997) SetMode1997(look == "1997");
             // the mask step's: the sky as magenta, the player's car hidden; any other step as drawn
-            bool mask = _mood.TryGetValue("mask", out var mk) && mk == "1";
-            if (_modernEnv is not null) { _modernEnv.BackgroundMode = mask ? Godot.Environment.BGMode.Color : Godot.Environment.BGMode.Sky; _modernEnv.BackgroundColor = new Color(1, 0, 1); }
-            if (_car is not null) _car.Visible = !mask;
+            string mk = _mood.TryGetValue("mask", out var mv) ? mv : "";
+            if (_modernEnv is not null) { _modernEnv.BackgroundMode = mk is "1" or "2" ? Godot.Environment.BGMode.Color : Godot.Environment.BGMode.Sky; _modernEnv.BackgroundColor = new Color(1, 0, 1); }
+            if (_car is not null) _car.Visible = mk != "2";
             MoodLightingChoice();
             ApplyLightingCalibration();
             GD.Print($"shot seq: step {k} {name} cam {cam}");

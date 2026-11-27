@@ -3241,6 +3241,8 @@ public partial class Main : Node3D
 		var curve = IsCard(_lighting) ? I76.Formats.Imaging.LightingCalibration.ToneCurve.Card : I76.Formats.Imaging.LightingCalibration.ToneCurve.Filmic;
 		bool card = curve == I76.Formats.Imaging.LightingCalibration.ToneCurve.Card;
 		bool sunlit = _lighting == Lighting.Sunlit && light.IsDay;
+		// (I76_MOOD sunlitkeep=X: another share of the plain exposure kept, for the comparisons)
+		double keep = _mood.TryGetValue("sunlitkeep", out var sk) && double.TryParse(sk, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double kv) ? kv : I76.Formats.Imaging.LightingCalibration.SunlitKeep;
 		// the objects' sky light as the solve takes it: with the sky's light at its energy (SkyLightFixed) the estimate itself; else as measured before
 		double objectSky = SkyLightFixed ? I76.Formats.Imaging.LightingCalibration.HonestObjectSky
 			: card ? I76.Formats.Imaging.LightingCalibration.CardObjectSky : I76.Formats.Imaging.LightingCalibration.ObjectSky;
@@ -3253,7 +3255,7 @@ public partial class Main : Node3D
 		long solveMs = 0;
 		I76.Formats.Imaging.LightingCalibration.Result Solve(out int kinds)
 		{
-			string key = I76.Formats.Imaging.CalibrationCache.KeyOf(pixels, world.Terrain.ContentHash(), luma, light.Direction, light.Intensity, light.Ambient, light.IsDay, sun, skyUp, skyDown, curve, $"{(sunlit ? "sunlit " : "")}objects {objectSky}");
+			string key = I76.Formats.Imaging.CalibrationCache.KeyOf(pixels, world.Terrain.ContentHash(), luma, light.Direction, light.Intensity, light.Ambient, light.IsDay, sun, skyUp, skyDown, curve, $"{(sunlit ? $"sunlit {keep} " : "")}objects {objectSky}");
 			int n = 0;
 			var r = I76.Formats.Imaging.CalibrationCache.GetOrSolve(cache, key, () => Solved(out n), out bool hit);
 			kinds = hit ? -1 : n;
@@ -3272,7 +3274,7 @@ public partial class Main : Node3D
 			{
 				// the sun's share too, for the 1997 look's contrast over the map's slopes as they are (each cell alike)
 				var contrast = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp);
-				return I76.Formats.Imaging.LightingCalibration.SolveSunlit(pixels, ground, objects, contrast, curve);
+				return I76.Formats.Imaging.LightingCalibration.SolveSunlit(pixels, ground, objects, contrast, curve, keep);
 			}
 			return I76.Formats.Imaging.LightingCalibration.Solve(pixels, ground, objects, curve);
 		}

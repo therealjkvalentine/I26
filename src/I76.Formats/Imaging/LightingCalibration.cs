@@ -431,12 +431,23 @@ public static class LightingCalibration
     /// sun (the sky's light alone) darken; its lower bound goes down with the sun (<see cref="MinExposure"/> over the factor), so a dusk
     /// keeps its mean. A sun already giving that contrast or more is left at 1.
     /// </summary>
-    public static Result SolveSunlit(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card)
+    public static Result SolveSunlit(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card, double keep = SunlitKeep)
     {
         if (ground.Count == 0 || texels.Length < 3) return Result.None;
         double gain = SunGainFor(texels, ground, contrast, curve);
-        return Solve(texels, Scaled(ground, gain), Scaled(objects, gain), curve, MinExposure / gain) with { SunGain = gain };
+        var r = Solve(texels, Scaled(ground, gain), Scaled(objects, gain), curve, MinExposure / gain) with { SunGain = gain };
+        if (keep <= 0 || gain == 1) return r;
+        // the exposure part of the way back to the plain solve's (log): the sky-lit faces kept nearer its level, the sunlit ones brighter than the mean asks
+        double plain = Solve(texels, ground, objects, curve).Exposure;
+        return r with { Exposure = Math.Exp(Math.Log(r.Exposure) * (1 - keep) + Math.Log(plain) * keep) };
     }
+
+    /// <summary>
+    /// How much of the plain solve's exposure the sunlit look keeps (log, 0..1): 0 holds the ground's mean at the 1997 look's with the
+    /// stronger sun (the shade darker than the plain solve's), 1 keeps the plain exposure (the shade as the plain solve's, the sunlit
+    /// ground brighter: the mean over the 1997 look's).
+    /// </summary>
+    public const double SunlitKeep = 0;
 
     /// <summary>The sun's factor <see cref="SolveSunlit"/> takes (1 when the contrast cells have no spread of light).</summary>
     public static double SunGainFor(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card)
