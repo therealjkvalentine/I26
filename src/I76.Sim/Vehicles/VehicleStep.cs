@@ -2,6 +2,7 @@ using System.Numerics;
 using I76.Sim.Math;
 using I76.Sim.Rng;
 using I76.Sim.Terrain;
+using I76.Formats;
 
 namespace I76.Sim.Vehicles;
 
@@ -213,7 +214,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         {
             if (v.GroundHeight - v.Pos.Y > 35.0) { v.Flags = flags; dmg.FallKill(v); return; }
             Landings.Add(v);
-            dmg.Landing(v, -v.Vel, v.GroundNormal);
+            dmg.Landing(v, DetMath.Neg(v.Vel), v.GroundNormal);
             // a landing that kills the car ends the substep: no probe, attitude, skid marks or rough-terrain damage (and its
             // rand()); the car keeps its old flags with the kill bits, the substep's new ones are never written
             if (((uint)v.Flags & 0x8020) != 0) return;
@@ -517,7 +518,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         float cx = v.Rec.C.X, cz = v.Rec.C.Z;
         if (cx * cx < 1e-8f && cz * cz < 1e-8f) return;
         var cxz = new Vector3(cx, 0, cz);
-        float k = v.Speed <= 1e-4f ? 1f : 1f - 0.75f * MathF.Pow(Vector3.Dot(vel, n) * v.InvSpeed, 2);
+        float k = v.Speed <= 1e-4f ? 1f : 1f - 0.75f * DetMath.Pow(Vector3.Dot(vel, n) * v.InvSpeed, 2);
         k = System.Math.Clamp(k, 0.25f, 1f);
 
         Vector3 w;
@@ -740,7 +741,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
                 var (t, poly) = Collision.StaticWorld.RayMesh(polys, pw, pv, dtFrame, o.WalkRank);
                 if (poly is null || !Sooner(poly.Node, t)) continue;
                 first = t; firstRank = o.WalkRank(poly.Node);
-                mine = new Contact { Hit = true, Other = o, T = t, C = corner, RelVel = -pv, N = poly.N, Node = poly.Node };
+                mine = new Contact { Hit = true, Other = o, T = t, C = corner, RelVel = DetMath.Neg(pv), N = poly.N, Node = poly.Node };
             }
             if (!mine.Hit) continue;
             // drive-on: the contact is a ramp's or bridge's node (its own type 0xb-0xd) facing up; the
@@ -786,16 +787,16 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
             var rv = b.Rot.ToLocal(pv);
             if (SlabRay(lp, rv, b.Min, b.Max, dt) is not { } h || h.T >= best) continue;
             best = h.T;
-            rec = new Contact { Hit = true, T = h.T, C = pt, RelVel = -pv, N = b.Rot.ToWorld(h.N) };
+            rec = new Contact { Hit = true, T = h.T, C = pt, RelVel = DetMath.Neg(pv), N = b.Rot.ToWorld(h.N) };
         }
         if (rec is not null) return rec;
-        var rvc = v.Rot.ToLocal(-v.Vel);
+        var rvc = v.Rot.ToLocal(DetMath.Neg(v.Vel));
         foreach (var pt in Perimeter(b.Min, b.Max))
         {
             var lp = v.Rot.ToLocal(b.Origin + b.Rot.ToWorld(pt) - p0);
             if (SlabRay(lp, rvc, carMin, carMax, dt) is not { } h || h.T >= best) continue;
             best = h.T;
-            rec = new Contact { Hit = true, T = h.T, C = lp + rvc * h.T, RelVel = -v.Vel, N = -v.Rot.ToWorld(h.N) };
+            rec = new Contact { Hit = true, T = h.T, C = lp + rvc * h.T, RelVel = DetMath.Neg(v.Vel), N = DetMath.Neg(v.Rot.ToWorld(h.N)) };
         }
         return rec;
     }
@@ -858,7 +859,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         for (int k = 0; k <= 2; k++)
         {
             var local = v.Rot.ToLocal(centre - (p0 + v.Vel * (dt * k / 2f)));
-            var q = Vector3.Clamp(local, min, max);
+            var q = DetMath.Clamp(local, min, max);
             if ((q - local).LengthSquared() < radius * radius) return true;
         }
         return false;
@@ -877,12 +878,12 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         {
             float t = dt * k / 2f;
             var local = v.Rot.ToLocal(centre - (p0 + v.Vel * t));
-            var q = Vector3.Clamp(local, min, max);
+            var q = DetMath.Clamp(local, min, max);
             if ((q - local).LengthSquared() >= radius * radius) continue;
             var away = v.Rot.ToWorld(q - local);
             if (away.LengthSquared() < 1e-8f) away = p0 + v.Vel * t - centre;
             var n = away.LengthSquared() > 1e-8f ? Vector3.Normalize(away) : Vector3.UnitY;
-            return new Contact { Hit = true, T = t, C = q, RelVel = -(v.Vel + v.Rot.ToWorld(Vector3.Cross(q, v.AngVel))), N = n };
+            return new Contact { Hit = true, T = t, C = q, RelVel = DetMath.Neg((v.Vel + v.Rot.ToWorld(Vector3.Cross(q, v.AngVel)))), N = n };
         }
         return null;
     }
@@ -985,7 +986,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         if (_solidNow && FaceNormal(p.X, p.Z) is var fn && fn.Y < CliffCos) n = fn;
         v.Rec = new Contact
         {
-            Hit = true, Other = null, T = t, C = v.Corners[corner], RelVel = -pointVel, N = n,
+            Hit = true, Other = null, T = t, C = v.Corners[corner], RelVel = DetMath.Neg(pointVel), N = n,
         };
         return true;
     }
@@ -1012,10 +1013,10 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
     public float CliffAngle
     {
         get => _cliffDeg;
-        set { _cliffDeg = value; CliffCos = MathF.Cos(value * MathF.PI / 180); CliffTan = MathF.Tan(value * MathF.PI / 180); }
+        set { _cliffDeg = value; CliffCos = DetMath.Cos(value * MathF.PI / 180); CliffTan = DetMath.Tan(value * MathF.PI / 180); }
     }
     private float _cliffDeg = DefaultCliffAngle;
-    private float CliffCos = MathF.Cos(DefaultCliffAngle * MathF.PI / 180), CliffTan = MathF.Tan(DefaultCliffAngle * MathF.PI / 180);
+    private float CliffCos = DetMath.Cos(DefaultCliffAngle * MathF.PI / 180), CliffTan = DetMath.Tan(DefaultCliffAngle * MathF.PI / 180);
     public const float DefaultCliffAngle = 60;
 
     /// <summary>
@@ -1095,7 +1096,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         if (worst <= 0) return false;
         CliffBlocks++;
         if (!v.Rec.Hit && Vector3.Dot(v.Vel, n) < 0)
-            v.Rec = new Contact { Hit = true, Other = null, T = 0, C = c, RelVel = -v.Vel, N = n };
+            v.Rec = new Contact { Hit = true, Other = null, T = 0, C = c, RelVel = DetMath.Neg(v.Vel), N = n };
         return true;
     }
 
@@ -1159,7 +1160,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         v.Pos += dir * best;
         CliffBlocks++;
         if (!v.Rec.Hit && Vector3.Dot(v.Vel, bestN) < 0)
-            v.Rec = new Contact { Hit = true, Other = null, T = 0, C = bestC, RelVel = -v.Vel, N = bestN };
+            v.Rec = new Contact { Hit = true, Other = null, T = 0, C = bestC, RelVel = DetMath.Neg(v.Vel), N = bestN };
     }
 
     /// <summary>
@@ -1181,7 +1182,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
         {
             if ((v.Flags & VehicleFlags.LoadBasedCornering) != 0 && !NetSession)     // not in a network game
             {
-                v.Rot = new Rows(-v.Rot.Right, -v.Rot.Up, v.Rot.Forward);
+                v.Rot = new Rows(DetMath.Neg(v.Rot.Right), DetMath.Neg(v.Rot.Up), v.Rot.Forward);
                 Landings.Add(v);
                 goto Settled;
             }
@@ -1502,7 +1503,7 @@ public sealed class VehicleStep(IGround ground, CrtRand rand)
                 return;
             }
         }
-        else if (np.Y < 0) np = -np;
+        else if (np.Y < 0) np = DetMath.Neg(np);
         // Snap to the plane, heading kept
         var f = fwd;
         if (np.Y > 1e-4f) f.Y = -(np.Z * f.Z + np.X * f.X) / np.Y;

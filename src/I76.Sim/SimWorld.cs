@@ -3,6 +3,7 @@ using I76.Sim.Collision;
 using I76.Sim.Rng;
 using I76.Sim.Terrain;
 using I76.Sim.Vehicles;
+using I76.Formats;
 
 namespace I76.Sim;
 
@@ -251,11 +252,11 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
         }
         var n = car.Pos.ToVector3() - wreck.Pos.ToVector3();
         n.Y = 0;
-        n = n.LengthSquared() > 1e-6f ? Vector3.Normalize(n) : -car.Rot.Forward;
+        n = n.LengthSquared() > 1e-6f ? Vector3.Normalize(n) : DetMath.Neg(car.Rot.Forward);
         // already on its way out: the step's answer turns the velocity about the normal, which would send it back in
         if (Vector3.Dot(car.Vel, n) > 0.5f) return;
         if (at.X * at.X < 1e-4f && at.Z * at.Z < 1e-4f) at = new Vector3(0, at.Y, car.BoxZ[3]);
-        car.Rec = new Contact { Hit = true, Other = wreck, OtherMass = wreck.P.Mass, OtherVel = default, T = 0, C = at, RelVel = -car.Vel, N = n };
+        car.Rec = new Contact { Hit = true, Other = wreck, OtherMass = wreck.P.Mass, OtherVel = default, T = 0, C = at, RelVel = DetMath.Neg(car.Vel), N = n };
     }
 
     /// <summary>
@@ -344,7 +345,7 @@ public sealed partial class SimWorld(IGround ground, CrtRand rand)
             best = hit.T;
             var n = q.Rot.ToWorld(hit.N);
             o = (new Contact { Hit = true, Other = q, OtherMass = q.P.Mass, OtherVel = q.Vel, T = hit.T, C = lp, RelVel = q.Vel - pvw, N = n },
-                 new Contact { Hit = true, Other = p, OtherMass = p.P.Mass, OtherVel = p.Vel, T = hit.T, C = ql + rv * hit.T, RelVel = pvw - q.Vel, N = -n });
+                 new Contact { Hit = true, Other = p, OtherMass = p.P.Mass, OtherVel = p.Vel, T = hit.T, C = ql + rv * hit.T, RelVel = pvw - q.Vel, N = DetMath.Neg(n) });
         }
         return o;
     }

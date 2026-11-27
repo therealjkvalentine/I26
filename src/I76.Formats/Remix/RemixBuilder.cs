@@ -353,7 +353,7 @@ public static class RemixBuilder
     /// <summary>The teleport angle (degrees, as the script's teleport takes it) that faces from a to b.</summary>
     internal static int Heading(Vector3 a, Vector3 b)
     {
-        double deg = Math.Atan2(b.X - a.X, b.Z - a.Z) * 180 / Math.PI;
+        double deg = DetMath.Atan2((double)(b.X - a.X), (double)(b.Z - a.Z)) * 180 / Math.PI;
         return (int)Math.Round((deg + 360) % 360) % 360;
     }
 

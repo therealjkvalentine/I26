@@ -1,4 +1,5 @@
 using System.Numerics;
+using I76.Formats;
 
 namespace I76.Sim.Missions;
 
@@ -26,14 +27,14 @@ public sealed partial class Ptable
         }
         float ht = Hdg(t), a = ht + SlotAngles[index % SlotAngles.Length] * MathF.PI / 180f;
         var tp = t.Position;
-        var slot = tp + new Vector3(MathF.Sin(a), 0, MathF.Cos(a)) * SlotRange + tv.Vel;
+        var slot = tp + new Vector3(DetMath.Sin(a), 0, DetMath.Cos(a)) * SlotRange + tv.Vel;
         var P = Pos(e);
         float off = Delta(ht, Brg(t, e));
         var aim = slot;
         if (MathF.Abs(off) < MathF.PI / 4 && Dist(e, t) < 150f)
         {
             float side = ht + (off >= 0 ? 1.75f : -1.75f);
-            aim = tp + new Vector3(MathF.Sin(side), 0, MathF.Cos(side)) * 90f;
+            aim = tp + new Vector3(DetMath.Sin(side), 0, DetMath.Cos(side)) * 90f;
         }
         var to = aim - P;
         float ds = new Vector2(slot.X - P.X, slot.Z - P.Z).Length(), tSpd = tv.Speed;

@@ -1,4 +1,5 @@
 using System.Globalization;
+using I76.Formats;
 
 namespace I76.Sim.Sound;
 
@@ -46,14 +47,14 @@ public sealed record HeliHearing(
         if (!(d < RangeMetres)) return float.NegativeInfinity;
         float near = System.Math.Max(NearMetres, 1f);
         float db = NearDb;
-        if (d > near) db -= 20f * Rolloff * MathF.Log10(d / near) + ExcessDbPerKm * (d - near) / 1000f;
+        if (d > near) db -= 20f * Rolloff * DetMath.Log10(d / near) + ExcessDbPerKm * (d - near) / 1000f;
         // the last stretch fades the amplitude out straight to nothing at the range
-        if (d > FadeMetres && RangeMetres > FadeMetres) db += 20f * MathF.Log10(System.Math.Max((RangeMetres - d) / (RangeMetres - FadeMetres), 1e-6f));
+        if (d > FadeMetres && RangeMetres > FadeMetres) db += 20f * DetMath.Log10(System.Math.Max((RangeMetres - d) / (RangeMetres - FadeMetres), 1e-6f));
         return db;
     }
 
     /// <summary>The voice's gain at <paramref name="distance"/> (1 at the original's near level).</summary>
-    public float Gain(float distance) => float.IsNegativeInfinity(Db(distance)) ? 0f : MathF.Pow(10f, Db(distance) / 20f);
+    public float Gain(float distance) => float.IsNegativeInfinity(Db(distance)) ? 0f : DetMath.Pow(10f, Db(distance) / 20f);
 
     /// <summary>
     /// The high shelf's cut over <see cref="ShelfHz"/> at <paramref name="distance"/>, in dB (0 or less): none inside
@@ -62,7 +63,7 @@ public sealed record HeliHearing(
     public float ShelfDb(float distance)
     {
         if (!(distance > ShelfStartMetres) || FadeMetres <= ShelfStartMetres) return 0f;
-        float u = System.Math.Clamp(MathF.Log(distance / ShelfStartMetres) / MathF.Log(FadeMetres / ShelfStartMetres), 0f, 1f);
+        float u = System.Math.Clamp(DetMath.Log(distance / ShelfStartMetres) / DetMath.Log(FadeMetres / ShelfStartMetres), 0f, 1f);
         return ShelfFarDb * u;
     }
 
@@ -97,7 +98,7 @@ public sealed record HeliHearing(
     public static float GodotFilterDb(float shelfDb, float volumeDb)
     {
         if (shelfDb >= 0) return 0f;
-        float lin = MathF.Pow(10f, System.Math.Min(volumeDb, 0f) / 20f);
+        float lin = DetMath.Pow(10f, System.Math.Min(volumeDb, 0f) / 20f);
         float k = 1f - System.Math.Min(1f, lin);
         return k < 0.01f ? 0f : System.Math.Max(shelfDb / 2f / k, -80f);
     }

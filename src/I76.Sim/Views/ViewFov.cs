@@ -1,3 +1,5 @@
+using I76.Formats;
+
 namespace I76.Sim.Views;
 
 /// <summary>
@@ -61,11 +63,11 @@ public static class ViewFov
 
     /// <summary>The vertical field of view (degrees) that puts <paramref name="across"/> degrees across a window of that shape.</summary>
     public static float Vertical(int across, float aspect) =>
-        (float)(System.Math.Atan(System.Math.Tan(across * System.Math.PI / 360) / aspect) * 360 / System.Math.PI);
+        (float)(DetMath.Atan(DetMath.Tan(across * System.Math.PI / 360) / aspect) * 360 / System.Math.PI);
 
     /// <summary>The degrees across a window of that shape that the original's height gives (Monitor): 90 at 4:3.</summary>
     public static float MonitorAcross(float aspect) =>
-        (float)(System.Math.Atan(System.Math.Tan(OriginalVertical * System.Math.PI / 360) * aspect) * 360 / System.Math.PI);
+        (float)(DetMath.Atan(DetMath.Tan(OriginalVertical * System.Math.PI / 360) * aspect) * 360 / System.Math.PI);
 
     /// <summary>The vertical field of view of a choice in a window of that shape.</summary>
     public static float VerticalOf(int choice, float aspect) =>
@@ -81,7 +83,7 @@ public static class ViewFov
     /// </summary>
     public static (float X, float Y) ScreenPoint(float x, float y, float vertical)
     {
-        double r = System.Math.Tan(OriginalVertical * System.Math.PI / 360) / System.Math.Tan(vertical * System.Math.PI / 360);
+        double r = DetMath.Tan(OriginalVertical * System.Math.PI / 360) / DetMath.Tan(vertical * System.Math.PI / 360);
         return ((float)(320 + (x - 320) * r), (float)(240 + (y - 240) * r));
     }
 }

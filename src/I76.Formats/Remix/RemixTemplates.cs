@@ -205,7 +205,7 @@ public static class RemixTemplates
     private static (int X, int Z) Off(int i, int n, double heading)
     {
         double back = 1200 * (n > 1 ? i / 2 : i), side = n > 1 ? (i % 2 == 0 ? -350 : 350) : 0;
-        double fx = Math.Sin(heading), fz = Math.Cos(heading);   // ahead; right is (fz, -fx)
+        double fx = DetMath.Sin(heading), fz = DetMath.Cos(heading);   // ahead; right is (fz, -fx)
         return ((int)Math.Round(-fx * back + fz * side), (int)Math.Round(-fz * back - fx * side));
     }
 

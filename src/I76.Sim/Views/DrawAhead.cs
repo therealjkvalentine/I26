@@ -1,5 +1,6 @@
 using System.Numerics;
 using I76.Sim.Math;
+using I76.Formats;
 
 namespace I76.Sim.Views;
 
@@ -30,11 +31,11 @@ public static class DrawAhead
         // the turn of the last tick, dq = q · q0⁻¹ (q0 then dq gives q), as an angle about an axis, scaled
         Quaternion q0 = Of(prevRot), q = Of(rot);
         var dq = Quaternion.Normalize(q * Quaternion.Inverse(q0));
-        if (dq.W < 0) dq = -dq;   // the short way round
+        if (dq.W < 0) dq = DetMath.Neg(dq);   // the short way round
         float sinHalf = new Vector3(dq.X, dq.Y, dq.Z).Length();
         if (sinHalf < 1e-7f) return (rot, p);
-        float angle = 2 * MathF.Atan2(sinHalf, dq.W);
-        var turn = Quaternion.CreateFromAxisAngle(new Vector3(dq.X, dq.Y, dq.Z) / sinHalf, angle * (float)s);
+        float angle = 2 * DetMath.Atan2(sinHalf, dq.W);
+        var turn = DetMath.FromAxisAngle(new Vector3(dq.X, dq.Y, dq.Z) / sinHalf, angle * (float)s);
         var r = Quaternion.Normalize(turn * q);
         return (ToRows(r), p);
     }
