@@ -36,6 +36,7 @@ namespace I76.Game.Boot;
 public partial class Main
 {
     private static readonly string MoodBase = System.Environment.GetEnvironmentVariable("I76_MOOD") ?? "";
+    private static readonly string? PaletteGradeEnv0 = System.Environment.GetEnvironmentVariable("I76_PALETTE_GRADE");
     private Dictionary<string, string> _mood = ParseMood(MoodBase);
     private bool _moodSaved;
     private Color _moodSun0;
@@ -263,6 +264,8 @@ public partial class Main
             string mk = _mood.TryGetValue("mask", out var mv) ? mv : "";
             if (_modernEnv is not null) { _modernEnv.BackgroundMode = mk is "1" or "2" ? Godot.Environment.BGMode.Color : Godot.Environment.BGMode.Sky; _modernEnv.BackgroundColor = new Color(1, 0, 1); }
             if (_car is not null) _car.Visible = mk != "2";
+            // (and the palette grade off for it, which would move the magenta toward the palette)
+            System.Environment.SetEnvironmentVariable("I76_PALETTE_GRADE", mk is "1" or "2" ? "0" : PaletteGradeEnv0);
             MoodLightingChoice();
             ApplyLightingCalibration();
             GD.Print($"shot seq: step {k} {name} cam {cam}");
