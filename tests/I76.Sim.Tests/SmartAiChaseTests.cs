@@ -19,7 +19,11 @@ namespace I76.Sim.Tests;
 /// </summary>
 public class SmartAiChaseTests(ITestOutputHelper output)
 {
-    private const int Seeds = 8;
+    /// <summary>
+    /// Seeds 1 to 32. Eight were too few: the per-seed mean gap spreads about 60 m, and on the stock install seeds 1 to 8 put the scoped
+    /// rule (On) at 384.5 m against Off's 359.8 while seeds 1 to 32 put it at 347.6 against 373.4.
+    /// </summary>
+    private const int Seeds = 32;
 
     private sealed record Chase(double Gap, double Close, double Trapped, ulong Hash);
 
@@ -77,11 +81,14 @@ public class SmartAiChaseTests(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// With the rule on (every behaviour, the Play Options row's On) the chasers keep up at least as well as the original's: no farther
-    /// on the mean, no less often within 60 m, no longer trapped. Ledge caution alone stays within 10 % of the original's mean gap and
-    /// 2 points of its time within 60 m: its first rule (a 2.5 m rim, a metre's crest) was 362 m against 333 and 12.0 % against 15.5 on
-    /// these seeds with one install, this one 340 m and 15.8 %; another install of the same I76.ZFS reads 386 m against 360 and 13.3 %
-    /// against 14.0, so the bound is loose and the rim itself is held by LedgeCautionLetsABankBe.
+    /// With the rule on (every behaviour, the Play Options row's On: the fighting ones only against the player's car, so the cars after
+    /// the van fight as the original's and only the terrain group drives them differently) the chasers keep up at least as well as the
+    /// original's: no farther on the mean, no less often within 60 m, no longer trapped. Stock install, 32 seeds: Off 373.4 m, 13.1 %,
+    /// 67.9 s trapped; On 347.6 m, 16.7 %, 49.5 s; ledge caution alone 378.8 m, 12.9 %; the rule's first form (everything) 280.7 m.
+    /// Ledge caution alone stays within 10 % of the original's mean gap and 2 points of its time within 60 m: its first rule (a 2.5 m
+    /// rim, a metre's crest) was 362 m against 333 and 12.0 % against 15.5 on seeds 1 to 8 with one install, this one 340 m and 15.8 %;
+    /// another install of the same I76.ZFS read 386 m against 360 and 13.3 % against 14.0, so the bound is loose and the rim
+    /// itself is held by LedgeCautionLetsABankBe.
     /// </summary>
     [Fact]
     public void TheChasersKeepUpWithTheVanAsWellAsTheOriginals()
