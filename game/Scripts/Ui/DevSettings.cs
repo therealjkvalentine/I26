@@ -57,6 +57,14 @@ public static class DevSettings
     /// <summary>The muzzle light's reaches offered (I76.Game.Sim.MuzzleReach): 0 the light before the key, on the firing car alone.</summary>
     public static readonly int[] MuzzleReachSteps = [0, 25, 50, 75, 100, 125, 150, 200];
     private static readonly string[] MuzzleReachNames = [.. MuzzleReachSteps.Select(p => p == I76.Game.Sim.MuzzleReach.Default ? $"{p}" : $"{p}{M}")];
+    /// <summary>SmokeStart's steps on the panel's sliders (each includes its default and the value before the keys; a value set by hand shows as the nearest).</summary>
+    public static readonly int[] SmokeStartDarkSteps = [0, 10, 20, 30, 40, 50, 60, 70, 80, 85, 90];
+    public static readonly int[] SmokeStartDensitySteps = [100, 120, 135, 150, 165, 180, 200, 225, 250];
+    public static readonly int[] SmokeStartWidthSteps = [30, 40, 50, 55, 60, 70, 80, 90, 100];
+    public static readonly int[] SmokeFadeSteps = [60, 90, 120, 150, 180, 240, 300, 450, 600];
+    private static DevSetting StartStep(string key, int[] steps, int before, Func<ShellSettings, int> get, Action<ShellSettings, int> set) =>
+        new(key, [.. steps.Select(p => p == before ? $"{p}" : $"{p}{M}")], s => Nearest(steps, get(s)), (s, v) => set(s, steps[v]), DevWhen.Live,
+            s => s.ApplySmokeStart(), Slider: true);
     /// <summary>The smoke's lingers offered (I76.Game.Sim.SmokeLinger.Steps): 100 the lives as they were, the one unmarked.</summary>
     private static readonly string[] SmokeLingerNames = [.. I76.Game.Sim.SmokeLinger.Steps.Select(p => p == 100 ? $"{p}" : $"{p}{M}")];
 
@@ -196,6 +204,11 @@ public static class DevSettings
             s => I76.Game.Sim.MuzzleReach.Percent = s.MuzzleReach),
         new("smoke_linger", SmokeLingerNames, s => Nearest(I76.Game.Sim.SmokeLinger.Steps, s.SmokeLinger), (s, v) => s.SmokeLinger = I76.Game.Sim.SmokeLinger.Steps[v], DevWhen.Live,
             s => I76.Game.Sim.SmokeLinger.Percent = s.SmokeLinger),
+        // Smoke Linger Long's fresh smoke (SmokeStart): live, so the start can be tuned while a wreck burns; the unmarked value is the one before the keys
+        StartStep("smoke_start_dark", SmokeStartDarkSteps, SmokeStart.BeforeDark, s => s.SmokeStartDark, (s, v) => s.SmokeStartDark = v),
+        StartStep("smoke_start_density", SmokeStartDensitySteps, SmokeStart.BeforeDensity, s => s.SmokeStartDensity, (s, v) => s.SmokeStartDensity = v),
+        StartStep("smoke_start_width", SmokeStartWidthSteps, SmokeStart.BeforeWidth, s => s.SmokeStartWidth, (s, v) => s.SmokeStartWidth = v),
+        StartStep("smoke_fade", SmokeFadeSteps, SmokeStart.BeforeFade, s => s.SmokeFade, (s, v) => s.SmokeFade = v),
         new("rumble", ["original", "enhanced" + M], s => s.RumbleMode == I76.Formats.Input.RumbleMode.Enhanced ? 1 : 0,
             (s, v) => s.RumbleMode = v != 0 ? I76.Formats.Input.RumbleMode.Enhanced : I76.Formats.Input.RumbleMode.Original, DevWhen.Live,
             s => ForceFeedback.Mode = s.RumbleMode),

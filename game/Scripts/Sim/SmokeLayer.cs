@@ -64,6 +64,12 @@ public partial class SmokeLayer : Node3D
         return true;
     }
 
+    /// <summary>
+    /// The global i76_smoke_cap for a frame: 0 while no view has smoke to composite, else <paramref name="cap"/>. Every composite (the
+    /// main view's and each mirror's) reads the one global, so it must be set while the mirrors alone have puffs (<paramref name="mirrors"/>).
+    /// </summary>
+    public static float CapFor(bool main, bool mirrors, float cap) => main || mirrors ? cap : 0f;
+
     /// <summary>The cap on a column's opacity now (the layer's, Smoke Linger Long's higher), for the mirrors' puffs to match.</summary>
     public static float CapNow => SmokeHaze.LayerCap(Cap, CapHooked);
 
@@ -284,10 +290,12 @@ public partial class SmokeLayer : Node3D
             _ready = true;
             GD.Print($"smoke layer: on, {Views[0].Size.X}x{Views[0].Size.Y}, cap {Cap}");
         }
-        int total;
-        lock (Lock) { total = 0; foreach (var s in Slots.Values) total += s.Count; }
+        int total, mirrorTotal;
+        lock (Lock) { total = 0; mirrorTotal = 0; foreach (var s in Slots.Values) total += s.Count; foreach (var s in MirrorSlots.Values) mirrorTotal += s.Count; }
         _hasPuffs = total > 0;
-        RenderingServer.GlobalShaderParameterSet(SmokeCapName, _ready && total > 0 ? SmokeHaze.LayerCap(Cap, CapHooked) : 0f);   // Smoke Linger Long's columns may be denser
+        // the cap is the mirrors' composite's too: with smoke behind the car and none ahead (the cockpit looking forward) the main view has
+        // no puffs, and a cap of 0 there left every mirror's smoke at nothing (CapFor)
+        RenderingServer.GlobalShaderParameterSet(SmokeCapName, CapFor(_ready && total > 0, mirrorTotal > 0, SmokeHaze.LayerCap(Cap, CapHooked)));
         _quad.Visible = _ready && total > 0;
         MirrorViews();
         _sun ??= SceneSun.Of(this);
@@ -458,6 +466,8 @@ public partial class SmokeLayer : Node3D
             }
             // lit by the lamps: soot scatters little, steam and ash more
             col += mix(vec3(0.7), vec3(0.14), pow(v_c.z, 0.7)) * v_t.rgb * v_lit * (0.8 + 0.4 * n);
+            // Smoke Linger Long's fresh soot (SmokeStart.Shade): a dark puff blacker at its birth, its own colour again by the end of its life
+            col *= 1.0 - u.lcount.z * v_c.z * v_c.z * clamp(1.0 - life, 0.0, 1.0);
             float dist = -v_vpos.z;
             a *= clamp(((u.lcount.y > 0.0 ? texelFetch(dist_tex, ivec2(gl_FragCoord.xy), 0).r : scene_dist()) - dist) / v_t.w, 0.0, 1.0);   // lcount.y: the depth pass ran
             if (u.cab_half.x > 0.0) a *= smoothstep(1.5, 5.0, dist);   // as damage_smoke_modern: puffs by the cockpit camera thin out
@@ -643,6 +653,7 @@ public partial class SmokeLayer : Node3D
         }
         Ubo[83] = DepthView ? 1f : 0f;
         Ubo[93] = DepthPass ? 1f : 0f;
+        Ubo[94] = SmokeHaze.FreshDark;   // lcount.z: a fresh dark puff blacker at its birth ([port] smoke_start_dark, SmokeStart.Shade)
         bool reversed = SmokeDepth.NearerIsLarger(proj);
         if (v.Index == 0 && reversed != _reversed) { _reversed = reversed; GD.Print($"smoke layer: scene depth {(reversed ? "reversed" : "forward")}, {buffers.GetMsaa3D()}, {full.X}x{full.Y}"); }
         Ubo[88] = 1f / size.X; Ubo[89] = 1f / size.Y; Ubo[90] = samples; Ubo[91] = reversed ? 1f : -1f;

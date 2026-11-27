@@ -32,7 +32,7 @@ public partial class ChemClouds : Node3D
     private int _lastTick = SimClock.Now;
     private readonly Dictionary<Round, double> _carry = [];
     private readonly List<(float Depth, int I)> _order = [];
-    private readonly float[] _buf = new float[CapModern * 16];
+    private readonly float[] _buf = new float[CapModern * 16], _mirrorBuf = new float[CapModern * 16];
 
     public override void _Ready()
     {
@@ -217,9 +217,10 @@ public partial class ChemClouds : Node3D
             // the smoke layer draws them, capped (SmokeLayer.cs)
             SmokeLayer.SceneLight = SceneLight;
             SmokeLayer.Submit(this, _buf, _order.Count, new System.Numerics.Vector3(Tint.X, Tint.Y, Tint.Z));
-            // the mirrors: the main view's cloud (it lies about where the round landed, in front or behind) through their own layers
-            if (SmokeLayer.MirrorsDrawLayer) { SmokeLayer.SubmitMirror(this, _buf, _order.Count, new System.Numerics.Vector3(Tint.X, Tint.Y, Tint.Z)); _mirror?.Update(_buf, 0, SceneLight); }
-            else { _mirror ??= new MirrorDraw(this, CapModern, Tint); _mirror.Update(_buf, _order.Count, SceneLight); }
+            // the mirrors: every puff in their reach (the main view's list leaves out a cloud behind the car, which is what they show)
+            int mn = MirrorPuffs(toGodot);
+            if (SmokeLayer.MirrorsDrawLayer) { SmokeLayer.SubmitMirror(this, _mirrorBuf, mn, new System.Numerics.Vector3(Tint.X, Tint.Y, Tint.Z)); _mirror?.Update(_mirrorBuf, 0, SceneLight); }
+            else { _mirror ??= new MirrorDraw(this, CapModern, Tint); _mirror.Update(_mirrorBuf, mn, SceneLight); }
             _mmNew.VisibleInstanceCount = 0;
             return;
         }
@@ -227,6 +228,22 @@ public partial class ChemClouds : Node3D
         SmokeLayer.Lights(_matNew);
         if (_order.Count > 0) _mmNew.Buffer = _buf;
         _mmNew.VisibleInstanceCount = _order.Count;
+    }
+
+    /// <summary>The mirrors' puffs: every live puff within their reach, drawn as the main view draws it (SmokeLayer.MirrorPuff).</summary>
+    private int MirrorPuffs(Func<System.Numerics.Vector3, Vector3> toGodot)
+    {
+        if (SmokeLayer.MirrorEye() is not { } eye) return 0;
+        int n = 0;
+        for (int i = 0; i < CapModern; i++)
+        {
+            ref var p = ref _new[i];
+            if (!p.Live) continue;
+            var gp = toGodot(new System.Numerics.Vector3((float)p.X, (float)p.Y, (float)p.Z));
+            float lf = p.Age / p.Life, e = 1f - (1f - lf) * (1f - lf);
+            if (SmokeLayer.MirrorPuff(_mirrorBuf, n * 16, gp, Mathf.Lerp(1.2f, p.End, e), lf, 0.6f, 0.25f, p.Seed, false, 250f, eye)) n++;
+        }
+        return n;
     }
 
     public override void _ExitTree() => SmokeLayer.Release(this);

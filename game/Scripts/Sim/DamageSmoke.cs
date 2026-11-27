@@ -91,7 +91,7 @@ public partial class DamageSmoke : Node3D
             var at = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
             float lf, size, dens;
             if (p.Haze) { lf = SmokeHaze.ShaderAge(p.Age - p.Life, p.Life); size = p.S; dens = SmokeHaze.Visible(p.Dens, threshold) * SmokeHaze.In(p.Age - p.Life - p.Wait, p.FadeIn); }
-            else { lf = p.Age / p.Life; float e = 1f - (1f - lf) * (1f - lf); size = Mathf.Lerp(0.8f, p.End, e); dens = p.Dens; }
+            else { lf = p.Age / p.Life; size = SmokeHaze.PuffSize(0.8f, p.End, lf); dens = p.Dens; }
             if (SmokeLayer.MirrorPuff(_mirrorBuf, n * 16, at, size, lf, dens, p.Dark, p.Seed, p.Haze, p.Far ? SmokeWindow.WreckFar : SmokeWindow.ModernTrailFar, eye)) n++;
         }
         return n;
@@ -505,7 +505,7 @@ public partial class DamageSmoke : Node3D
     {
         float r1 = (float)_rng.NextDouble(), r2 = (float)_rng.NextDouble(), r3 = (float)_rng.NextDouble();
         var eng = EnginePoint(car);   // modern look: from the car's engine bay, just above the hood (the 1997 look keeps the original's rear emitter)
-        float ox = eng.X + (r1 - 0.5f) * 0.6f, oz = eng.Z + (r2 - 0.5f) * 0.5f, oy = eng.Y + 0.1f + 0.3f * r3;
+        float ox = eng.X + (r1 - 0.5f) * 0.6f * SmokeHaze.Scatter, oz = eng.Z + (r2 - 0.5f) * 0.5f * SmokeHaze.Scatter, oy = eng.Y + 0.1f + 0.3f * r3;
         EmitModern(Coords.ToGame(car.GlobalTransform * new Vector3(ox, oy, -oz)) + Origin() + shift, v.Vel, level, back, 1f);
     }
 
@@ -527,6 +527,7 @@ public partial class DamageSmoke : Node3D
         double c = _burnCarry.GetValueOrDefault(key) + dt * 70f * RateMul * 2.5 * amount;
         int n = (int)c; _burnCarry[key] = c - n;
         var g = Coords.ToGame(at) + Origin();
+        spread *= SmokeHaze.Scatter;   // Smoke Linger Long: a narrower column at the fire ([port] smoke_start_width)
         for (int k = 0; k < n; k++) SpawnModern(g + new System.Numerics.Vector3((float)(_rng.NextDouble() - 0.5) * spread, 0, (float)(_rng.NextDouble() - 0.5) * spread), System.Numerics.Vector3.Zero, 2f, 0f, 1.3f);
         return true;
     }
@@ -570,7 +571,8 @@ public partial class DamageSmoke : Node3D
     /// <summary>A burning wreck's puff (a scenery wreck's, a dead car's): drawn as far as the wreck's own fire, not the cars' trails' 150 m.</summary>
     private void SpawnModern(System.Numerics.Vector3 at, System.Numerics.Vector3 vel, float level, float back, float lift)
     {
-        var j = new System.Numerics.Vector3((float)_rng.NextDouble() - 0.5f, 0.3f * (float)_rng.NextDouble(), (float)_rng.NextDouble() - 0.5f);
+        float w = SmokeHaze.Scatter;
+        var j = new System.Numerics.Vector3(((float)_rng.NextDouble() - 0.5f) * w, 0.3f * (float)_rng.NextDouble(), ((float)_rng.NextDouble() - 0.5f) * w);
         EmitModern(at + j, vel, level, back, lift, far: true);
     }
 
@@ -590,7 +592,7 @@ public partial class DamageSmoke : Node3D
         p = new MPuff
         {
             Live = true, Far = far, X = g.X - vel.X * back, Y = g.Y, Z = g.Z - vel.Z * back,
-            Vx = vel.X * 0.15f + (r4 - 0.5f) * 0.8f, Vy = (1.2f + r5) * lift, Vz = vel.Z * 0.15f + (r5 - 0.5f) * 0.8f,
+            Vx = vel.X * 0.15f + (r4 - 0.5f) * 0.8f * SmokeHaze.Scatter, Vy = (1.2f + r5) * lift, Vz = vel.Z * 0.15f + (r5 - 0.5f) * 0.8f * SmokeHaze.Scatter,
             Life = 2f + 2f * r1 * r4 + 1.2f * r2 * (level / 2f), End = (1.6f + 2.6f * r2 * r2 + 0.6f * r4) * sizeMul, Dens = dens, Lift = lift,
             Dark = level < 1 ? level * 0.4f : Mathf.Lerp(0.4f, 1f, Mathf.Clamp((level - 1f), 0f, 1f)), Seed = r3,
         };
@@ -649,7 +651,7 @@ public partial class DamageSmoke : Node3D
             ref var p = ref _mp[_idxM[j]];
             float lf, size, dens;
             if (p.Haze) { lf = SmokeHaze.ShaderAge(p.Age - p.Life, p.Life); size = p.S; dens = _shown[_idxM[j]]; }
-            else { lf = p.Age / p.Life; float e = 1f - (1f - lf) * (1f - lf); size = Mathf.Lerp(0.8f, p.End, e); dens = p.Dens; }
+            else { lf = p.Age / p.Life; size = SmokeHaze.PuffSize(0.8f, p.End, lf); dens = p.Dens; }
             int o = j * 16;
             _layerBuf[o] = size; _layerBuf[o + 3] = (float)(p.X - org.X);
             _layerBuf[o + 7] = (float)(p.Y - org.Y); _layerBuf[o + 11] = -(float)(p.Z - org.Z);
