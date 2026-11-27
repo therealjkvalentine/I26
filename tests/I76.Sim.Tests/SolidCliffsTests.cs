@@ -137,8 +137,10 @@ public class SolidCliffsTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A 40 degree slope 6 m high across the grid (rising toward 315 and 45 degrees), met at 45 degrees at 40 mph, at 20, 24 and 60 Hz:
-    /// the car reaches the top with the rule as without it, tick for tick (the rule never acts on it).
+    /// A 35 degree slope 6 m high across the grid (rising toward 315 and 45 degrees), met at 45 degrees at 40 mph, at 20, 24 and 60 Hz:
+    /// the car reaches the top with the rule as without it, tick for tick (the rule never acts on it). The stock Piranha climbs every
+    /// slope of 25 to 35 degrees so at every rate; a 40 degree one (the first form, measured with a garage-saved Piranha in an install's
+    /// addon\) it does not climb rising toward 45 degrees at 24 or 60 Hz, with the rule or without it (0.43 and 0.94 m up).
     /// </summary>
     [Theory]
     [InlineData(20)]
@@ -149,8 +151,8 @@ public class SolidCliffsTests(Xunit.Abstractions.ITestOutputHelper output)
         if (InstallDir is null) return;
         foreach (float orient in new[] { 315f, 45f })
         {
-            var on = Drive(40, 6, orient, 45, 40, hz, solid: true);
-            var off = Drive(40, 6, orient, 45, 40, hz, solid: false);
+            var on = Drive(35, 6, orient, 45, 40, hz, solid: true);
+            var off = Drive(35, 6, orient, 45, 40, hz, solid: false);
             Assert.True(on.EndRise > 4.8f, $"face {orient} deg, {hz} Hz: the car ended {on.EndRise:0.0} m up a 6 m slope");
             Assert.Equal(0, on.Blocks);
             Assert.Equal(off.Track, on.Track);
