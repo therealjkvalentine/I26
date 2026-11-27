@@ -2846,17 +2846,18 @@ public partial class Cockpit : Node
         int share = GlassRound.Share(GlassRoundHook, _glassRoundSetting);
         float grow = GlassRound.Out(RimOutHook, Math.Max(_rimOutSetting, GlassRound.RoundedRimOut)).Widths * MirrorRim.OuterShare;
         // screen heights from the eye, looking ahead and looking at the glass: a pinhole camera's row (rise over run along its axis)
-        Func<Vector2, float> Height(Vector3 fwd)
+        Func<Vector2, Vector2> View(Vector3 fwd)
         {
             var f = fwd.Normalized();
             if ((mid - near).Dot(f) < 0) f = -f;   // the car's forward as the eye faces it (the glass ahead of the eye)
             var camUp = (back.Basis * Vector3.Up - f * (back.Basis * Vector3.Up).Dot(f)).Normalized();
-            return q => { var w = plane.O + plane.A * q.X + plane.B * q.Y - near; return w.Dot(camUp) / MathF.Max(w.Dot(f), 1e-4f); };
+            var camRight = f.Cross(camUp);
+            return q => { var w = plane.O + plane.A * q.X + plane.B * q.Y - near; float z = MathF.Max(w.Dot(f), 1e-4f); return new Vector2(w.Dot(camRight) / z, w.Dot(camUp) / z); };
         }
-        var heights = new List<Func<Vector2, float>> { Height(back.Basis * Vector3.Forward), Height(mid - near) };
-        var fit = DoorFace.FitTurned(hull, cover, art, paint, up, share, grow, PointMargin, MirrorRim.RingWidth(grow), TurnedTuck, heights);
+        var views = new List<Func<Vector2, Vector2>> { View(back.Basis * Vector3.Forward), View(mid - near) };
+        var fit = DoorFace.FitTurned(hull, cover, art, paint, up, share, grow, PointMargin, MirrorRim.RingWidth(grow), TurnedTuck, views);
         if (TiltLog)
-            GD.Print($"mirror-fit: {(left ? "L" : "R")} ring {fit.Top:+0.0000;-0.0000} above the end's top, {fit.Bottom:+0.0000;-0.0000} below its bottom (glass heights); scaled {fit.Scale:0.000}, widened {fit.Wide:0.000}, moved {fit.Shift.X:+0.0000;-0.0000} across and {fit.Shift.Y:+0.0000;-0.0000} up; worst left {fit.Left:+0.0000;-0.0000}");
+            GD.Print($"mirror-fit: {(left ? "L" : "R")} ring {fit.Top:+0.0000;-0.0000} above the housing's top, {fit.Bottom:+0.0000;-0.0000} below its bottom (glass heights); scaled {fit.Scale:0.000}, widened {fit.Wide:0.000}, moved {fit.Shift.X:+0.0000;-0.0000} across and {fit.Shift.Y:+0.0000;-0.0000} up; worst left {fit.Left:+0.0000;-0.0000}");
         return (fit.Hull, fit.Cover);
     }
 

@@ -241,9 +241,9 @@ public static class DoorFace
     /// The turned glass (side_mirror_face=turned) fitted within the art-placed housing's end as the eye sees it: its glass outline
     /// (<paramref name="hull"/>) and the outline its ring covers (<paramref name="cover"/>), picture units on the glass's plane, scaled
     /// about the cover's middle, widened across by up to 16 % where its height cannot grow, and moved (its rounded shape, ring and turn kept) so that the ring's top stands no higher than the
-    /// housing's highest point near it and its bottom no lower than its lowest (<paramref name="housing"/>: the head's and its painted
-    /// glass's points; those under the ring as placed, or within <paramref name="tuck"/> past it, are the end's, so the arm and the body
-    /// further off do not count), while every corner of the end's painted glass it covered (<paramref name="corners"/>) stays under it, so no
+    /// housing's top as the eye sees it across the ring's width and its bottom no lower than its bottom (<paramref name="housing"/>: the head's
+    /// and its painted glass's points, in each of <paramref name="views"/>, screen positions from the eye; the arm off to the side does not
+    /// count), while every corner of the end's painted glass it covered (<paramref name="corners"/>) stays under it, so no
     /// dark wedge of the end shows past it; the top and bottom come first (a rounded ring cannot cover a sharp highest corner without
     /// standing above it, so a hair of that corner may show). The least of the shortfalls is sought (a grid of scales and shifts, then finer); of
     /// the fits within a hair of the best, the largest and the least moved. Scale 1 and no shift where the ring already fits.
@@ -252,24 +252,31 @@ public static class DoorFace
     /// </summary>
     public static (List<Vector2> Hull, List<Vector2> Cover, float Scale, float Wide, Vector2 Shift, float Top, float Bottom, float Left) FitTurned(
         IReadOnlyList<Vector2> hull, IReadOnlyList<Vector2> cover, IReadOnlyList<Vector2> housing, IReadOnlyList<Vector2> corners, Vector2 up,
-        int share, float over, float margin, float ringW, float tuck, IReadOnlyList<Func<Vector2, float>>? heights = null)
+        int share, float over, float margin, float ringW, float tuck, IReadOnlyList<Func<Vector2, Vector2>>? views = null)
     {
         List<Vector2> h0 = [.. hull], c0 = [.. cover];
         if (housing.Count == 0 || c0.Count < 3 || up.LengthSquared() < 1e-12f) return (h0, c0, 1f, 1f, Vector2.Zero, 0f, 0f, 0f);
         up = up.Normalized();
         var side = new Vector2(up.Y, -up.X);
-        var u = up;
-        // how high a point stands on screen, for each view the glass is judged from (the eye's: picture units are not screen rows, a
-        // foreshortened glass's highest point on its plane need not be its highest on screen); without them, along up on the plane
-        var hs = heights is { Count: > 0 } ? heights : [q => q.Dot(u)];
+        var u = up; var sd = side;
+        // where a point stands on screen (across, up), for each view the glass is judged from (the eye's: picture units are not screen
+        // rows, a foreshortened glass's highest point on its plane need not be its highest on screen); without them, the plane's own axes
+        var vs = views is { Count: > 0 } ? views : [q => new Vector2(q.Dot(sd), q.Dot(u))];
+        var hs = vs.Select(v => (Func<Vector2, float>)(q => v(q).Y)).ToList();
         var first = TurnedRing(h0, c0, up, share, over, margin, ringW);
         bool Near((float Lo, float Hi, List<Vector2> Core, float Reach) r, Vector2 q) => GlassRound.Distance(r.Core, q) - r.Reach < tuck;
-        var end = housing.Where(q => Near(first, q)).ToList();
-        if (end.Count == 0) return (h0, c0, 1f, 1f, Vector2.Zero, 0f, 0f, 0f);
-        var top = hs.Select(f => end.Max(f)).ToArray();
-        var bottom = hs.Select(f => end.Min(f)).ToArray();
+        // the housing's top and bottom as the eye sees them across the ring's own width (the body beside the glass counts, the arm off to the side does not)
+        var edge0 = GlassRound.Around(first.Core, first.Reach, 6);
+        var top = new float[vs.Count]; var bottom = new float[vs.Count];
+        for (int i = 0; i < vs.Count; i++)
+        {
+            float x0 = edge0.Min(e => vs[i](e).X), x1 = edge0.Max(e => vs[i](e).X);
+            var over_ = housing.Select(vs[i]).Where(p => p.X >= x0 && p.X <= x1).ToList();
+            if (over_.Count == 0) return (h0, c0, 1f, 1f, Vector2.Zero, 0f, 0f, 0f);
+            top[i] = over_.Max(p => p.Y); bottom[i] = over_.Min(p => p.Y);
+        }
         var cov = corners.Where(q => Near(first, q)).ToList();
-        if (cov.Count == 0) cov = end;
+        if (cov.Count == 0) cov = housing.Where(q => Near(first, q)).ToList();
         // the ring's outer edge sampled, its highest and lowest on screen past the end's (the worst view)
         (float Top, float Bottom) Past(List<Vector2> core, float reach, Vector2 t)
         {
