@@ -208,7 +208,7 @@ because the tool skips a texture already in `--out`):
    minute.
 14. **The damage panel and the counters** (2026-11-26), after the radar: `hud-redraw.py pack SRC PACK --distress medium`
    draws the damage panel's wires again and lays a medium wear on it, its lights and the counters' housings (the radar step
-   lays the same wear on the radar, `--distress medium`, so the three units match):
+   lays the same kind of wear on the radar, at light: `--distress light`; the glass stays medium):
    [The damage panel and counters redrawn](#the-damage-panel-and-counters-redrawn-step-14-of-the-recipe). CPU only, under
    a minute.
 15. **The military signs** (2026-11-26), last before the pack's files are listed: `sign-reletter.py pack SRC PACK --option D`
@@ -658,9 +658,9 @@ diode, its name plate and the drums) are the pack's texels exactly; one layer li
 median, so the screws' slots, the only difference, do not steer it). The game's stamping code is untouched; the 1997 look
 and a game without a pack draw the originals.
 
-**The radar too.** `radar-redraw.py pack ... --distress medium` (or `render`) lays the same wear on the radar's 62 frames,
+**The radar too.** `radar-redraw.py pack ... --distress light` (or `render`) lays the same wear on the radar's 62 frames,
 the smooth sweep's face and the stamps' sheets (one layer, made over the base frame; never on the scope's faces, which carry
-the glass instead). The recipes' radar step does (`--glass medium --distress medium`), so the three units match;
+the glass instead). The recipes' radar step does (`--glass medium --distress light`: the owner's pick, the radar's housing wears less than the damage panel and counters, which stay at medium);
 `--distress` alone defaults to 0, which writes the files byte for byte as without it.
 
 `pack` keeps the files it started from in the pack's `.hud-base/` (a rerun starts from those and writes the same files;
