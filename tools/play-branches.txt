@@ -1064,3 +1064,6 @@ feat/remix-3                          # section JM: the owner played them: "can'
 
 # JN. HD packs: the radar's body wear at light (2026-11-26; lane on Sonnet 5.5; i26-scratch/radar-light)
 feat/radar-wear-light                 # section JN: the owner: "maybe the radar can be light wear instead of medium?". The recipes' radar step: --glass medium --distress light (the glass, the damage panel and the counters stay at medium). Recipes and docs only. Seen flat and in one cockpit capture by day at 8x; not the 4x in game, night, or Stepped.
+
+# JO. S07's escorts shoot through their own semi, as the original's can: the skipped test asserts it (2026-11-26; lane on Opus 5.5; i26-scratch/milktoast)
+test/milktoast-escorts-semi           # section JO: section JI left one test skipped for the owner: do the original's escorts kill their semi when the player parks beside the convoy? Read from the retail executable: the friendly scan in the AI's fire decision tests one point a friend (its position) with the port's thresholds (8 m; 2 m for a friend under 8 m away; none beyond 100 m or 4 s), and a round hits any car but the shooter. The port's rule is the original's; the test now asserts the semi dies to its escort at 20 Hz (at 24, 30 and 60 Hz the escorts drive other lines and it lives). No rule changed. The original was not watched playing the scene.

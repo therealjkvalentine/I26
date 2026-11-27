@@ -146,26 +146,55 @@ public class AiPathTests
     /// <summary>
     /// S07: the player shows up by the convoy, then far away; the Milk Toast semi drives its path to its compound without circling
     /// (the mission ends lost, the semi home). The semi is kept whole, as the escorts' van is in T10: what its escorts' turrets do to
-    /// it is <see cref="TheMilkToastEscortsSpareTheSemi"/>'s question.
+    /// it is <see cref="TheMilkToastEscortsShootThroughTheirSemiAsTheOriginals"/>.
     /// </summary>
     [Theory]
     [InlineData(20)]
     [InlineData(60)]
-    public void TheMilkToastSemiDoesNotCircle(int hz) => MilkToast(hz, keepSemi: true);
+    public void TheMilkToastSemiDoesNotCircle(int hz) => MilkToast(hz);
 
     /// <summary>
-    /// The same run with the semi left to its escorts. On the stock install at 20 Hz the escort s07fd01, 6 to 8 m beside the semi, fires
-    /// its 7.62 turret at the player 100 to 30 m off (from 34 s) through the semi, and kills it at 41.7 s: the friendly scan (the
-    /// original's) holds a round only within 2 m of a friend's origin when the friend is within 8 m of the shooter, and the rounds
-    /// strike the semi's body away from its origin. At 60 Hz the escorts' line differs and the semi lives. Before the turret fix (fix/turret-aim-moving-carrier, measured
-    /// against the original) the turrets shot behind and missed.
+    /// The same run with the semi left to its escorts, at 20 Hz on the stock install: the escort s07fd01, 4 to 8 m beside the semi,
+    /// fires its 7.62 turret at the player (from 34 s) through the semi and kills it at 41.7 s. That is the original's rule: its gun
+    /// gate's friendly scan (0x418920..0x418c3b in ai_ShouldFireWeapon 0x418200) takes each friend's closest approach to the
+    /// friend's position (the object's +0x40), not its body, and holds within 2 m (8 m when the friend is 8 m or more away on the
+    /// ground); the round's sweep (physics_SweepSegment 0x435830) skips only the shooter's own colliders, so a long friend's body away
+    /// from its position takes the rounds. At 24, 30 and 60 Hz the escorts' line differs and the semi lives.
     /// </summary>
-    [Theory(Skip = "Open: do the original's S07 escorts kill the Milk Toast semi with their turrets when the player parks by the convoy? Measure the original before choosing.")]
-    [InlineData(20)]
-    [InlineData(60)]
-    public void TheMilkToastEscortsSpareTheSemi(int hz) => MilkToast(hz, keepSemi: false);
+    [Fact]
+    public void TheMilkToastEscortsShootThroughTheirSemiAsTheOriginals()
+    {
+        if (InstallDir is null) return;
+        var (setup, session) = Load("s07", 20);
+        var host = setup.Script!.Host;
+        var semi = setup.Entities.Single(x => x.Name == "s07xm01").Vehicle!;
+        var escorts = setup.Entities.Where(x => x.Name == "s07fd01").Select(x => x.Vehicle!).ToHashSet();
+        var me = setup.World.Player!;
+        int rounds = 0;
+        float? died = null;
+        object? killer = null;
+        setup.Damage.Recorded += (v, a, k, _) => { if (v == semi && k == I76.Sim.Damage.DamageKind.Round && escorts.Contains(a)) rounds++; };
+        setup.Damage.KilledBy += (v, a) => { if (v == semi && died is null) { died = host.Now; killer = a; } };
+        bool moved = false;
+        while (died is null && host.Now < 90f)
+        {
+            if (!moved && host.Now >= 30f)
+            {
+                var f = new Vector3(1, 0, 0);
+                me.Pos = new Math.Double3(2700, setup.Ground.BareHeight(2700, 50260), 50260);
+                me.Rot = new Math.Rows(Vector3.Cross(Vector3.UnitY, f), Vector3.UnitY, f);
+                me.Vel = default;
+                moved = true;
+            }
+            Heal(me);
+            session.Tick([new CarInput()]);
+        }
+        Assert.True(died is > 38f and < 46f, $"the semi died at {died?.ToString("0.0") ?? "never"} s, not about 41.7 s");
+        Assert.True(killer is Vehicle k && escorts.Contains(k), "the semi should die to its own escort's rounds");
+        Assert.True(rounds >= 100, $"its escorts' rounds hit the semi {rounds} times (measured 154)");
+    }
 
-    private static void MilkToast(int hz, bool keepSemi)
+    private static void MilkToast(int hz)
     {
         if (InstallDir is null) return;
         var (setup, session) = Load("s07", hz);
@@ -188,7 +217,7 @@ public class AiPathTests
             if (moved == 0 && host.Now >= 30f) { Put(2700, 50260, 90); moved++; }
             if (moved == 1 && host.Now >= 45f) { Put(2000, 49000, 0); moved++; }
             Heal(me);
-            if (keepSemi) Heal(semi.Vehicle!);
+            Heal(semi.Vehicle!);
             session.Tick([new CarInput()]);
             winding.Add(semi);
         }
