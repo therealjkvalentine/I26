@@ -101,13 +101,16 @@ a probe of 43 operations over 20000 fixed inputs each, hashing the result bits, 
 (float and double), for `Matrix4x4.CreateFromYawPitchRoll`, `CreateRotationX/Y` and `Quaternion.Slerp` (built on them) and for
 `FusedMultiplyAdd`, and the same bits for `+ - * /`, `Sqrt`, `Vector3.Dot/Cross/Length/Normalize/Distance/Lerp`, a quaternion
 transform, `a*b+c` (the JIT does not contract it into a fused multiply-add), float-to-int casts, `%` and `Floor/Round`. The sim
-builds every rotation from `MathF.Sin/Cos` (`Rows.AboutX/Y/Z`) and aims with `Atan2`: 69 call sites in src/I76.Sim. Nothing
-else differs, so an Apple-silicon Mac and a Windows PC playing one network melee, or a snapshot or replay taken on one and
-checked on the other, will part as the two Windows machines above do (their cause was not looked into; the same one is likely, with
-the CPU's FMA paths in UCRT's functions). Making the platforms agree needs the sim's own software Sin, Cos, Atan2, ... (a few
-functions of a few lines), which changes every recorded hash on Windows too: a decision for the owner, not done here.
-`TickBudgetTests.EveryTicksStateHashIsTheRecordedOne` and the 16-seed dice of `AiStructureTargetTests.T01sAttackersShootTheDiner...`
-therefore check only where the library is the recording's (`MathPlatform.LibmAsRecorded`, tests/I76.Sim.Tests).
+builds every rotation from `MathF.Sin/Cos` (`Rows.AboutX/Y/Z`) and aims with `Atan2`: 69 call sites in src/I76.Sim (as it was).
+
+**Now the same everywhere.** The sim takes those functions from `DetMath` (msun/musl kernels in plain arithmetic), and also the
+signed zeros the processor decided: .NET 8 negates a vector by flipping sign bits on x64 and as `Zero - v` on Arm64, vector
+`Min`/`Max`/`Clamp` take the second operand on a +0/-0 tie on x64 and the IEEE answer on Arm, `Vector2.Dot` adds the unused lanes'
++0 on x64 (with the transcendentals alone the Mac still parted later, on a zero's sign: T01 at tick 4012, a melee at 59-1728).
+Measured with both: see the proof table in the lane's report; every tick's StateHash of the missions and the melee is the same on
+the Mac, the laptop and this PC. The probe's "FusedMultiplyAdd differs" above was a mix-up of probe versions: it is the same on
+both. The recorded hashes and seeded tests check on every platform; the cost is in the tick table of the report (within noise in
+the missions, a few percent in the eight-bot melee).
 
 ## Not done
 

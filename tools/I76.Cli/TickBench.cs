@@ -14,7 +14,7 @@ namespace I76.Cli;
 /// <summary>
 /// i76 tick-bench: the simulation's tick timed headless (docs/perf/tick-bench.md).
 ///
-///   i76 tick-bench SCENARIO [--rate 20|24|60...] [--minutes 5] [--split] [--hashes FILE] [--ticks FILE] [--cpu MASK] [--slow-ms 1]
+///   i76 tick-bench SCENARIO [--rate 20|24|60...] [--minutes 5] [--split] [--hashes FILE] [--ticks FILE] [--cpu MASK] [--slow-ms 1] [--seed 1] [--dump T,T:PREFIX]   (SCENARIO: a mission, coop-MISSION, remix (the job rolled from --seed), melee8, resim)
 ///                  [--burst N] [--every K] [--warm]
 ///
 /// SCENARIO: t01, t05, t06 (the mission from its start, nobody at the wheel, as i76 run plays it, ticked on past its end),
@@ -89,6 +89,7 @@ public static class TickBench
         double slowMs = double.Parse(Opt("--slow-ms", "1"), CultureInfo.InvariantCulture);
         int burstN = int.Parse(Opt("--burst", "8"), CultureInfo.InvariantCulture);
         int every = int.Parse(Opt("--every", "5"), CultureInfo.InvariantCulture);
+        int seed = int.Parse(Opt("--seed", "1"), CultureInfo.InvariantCulture);
         long mask = long.Parse(Opt("--cpu", "c0"), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
         var rate = SimRate.FromLabel(rateHz);
         if (rate.Label != rateHz) { Console.Error.WriteLine($"rate {rateHz} is not offered"); return 2; }
@@ -100,7 +101,7 @@ public static class TickBench
             catch (Exception ex) { Console.Error.WriteLine($"pinning: {ex.Message}"); }
         }
         var loadWatch = Stopwatch.StartNew();
-        var sc = Build(install, name, rate, burstN, every);
+        var sc = Build(install, name, rate, burstN, every, seed);
         double loadS = loadWatch.Elapsed.TotalSeconds;
         // --warm: the sim's code compiled before the first tick, as a game would behind its loading card (SimWarm)
         string warmed = "";
@@ -116,12 +117,17 @@ public static class TickBench
         if (hashes is not null)
         {
             using var hw = new StreamWriter(hashes);
-            hw.WriteLine($"# tick-bench {name} {rate.Label} Hz, {ticks} ticks: tick, StateHash after it");
+            // --dump T[,T...]:PREFIX writes the state dump after those ticks to PREFIX-T.txt (to find what parted two machines' hashes)
+            string dumpOpt = Opt("--dump", "");
+            var dumpAt = dumpOpt.Length > 0 ? dumpOpt.Split(':', 2)[0].Split(',').Select(x => int.Parse(x, CultureInfo.InvariantCulture)).ToHashSet() : [];
+            string dumpPrefix = dumpOpt.Length > 0 ? dumpOpt.Split(':', 2)[1] : "";
+            hw.WriteLine($"# tick-bench {name} {rate.Label} Hz, {ticks} ticks, seed {seed}: tick, StateHash after it");
             for (int t = 0; t < ticks; t++)
             {
                 sc.Tick();
                 sc.Burst?.Invoke();
                 hw.WriteLine($"{t} {sc.Session.StateHash():x16}");
+                if (dumpAt.Contains(t)) File.WriteAllText($"{dumpPrefix}-{t}.txt", I76.Sim.Save.StateDump.Of(sc.Session));
             }
             Console.WriteLine($"{name} {rate.Label} Hz: {ticks} hashes to {hashes}, last {sc.Session.StateHash():x16}");
             return 0;
@@ -260,13 +266,40 @@ public static class TickBench
         }
     }
 
-    private static Scenario Build(GameInstall install, string name, SimRate rate, int burstN, int every)
+    private static Scenario Build(GameInstall install, string name, SimRate rate, int burstN, int every, int seed = 1)
     {
+        if (name == "remix")
+        {
+            // a remix job rolled from the seed, built into a folder of its own, then played as a mission (the generator's maths is
+            // the sim's too: the same seed must give the same mission on every machine)
+            var spec = I76.Formats.Remix.RemixDirector.Roll(seed);
+            var dir = Path.Combine(Path.GetTempPath(), $"i26-tick-bench-remix-{Environment.ProcessId}");
+            var files = I76.Formats.Remix.RemixBuilder.Build(install, spec).WriteTo(dir);
+            ulong fh = 14695981039346656037UL;
+            foreach (var f in files.Order(StringComparer.Ordinal)) foreach (byte b in File.ReadAllBytes(f)) { fh ^= b; fh *= 1099511628211UL; }
+            Console.WriteLine($"remix job of seed {seed}: {spec.Id} ({spec.Base}), its files' FNV {fh:x16}");
+            GameInstall.UserMissionDir = dir;
+            name = spec.Id;
+        }
+        if (name.StartsWith("coop-"))
+        {
+            // a co-op story mission for two seated players as a mission start builds it (nobody at either wheel: the mission's
+            // own cars and script; MissionSetup's co-op build, as the Sim tests' co-op runs)
+            string m = name[5..];
+            var cvfs = new AssetVfs(install);
+            var casm = new ModelAssembler(cvfs);
+            var cw = new MissionWorld(cvfs, casm, install.FindMission(m) ?? throw new FileNotFoundException(m));
+            var cs = MissionSetup.Build(cvfs, cw, casm, null, rand: new I76.Sim.Rng.CrtRand((uint)seed), seed: seed, coop: I76.Sim.Missions.CoopSetup.Of(2));
+            var csess = new SimSession(cs, rate: rate);
+            foreach (var h in cs.Humans) csess.AddDriver(h);
+            CarInput[] two = [default, default];
+            return new Scenario { Session = csess, Setup = cs, Tick = () => { csess.Tick(two); cs.Combat.Events.Clear(); cs.Damage.Events.Clear(); } };
+        }
         if (name is "melee8" or "resim")
         {
             var host = new MeleeHost(new ServerOptions
             {
-                Install = install.Root, Arena = "m01", Seed = 1, Bots = 8, MaxPlayers = 8, TimeLimit = 3600, Rate = rate,
+                Install = install.Root, Arena = "m01", Seed = seed, Bots = 8, MaxPlayers = 8, TimeLimit = 3600, Rate = rate,
             });
             var s = new Scenario { Session = host.Session, Setup = host.Setup, Tick = host.Step };
             if (name == "resim")
@@ -298,7 +331,7 @@ public static class TickBench
         var asm = new ModelAssembler(vfs);
         var msnPath = install.FindMission(name) ?? throw new FileNotFoundException(name);
         var w = new MissionWorld(vfs, asm, msnPath);
-        var setup = MissionSetup.Build(vfs, w, asm, null, melee: null, rand: new I76.Sim.Rng.CrtRand(1));
+        var setup = MissionSetup.Build(vfs, w, asm, null, melee: null, rand: new I76.Sim.Rng.CrtRand((uint)seed));
         if (setup.Script is null) throw new InvalidOperationException($"{name}: no script");
         var session2 = new SimSession(setup, rate: rate);
         if (setup.World.Player is { } driven) session2.AddDriver(driven);
