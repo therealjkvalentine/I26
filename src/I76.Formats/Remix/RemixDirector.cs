@@ -430,7 +430,8 @@ public static class RemixDirector
                     ec.Wingmen.Add(wing);
                 }
                 // an ambush parked on the way, a third of the way to the goal (the first contact in a minute or two), woken as they come
-                var lie = Along(route.Points, RouteLength(route.Points) / 3);
+                // (a vertex of the route, typed on the road: a point between two could fall on a bridge's deck over the ground)
+                var lie = route.Points.Skip(1).OrderBy(p => Math.Abs(PolyLength(route.Points, 0, route.Points.IndexOf(p)) - RouteLength(route.Points) / 3)).First();
                 void Ambusher()
                 {
                     double a = (r.Next(8) * 45) * Math.PI / 180, d = 8 + 6 * o.Sleepers.Count;

@@ -60,6 +60,8 @@ public sealed class RegionLabel
 {
     public string Name { get; set; } = "";
     public double[] At { get; set; } = [];
+    /// <summary>A town drawn as a dot only (its name would crowd its neighbours').</summary>
+    public bool Quiet { get; set; }
 }
 
 public sealed class RegionHighway

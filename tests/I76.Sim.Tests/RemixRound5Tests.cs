@@ -449,4 +449,24 @@ public class RemixRound5Tests
         }
         Assert.True(s4.Script!.Result, string.Join(", ", s4.Script.Host.Objectives.Flags.Select(Objectives.Describe)));
     }
+
+    /// <summary>The run file keeps everything a job's launch and end add (the reproduction lines, the picks, the inventory, a job's start).</summary>
+    [Fact]
+    public void TheRunFileReadsBackWhatALaunchWrote()
+    {
+        var tables = RemixNodes.Builtin();
+        var run = RemixRun.Start(4242, "valepre1.vcf", "Groove", "Piranha", 0);
+        var offer = run.Offers(tables)[0];
+        var spec = run.Spec(offer, tables);
+        run.Take(offer);
+        run.Log.Add(RemixRun.LaunchLine(run, offer, spec, "valepre1.vcf", "eba6a649"));
+        run.Inventory = "{\"Car\":{\"Variant\":\"x: y # z\"}}";
+        run.JobStart = new RunCar { Armour = [1, 2, 3, 4], ArmourMax = [9, 9, 9, 9] };
+        var back = RemixRun.Parse(run.ToYaml());
+        Assert.Equal(run.Log, back.Log);
+        Assert.Equal(run.Picks, back.Picks);
+        Assert.Equal(run.Inventory, back.Inventory);
+        Assert.Equal("playing", back.Phase);
+        Assert.Equal(offer.Seed, back.Current!.Seed);
+    }
 }

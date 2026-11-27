@@ -552,7 +552,8 @@ public partial class Shell : CanvasLayer
             return new StandingsScreen { Rows = rows, TeamPlay = a.Length > 2 && a[2] == "team", Kind = kind };
         }
         // test hook: I76_SHELL_START=melee:N opens that melee form (3 is the LAN host form)
-        if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") is { } ms && ms.StartsWith("melee:"))
+        // (not on the way back from a road trip's job: the run's own screens follow, as a player's would)
+        if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") is { } ms && ms.StartsWith("melee:") && LastLaunch is not { RoadTrip: true })
             return new MeleeScreen { Mode = int.Parse(ms[6..]) };
         // test hook: I76_SHELL_START=garage:MODEL:VARIANT opens the melee chassis form (the 3D garage) on that model and variant (0 and 1 based)
         if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") is { } gs && gs.StartsWith("garage:") && gs.Split(':') is [_, var gm, var gv]

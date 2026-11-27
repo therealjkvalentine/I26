@@ -73,7 +73,8 @@ public partial class RemixLoadingCard : Control
         y += 22 * s;
         foreach (var line in _lines)
         {
-            if (line.Length == 0) { y += 8 * s; DrawLine(new Vector2(x0 + 8 * s, y - 4 * s), new Vector2(x0 + 70 * s, y - 4 * s), ink, Mathf.Max(1f, s)); continue; }
+            // (a line is drawn on its baseline: the rule goes under the last line, the next line a full line below it)
+            if (line.Length == 0) { DrawLine(new Vector2(x0 + 8 * s, y - 6 * s), new Vector2(x0 + 70 * s, y - 6 * s), ink, Mathf.Max(1f, s)); y += 10 * s; continue; }
             foreach (var part in Wrap(line, w, size))
             {
                 if (y > o.Y + 440 * s) return;

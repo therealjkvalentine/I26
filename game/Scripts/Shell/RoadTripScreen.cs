@@ -168,7 +168,7 @@ public sealed class RoadTripScreen : ShellScreen
 
     private const int OfferX = 344;
     /// <summary>The region's box on the sheet, and the chosen job's own map under the offers.</summary>
-    private static readonly Rect2I RegionBox = new(28, 76, 304, 334), JobMapBox = new(OfferX, 256, Right - OfferX, 132);
+    private static readonly Rect2I RegionBox = new(28, 76, 304, 334), JobMapBox = new(OfferX, 254, Right - OfferX, 136);
 
     private (int X, int Y) InRegion(double[] latLon)
     {
@@ -215,8 +215,8 @@ public sealed class RoadTripScreen : ShellScreen
             for (int i = 0; i + 1 < pts.Count; i++) { var p = pts[i]; var q = pts[i + 1]; Clip(ref p, ref q); Pen(p.X, p.Y, q.X, q.Y, sepia); }
             if (pts.Count > 1)
             {
-                var m = ((pts[0].X + pts[1].X) / 2, (pts[0].Y + pts[1].Y) / 2);
-                if (b.HasPoint(new Vector2I(m.Item1, m.Item2))) Frame.Text(_small, m.Item1 + 3, m.Item2 - 12, h.Name, Solid(_small, sepia));
+                var m = (pts[0].X + (pts[1].X - pts[0].X) * 2 / 5, pts[0].Y + (pts[1].Y - pts[0].Y) * 2 / 5);
+                if (b.HasPoint(new Vector2I(m.Item1, m.Item2))) Frame.Text(_small, m.Item1 + 5, m.Item2 + 2, h.Name, Solid(_small, sepia));
             }
         }
         foreach (var s in reg.States) { var p = InRegion(s.At); Frame.Text(_small, p.X - _small.Measure(s.Name) / 2, p.Y, s.Name, Solid(_small, pencil)); }
@@ -225,6 +225,7 @@ public sealed class RoadTripScreen : ShellScreen
             var p = InRegion(t.At);
             if (!b.HasPoint(new Vector2I(p.X, p.Y))) continue;
             Frame.Fill(p.X - 1, p.Y - 1, 3, 3, ink);
+            if (t.Quiet) continue;
             int w = _small.Measure(t.Name);
             int tx = p.X + 4 + w > b.End.X ? p.X - 4 - w : p.X + 4;
             Frame.Text(_small, tx, p.Y - 6, t.Name, Solid(_small, ink));
@@ -308,8 +309,12 @@ public sealed class RoadTripScreen : ShellScreen
                 int i = (y * b.Size.X + x) * 4;
                 if (m.Ink[i + 3] < 40) continue;
                 // the roads in sepia, the ground's edges and hatching in ink
-                bool road = m.Ink[i] > 70 && m.Ink[i + 2] < 40;
-                Frame.Fill(b.Position.X + x, b.Position.Y + y, 1, 1, road ? sepia : ink);
+                // the roads in sepia and the ground's edges in ink; the hatching left out (at this size it fills the high ground solid)
+                int r0 = m.Ink[i], g0 = m.Ink[i + 1], b0 = m.Ink[i + 2];
+                int dSep = (r0 - 92) * (r0 - 92) + (g0 - 58) * (g0 - 58) + (b0 - 26) * (b0 - 26), dInk = (r0 - 40) * (r0 - 40) + (g0 - 30) * (g0 - 30) + (b0 - 18) * (b0 - 18);
+                int dGra = (r0 - 58) * (r0 - 58) + (g0 - 50) * (g0 - 50) + (b0 - 44) * (b0 - 44);
+                if (dGra < dSep && dGra < dInk) continue;
+                Frame.Fill(b.Position.X + x, b.Position.Y + y, 1, 1, dSep < dInk ? sepia : ink);
             }
         foreach (var (x, y, label) in m.Marks)
         {
@@ -319,9 +324,9 @@ public sealed class RoadTripScreen : ShellScreen
             int tx = b.Position.X + x + 8 + w > b.End.X ? b.Position.X + x - 8 - w : b.Position.X + x + 8;
             Frame.Text(_small, tx, b.Position.Y + y - 6, word, Solid(_small, red));
         }
-        int ny = b.End.Y + 4;
+        int ny = b.End.Y + 2;
         foreach (var note in m.Notes)
-            foreach (var w in Wrap(_small, note, b.Size.X).Take(2)) { if (ny > 436) break; Frame.Text(_small, b.Position.X, ny, Fit(_small, w, b.Size.X), ShellFrame.OverlayInk); ny += 14; }
+            foreach (var w in Wrap(_small, note, b.Size.X).Take(1)) { if (ny > 420) break; Frame.Text(_small, b.Position.X, ny, Fit(_small, w, b.Size.X), ShellFrame.OverlayInk); ny += 14; }
     }
 
     public override void Repaint()
@@ -358,7 +363,7 @@ public sealed class RoadTripScreen : ShellScreen
                 }
                 if (_offers.Count == 0) Centre(_hand, 200, "No jobs on the road from here.");
                 else DrawJobMap(_offers[Math.Clamp(_sel, 0, _offers.Count - 1)]);
-                Centre(_small, 424, "Up and Down (or a point on the map) choose, Enter takes the job; Esc goes back (the run is kept).");
+                Centre(_small, 428, "Up, Down or the map's rings choose; Enter takes the job; Esc: back.");
                 Button(Take, "TAKE THE JOB");
                 Button(Later, "BACK");
                 break;
@@ -438,7 +443,8 @@ public sealed class RoadTripScreen : ShellScreen
     {
         byte m = Frame.Nearest(Color.Color8(222, 96, 38));
         Frame.Fill(b.Position.X + 2, b.Position.Y + 4, 4, b.Size.Y - 8, m);
-        Frame.Fill(b.Position.X + 12, b.Position.Y + 28, b.Size.X - 24, 2, m);
+        // (under the first line: the choice map's compact boxes have their first line higher)
+        Frame.Fill(b.Position.X + 12, b.Position.Y + (Mood == "choose" ? 19 : 28), b.Size.X - 24, Mood == "choose" ? 1 : 2, m);
     }
 
     private void Button(Rect2I s, string text)
