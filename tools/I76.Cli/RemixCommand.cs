@@ -14,6 +14,8 @@ public static class RemixCommand
     {
         if (argv.Count >= 3 && argv[1] == "map") return RemixMapDump.Run(install, argv);
         if (argv.Count >= 2 && argv[1] == "roll") return Roll(install, argv);
+        if (argv.Count >= 2 && argv[1] == "check") return Check(install, argv);
+        if (argv.Count >= 2 && argv[1] == "score") return Score(install, argv);
         if (argv.Count < 3 || argv[1] != "build") { Console.Error.WriteLine("usage: i76 remix build SPEC.yaml...|--builtin [--out DIR] | map BASE [--json FILE]"); return 2; }
         int oi = argv.IndexOf("--out");
         string outDir = oi >= 0 ? argv[oi + 1] : GameInstall.UserMissionDir ?? "remix";
@@ -36,6 +38,82 @@ public static class RemixCommand
             catch (RemixError ex) { Console.Error.WriteLine($"{name}: {ex.Message}"); bad++; }
         }
         return bad == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// i76 remix check [--builtin] [--seeds A-B] [--out DIR]: each shipped remix and each rolled job built and loaded into the sim,
+    /// then held to its description and its map (RemixCheck: hostile cars on the enemy's side, where they are parked and marked,
+    /// on the ground, radar contacts the target keys reach once out). Prints a line per problem; exit 1 when any.
+    /// </summary>
+    private static int Check(GameInstall install, List<string> argv)
+    {
+        string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        string outDir = Opt("--out") ?? Path.Combine(Path.GetTempPath(), "i26-remix-check-" + Environment.ProcessId);
+        GameInstall.UserMissionDir = outDir;
+        var jobs = new List<(string Name, RemixSpec Spec)>();
+        if (argv.Contains("--builtin")) foreach (var (nm, y) in RemixCatalogue.Builtin()) jobs.Add((nm, RemixSpec.Parse(y)));
+        if (Opt("--seeds") is { } range)
+        {
+            var ab = range.Split('-');
+            int a = int.Parse(ab[0], System.Globalization.CultureInfo.InvariantCulture), b = ab.Length > 1 ? int.Parse(ab[1], System.Globalization.CultureInfo.InvariantCulture) : a;
+            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, id: "xchk")));
+        }
+        int bad = 0, n = 0;
+        var kinds = new Dictionary<string, int>();
+        foreach (var (name, spec) in jobs)
+        {
+            n++;
+            List<string> problems;
+            try
+            {
+                var built = RemixBuilder.Build(install, spec);
+                built.WriteTo(outDir);
+                // a VFS of its own: the generated folder is listed as it is made, and this job was written after any earlier one
+                var vfs = new AssetVfs(install);
+                problems = I76.Sim.Missions.RemixCheck.Run(vfs, new I76.Formats.Assembly.ModelAssembler(vfs), spec.Id, spec, RemixMarks.Parse(built.Marks ?? ""));
+            }
+            catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { problems = [$"build: {ex.Message}"]; }
+            string what = $"{name} ({spec.Base} {spec.Objective.Template})";
+            if (problems.Count == 0) { if (argv.Contains("--verbose")) Console.WriteLine($"{what}: ok"); continue; }
+            bad++;
+            foreach (var p in problems) { Console.WriteLine($"{what}: {p}"); var k = System.Text.RegularExpressions.Regex.Replace(p, @"[0-9.()\-]+", "#"); kinds[k] = kinds.GetValueOrDefault(k) + 1; }
+        }
+        Console.WriteLine($"{n} checked, {bad} with problems");
+        foreach (var (k, c) in kinds.OrderByDescending(k => k.Value).Take(20)) Console.WriteLine($"  {c,4}  {k}");
+        return bad == 0 ? 0 : 1;
+    }
+
+    /// <summary>
+    /// i76 remix score [--builtin] [--seeds A-B] [--level N]: each job's challenge (RemixChallenge) with its cars' measured
+    /// strengths, against Back to Spanner's.
+    /// </summary>
+    private static int Score(GameInstall install, List<string> argv)
+    {
+        string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        string outDir = Path.Combine(Path.GetTempPath(), "i26-remix-score-" + Environment.ProcessId);
+        GameInstall.UserMissionDir = outDir;
+        int level = Opt("--level") is { } lv ? int.Parse(lv, System.Globalization.CultureInfo.InvariantCulture) : RemixChallenge.DefaultLevel;
+        var jobs = new List<(string Name, RemixSpec Spec)>();
+        if (argv.Contains("--builtin")) foreach (var (nm, y) in RemixCatalogue.Builtin()) jobs.Add((nm, RemixSpec.Parse(y)));
+        if (Opt("--seeds") is { } range)
+        {
+            var ab = range.Split('-');
+            int a = int.Parse(ab[0], System.Globalization.CultureInfo.InvariantCulture), b = ab.Length > 1 ? int.Parse(ab[1], System.Globalization.CultureInfo.InvariantCulture) : a;
+            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, id: "xsco", level: level)));
+        }
+
+        var all = new List<double>();
+        foreach (var (name, spec) in jobs)
+        {
+            RemixBuilder.Build(install, spec).WriteTo(outDir);
+            var vfs = new AssetVfs(install);
+            var (parts, cars) = I76.Sim.Missions.RemixCheck.Score(vfs, new I76.Formats.Assembly.ModelAssembler(vfs), spec.Id, spec);
+            all.Add(parts.Total);
+            Console.WriteLine($"{name} ({spec.Base} {spec.Objective.Template}): {parts}  ({parts.Total / RemixChallenge.Spanner:0.00} Spanner)");
+            if (argv.Contains("--cars")) foreach (var (c, st) in cars) Console.WriteLine($"    {c} {(spec.Cars.TryGetValue(c, out var cs) ? cs.Vcf : "")} {st:0.00}");
+        }
+        if (all.Count > 1) Console.WriteLine($"{all.Count} jobs: min {all.Min():0.0}, median {all.Order().ElementAt(all.Count / 2):0.0}, max {all.Max():0.0}");
+        return 0;
     }
 
     private static int Roll(GameInstall install, List<string> argv)

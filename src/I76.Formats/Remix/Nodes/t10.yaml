@@ -1,24 +1,41 @@
-# T10's map (Highway 380 east to Tatum, a roadblock half way): coordinates read off the map (i76 remix map t10).
+# T10's map (Highway 380 from the east end west to Tatum, a roadblock half way): coordinates read off the map (i76 remix map
+# t10), written by hand with the port's own words for the places. stock_action: where T10's own mission happens (its cars
+# and script paths, thinned), so jobs prefer the rest: the roads off 380 at the east end and out of Tatum.
 base: t10
 hour: 21
 lot: [5690, 46790]                  # where T10 sends its tanks away to, south of the road
 gates: [gate]                       # T10's roadblock fence, opened at the start
+cast:
+  - {name: Cloaker, side: gang}
+  - {name: Ocean 5, side: police}
+  - {name: 6 Nora 6, side: police}
+stock_action: [[5205, 47715], [3410, 47710], [4500, 47715], [2495, 47715], [1945, 47435], [1655, 47515], [1195, 47890], [800, 47930], [3930, 47715], [3970, 48020], [4265, 48515], [3840, 48420], [3640, 48065], [5705, 46795], [2838, 47752]]
 starts:
-  - {name: east_380, at: [6600, 47720], heading: 270}
-  - {name: before_roadblock, at: [5318, 47718], heading: 270}
-  - {name: tatum_road, at: [1500, 47640], heading: 90}
+  - {name: east_380, at: [6600, 47720], heading: 270, called: on 380 at the east end}
+  - {name: before_roadblock, at: [5318, 47718], heading: 270, called: on 380 east of the roadblock}
+  - {name: tatum_road, at: [1500, 47640], heading: 90, called: on 380 just east of Tatum}
+  - {name: east_north, at: [7455, 48514], heading: 180, called: on the north road at the east end}
+  - {name: tatum_south, at: [930, 47434], heading: 0, called: on the road south out of Tatum}
 nodes:
-  - {name: tatum, kinds: [hideout, home], at: [820, 47950]}
-  - {name: lure_loop, kinds: [pickup, hideout], at: [4100, 48650]}
-  - {name: billboard, kinds: [pickup], at: [2850, 47740]}
-  - {name: south_loop, kinds: [pickup, hideout], at: [3100, 47120]}
-  - {name: east_end, kinds: [home, hideout], at: [6900, 47720]}
+  - {name: tatum, kinds: [hideout, home], at: [820, 47950], called: 'downtown Tatum, by the bank'}
+  - {name: tatum_north, kinds: [hideout, pickup], at: [930, 48274], called: the road north out of Tatum}
+  - {name: tatum_south, kinds: [hideout, pickup, home], at: [930, 47434], called: the road south out of Tatum}
+  - {name: lure_loop, kinds: [pickup, hideout], at: [4100, 48650], called: the top of the dirt loop north of the roadblock}
+  - {name: billboard, kinds: [pickup], at: [2850, 47740], called: the billboard on 380}
+  - {name: south_loop, kinds: [pickup, hideout], at: [3100, 47120], called: the bottom of the dirt loop south of 380}
+  - {name: east_end, kinds: [home, hideout], at: [6900, 47720], called: 380 at the east end}
+  - {name: east_north, kinds: [pickup, hideout], at: [7455, 48514], called: the north road at the east end}
+  - {name: east_south, kinds: [pickup, hideout, home], at: [7536, 47072], called: the south road at the east end}
 entries:
   - {name: east, at: [[7050, 47720], [6950, 47720]]}
   - {name: northeast, at: [[7440, 48600], [7440, 48400]]}
+  - {name: southeast, at: [[7532, 46250], [7531, 46450]]}
   - {name: tatum_north, at: [[930, 48600], [930, 48400]]}
+  - {name: tatum_south, at: [[930, 46900], [930, 47100]]}
   - {name: west, at: [[350, 47550], [335, 47760]]}
   - {name: roadblock, at: [[3700, 47715], [3900, 47715]]}
 routes:
   - {name: tatum, path: tatum, park: [4475, 47715], heading: 270, exit: [640, 47930]}
   - {name: east_380, points: [[1265, 47855], [1900, 47440], [2500, 47720], [3830, 47715], [4500, 47715], [5300, 47718], [6000, 47720], [6900, 47720]], heading: 90}
+  - {name: north_road_down, points: [[7454, 49101], [7454, 48793], [7456, 48492], [7460, 48181], [7453, 47865], [7210, 47726], [6894, 47724], [6585, 47723], [6278, 47722], [5965, 47721], [5649, 47720], [5346, 47719], [5030, 47718], [4710, 47717], [4409, 47716], [4094, 47715], [3829, 47715]], heading: 180}
+  - {name: through_tatum, points: [[930, 49097], [930, 48776], [930, 48464], [930, 48148], [930, 47845], [930, 47537], [930, 47223], [930, 46916]], heading: 180}

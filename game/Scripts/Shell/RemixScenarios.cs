@@ -17,15 +17,44 @@ public static class RemixScenarios
     /// <summary>The list's last row: a job the director rolls afresh each time it is entered (RollJob).</summary>
     public const string RandomJob = "RANDOM JOB";
 
+    /// <summary>The last jobs rolled, newest first, one number a line (user://remix/jobs.txt).</summary>
+    public static string HistoryFile => System.IO.Path.Combine(Dir, "jobs.txt");
+    public const int HistoryLength = 10;
+
+    /// <summary>The last ten jobs rolled, newest first (an unreadable file: none).</summary>
+    public static List<int> History()
+    {
+        try
+        {
+            if (!File.Exists(HistoryFile)) return [];
+            return [.. File.ReadAllLines(HistoryFile).Select(l => int.TryParse(l.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int n) ? n : 0)
+                .Where(n => n > 0).Distinct().Take(HistoryLength)];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+    }
+
+    /// <summary>A job goes to the top of the history (once), the list cut to ten.</summary>
+    public static void Remember(int seed)
+    {
+        try
+        {
+            Directory.CreateDirectory(Dir);
+            File.WriteAllLines(HistoryFile, new[] { seed }.Concat(History().Where(n => n != seed)).Take(HistoryLength)
+                .Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { GD.PrintErr($"remix: the job history: {ex.Message}"); }
+    }
+
     /// <summary>
-    /// RANDOM JOB's ENTER AREA: a new seed (the shell's, outside the simulation: the job's description carries it, and its
-    /// objective text says it), the director's description for it built into user://remix as xjob (over the last one).
-    /// The seed, or an error to log (the launch is then not made).
+    /// RANDOM JOB's ENTER AREA: the job number typed (its seed: the same job, exactly), or a new seed (the shell's, outside the
+    /// simulation: the job's description carries it, and its objective text says it); the director's description for it built
+    /// into user://remix as xjob (over the last one), and the number put at the top of the history. The seed, or an error to
+    /// log (the launch is then not made).
     /// </summary>
-    public static (int Seed, string? Error) RollJob(string? installRoot)
+    public static (int Seed, string? Error) RollJob(string? installRoot, int? job = null)
     {
         if (string.IsNullOrEmpty(installRoot)) return (0, "no install");
-        int seed = System.Random.Shared.Next(1, 1_000_000);
+        int seed = job is > 0 ? job.Value : System.Random.Shared.Next(1, 1_000_000);
         try
         {
             GameInstall.UserMissionDir = Dir;
@@ -34,6 +63,7 @@ public static class RemixScenarios
             RemixBuilder.Build(new GameInstall(installRoot), RemixSpec.Parse(yaml)).WriteTo(Dir);
             File.WriteAllText(System.IO.Path.Combine(Dir, RemixDirector.JobStem + ".job.yaml"), yaml);   // the description, to roll it again by hand
             GD.Print($"remix: RANDOM JOB seed {seed}: {spec.Objective.Template} on {spec.Base} (i76 remix roll --seed {seed})");
+            Remember(seed);
             return (seed, null);
         }
         catch (Exception ex) when (ex is RemixError or IOException or UnauthorizedAccessException or InvalidDataException)

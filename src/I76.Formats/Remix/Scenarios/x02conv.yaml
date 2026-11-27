@@ -1,6 +1,8 @@
 # Stop the convoy (T02's map): the Leadsled gang rolls north up the winding road to Levelland, the lead car in front and its
-# two wingmen keeping station behind. Catch them before they get there; once you are close (or start shooting) they speed up
-# and the wingmen turn on you. T02's road and its own gang cars, nothing else of T02.
+# wingmen keeping station behind (T02's own three, two more of the gang's). Catch them before they get there; once you are
+# close (or start shooting) they speed up and the wingmen turn on you. Three steps and a twist: a roadblock of the gang waits
+# at the hairpins below Levelland; once the lead is down, Gas Bandit's crew comes down from Levelland for you; then get back to
+# the crossroads with nobody behind you. T02's road and its own gang cars, nothing else of T02.
 id: x02conv
 title: Levelland Run
 base: t02
@@ -8,28 +10,61 @@ hour: 7
 start: {at: [8735, 45370], heading: 340}      # south of the crossroads, facing north up the road
 places:
   levelland: [[8150, 49350]]                  # the convoy's exit: the end of the gang's road at Levelland
+  home: [[8735, 45370]]                       # back where you started
+  down: [[8280, 49765], [8280, 49440]]        # Gas Bandit's crew comes down the road from Levelland
+cars:
+  wing3: {vcf: vcmanta1, at: [8590, 46200], heading: 0}     # two more of the gang, behind the wingmen
+  wing4: {vcf: vcgcour1, at: [8620, 46160], heading: 0}
+  block1: {vcf: vcmanta1, at: [8255, 48215], heading: 160}  # the roadblock at the hairpins
+  block2: {vcf: vccameo2, at: [8228, 48196], heading: 200}
+  bandit1: {vcf: vcgcour2, at: [8003, 41803]}               # Gas Bandit's crew, waiting off the road in the south lot
+  bandit2: {vcf: vfpalmn2, at: [8015, 41803]}
+  bandit3: {vcf: vcmanta1, at: [8027, 41803]}
+props:                                        # set down before the start (docs/remix-missions.md "Structures")
+  - {object: akwreck3, type: 2, at: [8762, 45384], heading: 30}    # what the gang left of the last car that got in its way
+  - {object: akwreck2, type: 3, at: [8272, 48230], heading: 80}    # the roadblock's wrecks at the hairpins
+  - {object: akwreck2, type: 3, at: [8208, 48180], heading: 250}
 objective:
   template: intercept
   convoy:
     lead: ledsled                             # T02's gang leader
-    escorts: [wingman1, wingman2]
+    escorts: [wingman1, wingman2, wing3, wing4]
     route: leveland                           # T02's own route north to Levelland
     exit: {place: levelland, radius: 120}
     speed: 22
     alert_speed: 34
     alert: 250
     delay: 6
-  skill: 3
+  sleepers:
+    - {car: block1, wake: 300}
+    - {car: block2, wake: 300}
+  reinforce:
+    - {cars: [bandit1, bandit2, bandit3], entry: down, at_step: 2, delay: 10, speed: 25}
+  finish: {place: home, radius: 100}
+  finish_clear: 300
+  finish_after: 30                            # Gas Bandit's crew is in by then
+  skill: 2
 radio:
-  start: [01sgc07]                            # got it
+  start: [01sta24]                            # found the guys
+  steps: [[], [01sta26], [14sta06]]           # the lead's down: get them; the escorts are down: to the rendezvous
   wave: [12sgc08]                             # they've seen you
   trap: [gdsgc16]                             # the lead's down
+  reinforce: [06sgc15]                        # bandits coming
   win: [gdsgc32]                              # the last of them
 text:
   objectives:
     - Stop the Leadsled gang's lead car before it gets to Levelland.
-    - (hidden)Take out his two wingmen.
+    - (hidden)Take out his four wingmen.
+    - (hidden)Gas Bandit's crew is coming down from Levelland. Get back to the crossroads with nobody on your tail.
   failures:
     - You should be more careful... try to stay alive.
     - You can't just leave.
     - They made it to Levelland. Too late now.
+  deaths:
+    - Leadsled's boys got you before you could stop him.
+    - "Leadsled's wingmen finished you off."
+    - Gas Bandit's crew caught you on the way back.
+  notes:
+    - "Leadsled's convoy: just north of the crossroads, rolling north up the winding road to Levelland, 4 km north."
+    - The gang has a roadblock at the hairpins below Levelland.
+    - "Home: the road south of the crossroads, where you start."

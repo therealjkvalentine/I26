@@ -20,10 +20,14 @@ public static class RemixMapDump
         var path = install.FindMission(argv[2]) ?? throw new FileNotFoundException(argv[2]);
         var bytes = File.ReadAllBytes(path);
         var doc = MapDocument.Parse(bytes);
+        var msnF = new MissionFile(path);
+        var terF = I76.Formats.Assembly.MissionWorld.FindTerrain(install, msnF) is { } tp ? TerrainTiles.Load(msnF, tp) : null;
+        // --heights: each placement's height and the ground's under it (how a structure stands on the terrain)
+        bool heights = argv.Contains("--heights");
         var src = MissionScriptFile.Decompile(bytes, argv[2].ToUpperInvariant()).Script;
         string Key(MapObject o) => src.Actors.FirstOrDefault(a => a.Id is { } id && id.AsSpan().SequenceEqual(o.Payload.AsSpan(0, 8)))?.Key ?? "-";
         var inv = CultureInfo.InvariantCulture;
-        string P(System.Numerics.Vector3 v) => string.Create(inv, $"({v.X:0},{v.Z:0})");
+        string P(System.Numerics.Vector3 v) => string.Create(inv, $"({v.X:0},{v.Z:0})") + (heights && terF is not null ? string.Create(inv, $" y {v.Y:0.0} ground {I76.Formats.Remix.RemixBuilder.GroundAt(terF, v.X, v.Z):0.0}") : "");
         var nth = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var objects = new List<object>();
         foreach (var o in doc.Objects)
@@ -31,8 +35,8 @@ public static class RemixMapDump
             int n = nth.GetValueOrDefault(o.Name); nth[o.Name] = n + 1;
             if (o.ObjectType is 1 or 2 or 3 or 9 or 11 or 12)
             {
-                Console.WriteLine($"obj  type {o.ObjectType,2} {o.Name,-9} nth {n} key {Key(o),-12} at {P(o.Position)}{(o.IsPlayer ? " PLAYER" : "")}");
-                objects.Add(new { o.Name, Nth = n, Type = o.ObjectType, Key = Key(o), X = o.Position.X, Z = o.Position.Z, Player = o.IsPlayer });
+                Console.WriteLine($"obj  type {o.ObjectType,2} {o.Name,-9} nth {n} key {Key(o),-12} at {P(o.Position)}{(o.ObjectType == 1 ? $" team {(o.ObjectFlags >> 16) & 7}" : "")}{(o.IsPlayer ? " PLAYER" : "")}");
+                objects.Add(new { o.Name, Nth = n, Type = o.ObjectType, Key = Key(o), X = o.Position.X, Z = o.Position.Z, Team = (int)((o.ObjectFlags >> 16) & 7), Player = o.IsPlayer });
             }
         }
         var keys = MissionScriptDecompiler.Keys(doc.Paths.Select(p => p.Name));

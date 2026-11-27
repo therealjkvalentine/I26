@@ -66,14 +66,16 @@ places:                      # new nav paths, rx_NAME: a zone is one point, an e
 bind:                        # existing placements the script needs, by object name and copy (0 first)
   barn_a: {object: bhbarn1, nth: 0}
 cars:                        # new parked cars: the car file's stem and where they wait (off the map: a hidden lot)
-  raider1: {vcf: vccameo1, at: [260, 49350]}
+  raider1: {vcf: vccameo1, at: [260, 49350]}    # team: the enemy's (2) for a car the template turns on the player, else 0
+props:                       # structures set down before the start (below, "Structures")
+  - {object: akwreck3, type: 2, at: [8762, 45384], heading: 30}
 remove: [{object: NAME, nth: 0}]   # stock placements taken out
 drop_exits: [exit1]          # stock leave-map threads dropped, by their exit path's label
 gates: {start: [gate1], trap: [gate1], win: [gate1, gateblock], settle: 30}   # gates triggered at the start, the trap moment, the win
 idle_cars: remove            # or keep: the stock cars nothing names
-radio: {start: [...], trap: [...], wave: [...], win: [...]}       # CB clips (sound file stems of the install) at those moments
-objective: {template: defend | deliver | tail | intercept, ...}
-text: {objectives: [...], failures: [...]}   # the .npt: up to 6 objective lines ("(hidden)" = revealed later), the failures
+radio: {start: [...], trap: [...], wave: [...], win: [...], steps: [[...], ...], reinforce: [...]}   # CB clips (sound file stems of the install)
+objective: {template: defend | deliver | tail | intercept, reinforce: [...], finish: {place, radius}, finish_clear, finish_after, ...}
+text: {objectives: [...], failures: [...], deaths: [...], notes: [...]}   # the .npt and the notepad's notes
 ```
 
 A name in a template's parameters is, in order: a `cars` or `bind` entry, or the base script's own actor key (`enemy10`,
@@ -134,14 +136,73 @@ metres of the lead, the lead or an escort shot, or the lead dead: a bump among t
 Objectives: 1 the lead dead, 2 the escorts dead (with `kill_escorts`, the default; revealed with the lead's death). Failures:
 1 death, 2 left the map, 3 the convoy got through.
 
+### Every template: steps, the twist, the finish, sleepers
+
+- **Sides.** Every car the template turns on the player (raiders, sleepers, pursuers, a convoy, reinforcements) is placed on the
+  enemy's side, team 2, as every stock mission's enemies are (`RemixRoles`); a new car is otherwise nobody's (team 0). The target
+  keys (E, T) skip team 0 outside a melee (the original's rule), so before this a remix's own cars could never be targeted.
+- **Steps.** A controller keeps the open objective's number (`rx_step`): as objective k opens it plays `radio.steps[k-1]` (its
+  instruction) and sets the death line.
+- **Death lines.** `text.deaths` (one a objective; made from the objective's own line when missing) follow the failures in the
+  .npt; a death shows the open objective's ("Ocean 5 caught up with you", "You were killed on the way to the safe house").
+- **Reinforcements** (`reinforce: [{cars, entry, at_step, delay, speed, siren}]`): wait hidden in the lot until their step opens,
+  then `delay` seconds, are teleported in at the entry in pairs side by side and come for the player; `radio.reinforce` on arrival.
+- **Finish** (`finish`, `finish_clear`, `finish_after`): after the template's own win, the last objective line opens: get to the
+  zone with nobody within `finish_clear`, counted only `finish_after` seconds after it opened (a finish at the start is not done
+  by standing there).
+- **Sleepers** for intercept and defend too (a roadblock on a convoy's road): parked until the player is within `wake` or shoots.
+
+### Structures
+
+`props` sets structures of the install down on the copy before the mission starts: an object by its placement name (any `.sdf`
+of the archive; the base game's models are global, so T05's wrecks can be set down on T02's map), placed as the ODEF type the base
+game places it (2 building, 3 small object, 4 scenery), at a point and heading, standing on the terrain's height under it (the
+sim's bilinear ground). It is an ordinary placement: the sim builds its collision and damage from its model as for a stock one
+(the check finds each as a collidable static). Shipped: a wreck by Levelland Run's start and wrecks at its hairpin roadblock; the
+director sets a pile of wrecks beside every pickup and a pair of wrecks either side of the road at a tail's or a convoy's
+reinforcement entry. What it can't do: the terrain and roads stay the base's (no new ramps or roads; a structure on a slope
+stands at its centre's height); props go beside roads, never across one the AI drives (the AI's routes do not avoid new objects
+well); destroyed props stay as the base game's do; a structure type with nodes the script names (a gate) needs its stock
+actor; nothing with a script role of its own (a new gate, a moving object) is placed this way.
+
+### The map, the notepad and the radio line
+
+The marks file carries `NOTE` lines (the description's `text.notes`: where the places are, in words, and a rolled job's number and
+challenge): they are written under the objectives on the notepad and along the map's foot. A remix opens on the notepad half a
+second into the mission (once no cut-scene holds the view): any key closes it. As each objective opens its line is lettered across
+the top of the screen for eight seconds over the note sound (`RemixRadioLine`), besides the step's clip. The map picture is kept
+per stem, look and build stamp: RANDOM JOB rebuilds `xjob` for every roll, and a picture kept by the stem alone had shown the first
+job's map for every later roll in the same run (the owner's convoy "marked east, started west").
+
+### Checking a build
+
+`i76 remix check [--builtin] [--seeds A-B]` (and `RemixMissionTests`, over the shipped remixes and 500 rolled jobs) loads each
+build into the sim and holds it to its description and map (`RemixCheck`): every hostile car exists, is on the enemy's team, stands
+where it is parked, on the ground; the convoy's lead starts at its CONVOY mark; every mark is the zone its script tests; every
+place the player must reach is 300 m or more from a leave-map exit (the library's warning starts at 275 m and fails the mission
+at 50 m: the director's first side nodes sat in road-end exit stubs); every prop is a collidable static. It then walks the job
+(the player teleported to each step's place as it opens; each hostile car killed as the player's kill once checked) until every
+car has come out, and from 60 m checks that it is a radar contact the next-target key reaches.
+
+### Challenge
+
+`RemixChallenge`: a car's strength is sqrt(its hit points (armour + chassis) over the Piranha's x its guns' damage a second over the
+Piranha's), times 1.3 (setSkill 1) .. 0.7 (5); a convoy's lead counts half. Cars that come at once (a wave, a pursuit, a
+reinforcement, sleepers within 300 m of each other, a convoy) make a group scoring (sum of strengths)^1.5. Score = the groups +
+1 a step after the first + 2 x (the legs' length at 22 m/s over the deadline, at most 2). `i76 remix score [--builtin]
+[--seeds A-B] [--level N] [--cars]` measures it with the install's cars. Back to Spanner scores 16.8, the calibration (1.0);
+the director fills each job to 16.8 x its level (0.6, 0.8, 1.0, 1.25, 1.6; RANDOM JOB uses 1.0), growing its smallest group a car
+at a time (14 cars at most); measured over 300 jobs at 1.0 the median is 0.98 (0.6 to 1.4). The pools are tiered by measured
+strength (0.3-0.6, 0.65-0.95, 1.0-1.7 Piranhas).
+
 ## The shipped scenarios
 
 | Id | Listed as | Base | What |
 |---|---|---|---|
 | `x07farm` | 380 Farm Raid | T07 | Six raiders in three waves (25 s; at 2 and at 4 kills) come for the three farmsteads T07 places between its roadblocks, by T07's own wave entries (`jump1`, `jump2`) and two from the north and the ridge. T07's east fence opens at the start and slides shut behind the player at the farms; the west roadblock opens at the win. |
 | `x05grab` | Grab and Go | T05 | Out east to the wreck (a zone), back to the start with four pursuers teleported in behind and 175 s on the clock; T05's guards, roadside ambushers and pincer pair wait where T05 parks them. Home with nobody within 300 m. |
-| `x10tail` | Tatum Tail | T10 | Lose the tail on 380: three of T10's roadblock cops are brought round behind you east of the roadblock, sirens on; the roadblock's two and the billboard's two wake as you pass (T10's fence is open from the start). Lost: nobody within 500 m for 12 s. Then the hideout in Tatum with nobody within 500 m, inside 6 minutes. |
-| `x02conv` | Levelland Run | T02 | T02's own Leadsled gang (the lead and two wingmen) drives T02's route north up the winding road to Levelland; catch the lead before it gets there, then its wingmen. Alerted within 250 m or by a shot, they speed up and the wingmen attack. |
+| `x10tail` | Tatum Tail | T10 | Through the side roads: start on the south road at the east end with three of T10's roadblock cops coming up behind (sirens on); the roadblock's two and the billboard's two wake as you pass. Lost: nobody within 500 m for 12 s. Then the hideout at the top of the dirt loop north of the roadblock; then the twist: it is watched, Cloaker's crew comes in from the north, make for the safe house up the road north out of Tatum. 10 minutes. Challenge 0.98. |
+| `x02conv` | Levelland Run | T02 | T02's own Leadsled gang (the lead, its two wingmen and two more) drives T02's route north up the winding road to Levelland, past the gang's roadblock (two cars and wrecks) at the hairpins; catch the lead before it gets there, then the wingmen; then Gas Bandit's crew comes down from Levelland: get back to the crossroads with nobody behind. A wreck by the start. Challenge 0.98 (was 0.11). |
 | `x14back` | Back to Spanner | T14 | T14 driven backwards: from the county line up 285 to Spanner's truckstop past T14's police, which wake as the player passes (sirens on); the truckstop's cop and SWAT vans come out to meet him. Home within 6 minutes with nobody within 400 m. |
 
 ## Playing them
@@ -166,6 +227,15 @@ and a client would need the file: `MapFileSet` sends melee arenas only), and a s
 generated missions' folder: a command line, a stale setting) refuses it ("single player only").
 
 ## Node tables
+
+Each table also names its places in the port's words (`called`), the cast whose crews a job sets on the player (`cast`: a name of
+the game's own cast and `gang` or `police`: Leadsled, Gas Bandit, Balrog, Road Knight, Inferno, Patriot, 7 Edwards 7, Cloaker,
+Ocean 5, 6 Nora 6, Callisto, Malocchio, Union 12) and `stock_action`: where the stock mission's own action is (its car placements
+and its non-exit script paths, thinned to a point every 300 m, computed from the base and written in). The director weighs a place
+1 + 8 x (its distance from the stock action / 1.2 km, at most 1)^2, so the corners the stock mission never visits come up nine
+times as often; T05's long dirt road south and southwest road, T10's roads off 380 at the east end and out of Tatum, T14's dirt
+roads east of the truckstop and the west road, T02's crossroad were added for that. Every start and node is on a road and 300 m or
+more from a leave-map exit.
 
 `src/I76.Formats/Remix/Nodes/*.yaml` (embedded; `RemixNodes`), one per stock map: the places a generated job may use, written
 by hand as world coordinates read off the map (`i76 remix map BASE`, checked to lie on a road) and names, nothing of the game's
@@ -193,9 +263,21 @@ or more and an entry 250-800 m behind a start; intercept a route starting 0.5-2.
 cars' pool, their count and skill), the start, the nodes, the cars (the base game's generic cars by heat, the police for a
 tail, a truck to lead a convoy; new placements at the lot, or at the route's start for a convoy) and the deadlines (from the
 distances). It writes an ordinary description (title `JOB N`, objective 1 begins `Job N:`, so a player's job can be rolled
-again); stock cars are left out (removed as idle). The same seed gives the same file.
+again); stock cars are left out (removed as idle). The same seed gives the same file, and the same files play the same (a test
+builds a job twice and compares the files and the state hash after 30 s).
 
-- **In the game**: SCENARIO, RANDOM JOB (the list's last row): ENTER AREA rolls a new seed, builds the job as `xjob` into
+Every job has three steps or more and a twist: deliver (the pickup, guarded, with a pile of wrecks; home with pursuers; a crew cuts
+the way home), tail (shake the police; the hideout, with a roadblock of more police on the way; the hideout's watched: a safe house,
+with a stakeout's crew behind), intercept (the lead, which rolls when the player is within 600 m or once he has had time to get
+there; its escorts; the gang's backup; home), defend (arrive; the waves; a heavier late crew). Each place is said in words with its
+distance and compass direction from the start ("Hideout: the road north out of Tatum, 5.5 km west of the start."), each step has a
+radio instruction from the install's clips (named by id: get over here, that's just north of here, get over to the rendezvous,
+pick your shots, got away, we got a problem, company, bandits) and its own death line.
+
+- **In the game**: SCENARIO, RANDOM JOB (the list's last row): ENTER AREA asks for the job number (the PASSWORD popup's art and
+  typing: digits, Backspace, Enter; blank rolls a new one; Up and Down step through the last ten, kept in `user://remix/jobs.txt`;
+  Esc stays on the form; `I76_JOB_NUMBER` answers for a capture). The number is on the notepad's first line, its notes and the
+  map's title. Then it rolls that seed, builds the job as `xjob` into
   `user://remix` (its description beside it as `xjob.job.yaml`) and starts it. The game log says `remix: RANDOM JOB seed N`.
 - **Headless**: `i76 remix roll --seed N [--yaml FILE] [--build [--out DIR]] [--id STEM]`, then `i76 --remix-dir DIR run xjob`.
 - **Tests**: 200 seeds roll, build (the builder's validation included) with every car file in the install; one job of each

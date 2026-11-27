@@ -32,6 +32,8 @@ public sealed class RemixSpec
     public Dictionary<string, CarSpec> Cars { get; set; } = [];
     /// <summary>Existing placements (structures, cars) the script needs, by actor name: the object name and which of its copies.</summary>
     public Dictionary<string, BindSpec> Bind { get; set; } = [];
+    /// <summary>Structures set down before the mission starts (a wreck at a pickup, a roadblock on a route).</summary>
+    public List<PropSpec> Props { get; set; } = [];
     /// <summary>Stock objects removed (by object name and copy), such as a gate that would close a road.</summary>
     public List<BindSpec> Remove { get; set; } = [];
     /// <summary>The stock leave-map threads dropped, by their exit path's label (a start beside an exit).</summary>
@@ -69,6 +71,38 @@ public sealed class CarSpec
     public string Vcf { get; set; } = "";
     public double[] At { get; set; } = [];
     public double Heading { get; set; }
+    /// <summary>
+    /// The side ((ODEF flags >> 16) &amp; 7): null for the template's choice, the enemy's (2) for every car it turns on the player,
+    /// so the target keys cycle to it and the radar shows it as a stock mission's enemies; 0 nobody's, 1 the player's.
+    /// </summary>
+    public int? Team { get; set; }
+}
+
+/// <summary>
+/// A structure set down before the mission starts (docs/remix-missions.md "Structures"): an object of the install by its
+/// placement name (a building, a wreck, a fence, a roadblock's parts), the ODEF type it is placed as (2 building, 3 small object,
+/// 4 scenery; the type the base game places that object as), where and which way. It collides as the base game's placements do.
+/// </summary>
+public sealed class PropSpec
+{
+    public string Object { get; set; } = "";
+    public uint Type { get; set; } = 2;
+    public double[] At { get; set; } = [];
+    public double Heading { get; set; }
+}
+
+/// <summary>
+/// A twist: more cars teleported in (from the lot) at an entry when an objective step opens, a few seconds after; they come for
+/// the player. The step is the objective's number (2: when objective 2 opens).
+/// </summary>
+public sealed class ReinforceSpec
+{
+    public List<string> Cars { get; set; } = [];
+    public string Entry { get; set; } = "";
+    public int AtStep { get; set; } = 2;
+    public int Delay { get; set; } = 5;
+    public int Speed { get; set; } = 25;
+    public bool Siren { get; set; }
 }
 
 public sealed class BindSpec
@@ -147,6 +181,16 @@ public sealed class ObjectiveSpec
     // ---- intercept ----
     public ConvoySpec? Convoy { get; set; }
     // ---- every template ----
+    /// <summary>Twists: more cars brought in as an objective step opens (reinforcements).</summary>
+    public List<ReinforceSpec> Reinforce { get; set; } = [];
+    /// <summary>
+    /// A last step after the template's own win: get to this zone (with nobody within <see cref="FinishClear"/> metres when that
+    /// is above 0); its objective line is the last of the text's objectives.
+    /// </summary>
+    public ZoneSpec? Finish { get; set; }
+    public int FinishClear { get; set; }
+    /// <summary>Seconds after the finish step opens before it can count (the twist's cars have come in; a finish at the start is not done by standing there).</summary>
+    public int FinishAfter { get; set; }
     /// <summary>The enemies' skill tier (1 best .. 5), both driving and shooting.</summary>
     public int Skill { get; set; } = 2;
     public int Aggression { get; set; } = 1;
@@ -175,6 +219,8 @@ public sealed class ConvoySpec
     public int Alert { get; set; } = 200;
     /// <summary>Seconds from the start before it rolls.</summary>
     public int Delay { get; set; } = 5;
+    /// <summary>It rolls sooner when the player comes within this many metres of the lead (0: on its delay only).</summary>
+    public int Roll { get; set; }
     /// <summary>Metres between the escorts' stations behind the lead.</summary>
     public int Spacing { get; set; } = 20;
     /// <summary>The escorts must die too (objective 2); false: the lead alone.</summary>
@@ -208,7 +254,11 @@ public sealed class RadioSpec
     public List<string> Trap { get; set; } = [];
     public List<string> Wave { get; set; } = [];
     public List<string> Win { get; set; } = [];
-    [YamlIgnore] public IEnumerable<string> All => Start.Concat(Trap).Concat(Wave).Concat(Win).Distinct(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Clips by objective step (the first list as objective 2 opens, the next as 3 does...): the instruction for each beat.</summary>
+    public List<List<string>> Steps { get; set; } = [];
+    /// <summary>Clips for a reinforcement's arrival.</summary>
+    public List<string> Reinforce { get; set; } = [];
+    [YamlIgnore] public IEnumerable<string> All => Start.Concat(Trap).Concat(Wave).Concat(Win).Concat(Steps.SelectMany(s => s)).Concat(Reinforce).Distinct(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -219,6 +269,13 @@ public sealed class TextSpec
 {
     public List<string> Objectives { get; set; } = [];
     public List<string> Failures { get; set; } = [];
+    /// <summary>
+    /// The failure line for a death while each objective is the open one (in objective order); the builder appends them after
+    /// <see cref="Failures"/>. Missing ones are made from the objective's own line ("Killed before ...").
+    /// </summary>
+    public List<string> Deaths { get; set; } = [];
+    /// <summary>Notes added under the objectives on the notepad: where the places are, in words (the director writes them).</summary>
+    public List<string> Notes { get; set; } = [];
 }
 
 public sealed class RemixError(string message) : Exception(message);

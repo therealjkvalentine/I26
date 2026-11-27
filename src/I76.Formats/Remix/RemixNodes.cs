@@ -26,6 +26,17 @@ public sealed class RemixNodes
     public List<EntryNode> Entries { get; set; } = [];
     public List<RouteNode> Routes { get; set; } = [];
     public List<ClusterNode> Clusters { get; set; } = [];
+    /// <summary>Named characters of the game's own cast whose crews (gang) or patrols (police) a job on this map can set on the player.</summary>
+    public List<CastNode> Cast { get; set; } = [];
+    /// <summary>
+    /// Where the stock mission's own action is (its cars and its script's paths, thinned to a point every 300 m; computed from the
+    /// base by the node tool and written in): the director prefers places away from it, the corners the stock mission never visits.
+    /// </summary>
+    public List<double[]> StockAction { get; set; } = [];
+
+    /// <summary>Metres from a point to the nearest of the stock mission's action (large when the table names none).</summary>
+    public double Quiet(double[] at) =>
+        StockAction.Count == 0 ? 2000 : StockAction.Min(q => Math.Sqrt((q[0] - at[0]) * (q[0] - at[0]) + (q[1] - at[1]) * (q[1] - at[1])));
 
     public static RemixNodes Parse(string yaml)
     {
@@ -57,6 +68,8 @@ public sealed class StartNode
     public double[] At { get; set; } = [];
     /// <summary>Degrees from +Z toward +X.</summary>
     public double Heading { get; set; }
+    /// <summary>Where it is, in the port's words ("on 380 at the east end"), for the notepad.</summary>
+    public string Called { get; set; } = "";
 }
 
 public sealed class PointNode
@@ -65,6 +78,15 @@ public sealed class PointNode
     /// <summary>What it can serve as: pickup, home, hideout.</summary>
     public List<string> Kinds { get; set; } = [];
     public double[] At { get; set; } = [];
+    /// <summary>What it is, in the port's words ("downtown Tatum, by the bank"), for the notepad.</summary>
+    public string Called { get; set; } = "";
+}
+
+public sealed class CastNode
+{
+    public string Name { get; set; } = "";
+    /// <summary>gang (a crew the player fights) or police.</summary>
+    public string Side { get; set; } = "gang";
 }
 
 public sealed class EntryNode
