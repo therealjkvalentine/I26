@@ -475,6 +475,40 @@ towns, the trip maps' places, all typed by hand from real geography) with the of
 pencil, and beside it the offers and the chosen one's own map (its whole-map sketch and marks) and notes. Up, Down, 1-3 or a click on
 a ring or a box choose; Enter or a second click takes the job.
 
+Its layout (`RoguetripLayout`, game/Scripts/Shell; held by `RoguetripLayoutTests` over rolled runs on every map, each offer chosen):
+
+- **Words placed, none on another.** Each town's name, highway number and state name is set beside its mark in the shell's small sans
+  (font 0x47, 10 px; the hand of the offers was 12 px): the four sides of the dot, then the corners, then further out, the first place
+  that lies inside the region's box, on no word, offer ring or other mark, crossing the fewest lines. The named towns, the through
+  highways' numbers and the states are always placed; a quiet town's name (Seagraves, Lubbock...) only where it touches no line, and a
+  short spur's number (82) only where there is room. A town under an offer's ring loses its dot, not its name (the ring's number is there).
+- **Drawn at the screen's resolution.** In the modern look the lines, dots and rings are a layer of their own (`RoguetripMapLayer`),
+  antialiased at any window size (3440 x 1440 included), and the words go to the text layer; the highways a lighter brown than before.
+  The 1997 look draws the same plan into the 640 x 480 pixels.
+- **The offers wrapped whole.** An offer's first line (number, map, job, challenge) wraps at spaces, so the challenge stands whole; its
+  words follow in the small sans, every line of them; the chosen job's notes (in the same sans) sit whole at the column's foot, and the
+  job's map takes the room between (104 px high at the least over the test's runs).
+- **The job's map on a scrap of paper**, laid on the sheet as the melee host form lays its arena's (`ArenaSketches.DrawScrap`: the
+  sheet's paper lightened, torn edges, turned a degree or two, a shadow; the map's name in the hand under it). Its marks are red rings;
+  marks within a ring's width share one ring and its words ("START / HOME"; three or more, or a long pair, each word on its own beside
+  it); every word is placed clear of the others' rings and words, as little on the sketch's ink as it can, inside the scrap.
+- **The stock forms' lettering.** The title (ROGUETRIP, JOB WON...) is set as the scenario form's AUTO MELEE · DRIVER ENTRY FORM is
+  (Arial Bold at its height, `ArtButtons.Letter`), and the buttons are that form's ENTER AREA button, resized, lettered as its label is,
+  in both looks.
+
+**The car pick** (the scenario form) says what it is: the list's header SCENARIOS is lettered ROGUETRIP on its bar, and "Lightest car to
+win:" (a scenario's record) is "Drives every job of the run:", with "its damage carries / from job to job" in the form's hand under it,
+each word lettered as the art's own (no new art).
+
+**A road atlas under the region (optional).** The drawn map stands alone; a player who has a scanned road map of the country may lay it
+under the region: put the picture in the user folder's `remix` folder as `roguetrip-atlas.png` (or `.jpg`, `.webp`) with
+`roguetrip-atlas.txt` beside it, the picture's control points, one a line: `latitude longitude x y` (degrees, north and east positive;
+the picture's pixels from its top left; `#` starts a comment), three or more, towns whose dots are easy to find. The game fits an affine
+map from latitude and longitude to the picture by least squares (`RoguetripLayout.AtlasFit`; the game log says how near the fit comes
+to its own points), resamples the region box's part of it once a session off the main thread (4 texels a pixel), and draws it under
+the trip's maps, the run's road and the offers; the region's own lines, towns and words are then left to the atlas. In the 1997 look
+the atlas is laid on the sheet multiplied (its paper becomes the sheet's) and matched to the palette. Nothing of an atlas ships.
+
 ### Template `ambush`
 
 The owner: "there are some opportunities for us to be the ones ambushing instead of the creepers". The player starts at a place

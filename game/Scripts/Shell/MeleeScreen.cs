@@ -239,6 +239,7 @@ public sealed partial class MeleeScreen : ShellScreen
     private void Draw()
     {
         Frame.RestoreAll();
+        if (Roguetrip) RoguetripLabels();
         var (name, model, variant) = _slots[_shown];
         int x0 = Mode == 1 ? 40 : 34;
         Frame.Text(_font, 12, 45, _slots[0].Name + (_renaming ? "_" : ""));
@@ -279,6 +280,36 @@ public sealed partial class MeleeScreen : ShellScreen
         else DrawCar(Frame, _font, _cars, _data, model, variant, Shell.Parts);
         // the arena's sketch between the car's views, over them (the base host form's; the port's)
         if (Hosting && !Nitro) { DrawListBar(); DrawArenaSketch(); }
+    }
+
+    /// <summary>
+    /// ROGUETRIP's car pick says what it is (docs/remix-missions.md "Roguetrip"): the list's header SCENARIOS lettered ROGUETRIP
+    /// and "Lightest car to win:" (a scenario's record) "Drives every job of the run:", each as the art letters the word it
+    /// replaces (ArtButtons: the bar's face from its plain columns, Arial Bold at the art's size; no new art), and under it in
+    /// the form's hand that the damage carries from job to job.
+    /// </summary>
+    private void RoguetripLabels()
+    {
+        var art = new byte[ShellFrame.W * ShellFrame.H];
+        for (int y = 0; y < ShellFrame.H; y++) for (int x = 0; x < ShellFrame.W; x++) art[y * ShellFrame.W + x] = Frame.At(x, y);
+        byte Px(int x, int y) => art[Math.Clamp(y, 0, ShellFrame.H - 1) * ShellFrame.W + Math.Clamp(x, 0, ShellFrame.W - 1)];
+        var small = Shell.Db.Font(0x47);
+        var bar = new Rect2I(10, 77, 206, 15);
+        if (ArtButtons.Label(Px, Frame.Palette, new Rect2I(14, 79, 198, 12)) is { } head)
+        {
+            ArtButtons.Face(Frame, Px, bar, head.Box.Position.X, bar, 3);
+            ArtButtons.Letter(Frame, small, "ROGUETRIP", head, "SCENARIOS", bar);
+        }
+        if (ArtButtons.Label(Px, Frame.Palette, new Rect2I(6, 286, 140, 18)) is { } lightest)
+        {
+            // the art's words covered with the paper a few rows under them
+            var cover = lightest.Box.Grow(1);
+            for (int y = cover.Position.Y; y < cover.End.Y; y++)
+                for (int x = cover.Position.X; x < cover.End.X; x++) Frame.Fill(x, y, 1, 1, Px(x, y + 22));
+            ArtButtons.LetterAt(Frame, small, "Drives every job of the run:", lightest, "Lightest car to win:", lightest.Box.Position);
+        }
+        Frame.Text(_font, 16, 308, "its damage carries");
+        Frame.Text(_font, 16, 325, "from job to job");
     }
 
     /// <summary>The car panel's weapon rows (x 470, from y 58) and PARTS rows (from y 177), 17 px apart: where <see cref="DrawCar"/> prints them.</summary>
