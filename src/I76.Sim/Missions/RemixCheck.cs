@@ -4,6 +4,7 @@ using I76.Formats.Remix;
 using I76.Formats.Vfs;
 using I76.Sim.Session;
 using I76.Sim.Vehicles;
+using I76.Formats;
 
 namespace I76.Sim.Missions;
 
@@ -80,7 +81,7 @@ public static class RemixCheck
             if (!spec.Places.TryGetValue(zone.Place, out var pts) || pts.Count == 0) continue;
             var m = marks.Points.FirstOrDefault(p => p.Label.Split(" / ").Contains(label));
             if (m.Label is null) bad.Add($"{label}: no mark on the map");
-            else if (System.Math.Sqrt(System.Math.Pow(m.At.X - pts[0][0], 2) + System.Math.Pow(m.At.Y - pts[0][1], 2)) is var d && d > 160) bad.Add($"{label}: the mark is {d:0} m from the place the script tests");
+            else if (System.Math.Sqrt(DetMath.Pow(m.At.X - pts[0][0], (double)(2)) + DetMath.Pow(m.At.Y - pts[0][1], (double)(2))) is var d && d > 160) bad.Add($"{label}: the mark is {d:0} m from the place the script tests");
         }
 
         // the structures set down before the start: each is a collidable static where the description puts it, none on the start
@@ -100,7 +101,7 @@ public static class RemixCheck
             .SelectMany(p => p.Points.Select(q => (p.Name, new System.Numerics.Vector2(q.X, q.Z)))).ToList();
         foreach (var (label, at) in PlayerPlaces(spec))
             foreach (var (name, ex) in exits)
-                if (System.Math.Sqrt(System.Math.Pow(ex.X - at[0], 2) + System.Math.Pow(ex.Y - at[1], 2)) is var d && d < ExitClearance)
+                if (System.Math.Sqrt(DetMath.Pow(ex.X - at[0], (double)(2)) + DetMath.Pow(ex.Y - at[1], (double)(2))) is var d && d < ExitClearance)
                 {
                     bad.Add($"{label}: {d:0} m from the exit {name}: the leave-map warning starts at 275 m");
                     break;

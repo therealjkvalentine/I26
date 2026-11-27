@@ -1,6 +1,7 @@
 using System.Numerics;
 using I76.Sim.Ai;
 using I76.Sim.Vehicles;
+using I76.Formats;
 
 namespace I76.Sim.Missions;
 
@@ -53,7 +54,7 @@ public sealed partial class Ptable
         {
             var p = Pos(e); var g = World.Ground;
             float h0 = g.BareHeight(p.X, p.Z);
-            float Rise(float h) => MathF.Abs(g.BareHeight(p.X + MathF.Sin(h) * 15f, p.Z + MathF.Cos(h) * 15f) - h0);
+            float Rise(float h) => MathF.Abs(g.BareHeight(p.X + DetMath.Sin(h) * 15f, p.Z + DetMath.Cos(h) * 15f) - h0);
             goal = Rise(goal - 0.9f) <= Rise(goal + 0.9f) ? goal - 0.9f : goal + 0.9f;
         }
         e.UnstickHeading = goal;

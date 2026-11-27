@@ -70,7 +70,7 @@ public static class RemixNodeCheck
             foreach (var (dx, dz) in new[] { (5.0, 0.0), (-5.0, 0.0), (0.0, 5.0), (0.0, -5.0), (3.5, 3.5), (-3.5, 3.5), (3.5, -3.5), (-3.5, -3.5) })
             {
                 if (H(x + dx, z + dz) is not { } h) return 90;
-                worst = Math.Max(worst, Math.Atan2(Math.Abs(h - h0), 5) * 180 / Math.PI);
+                worst = Math.Max(worst, DetMath.Atan2(Math.Abs(h - h0), (double)(5)) * 180 / Math.PI);
             }
             return worst;
         }
@@ -131,7 +131,7 @@ public static class RemixNodeCheck
         {
             if (e.Path is { } stock) { if (!doc.Paths.Any(p => p.Name.Equals(stock, StringComparison.OrdinalIgnoreCase))) bad.Add($"entry {e.Name}: {t.Base} has no path {stock}"); continue; }
             if (e.At.Count != 2) { bad.Add($"entry {e.Name}: two points (where, and the way it faces)"); continue; }
-            double d = Math.Sqrt(Math.Pow(e.At[1][0] - e.At[0][0], 2) + Math.Pow(e.At[1][1] - e.At[0][1], 2));
+            double d = Math.Sqrt(DetMath.Pow(e.At[1][0] - e.At[0][0], (double)(2)) + DetMath.Pow(e.At[1][1] - e.At[0][1], (double)(2)));
             if (d is < 20 or > 400) bad.Add($"entry {e.Name}: its two points are {d:0} m apart (20-400)");
         }
         foreach (var rt in t.Routes)

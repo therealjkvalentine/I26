@@ -104,7 +104,7 @@ public static class RemixDirector
         {
             if (e.At.Count < 2) return;
             double[] a = e.At[0], b = e.At[1];
-            double len = Dist(a, b), fx = (b[0] - a[0]) / len, fz = (b[1] - a[1]) / len, hd = Math.Atan2(fx, fz) * 180 / Math.PI;
+            double len = Dist(a, b), fx = (b[0] - a[0]) / len, fz = (b[1] - a[1]) / len, hd = DetMath.Atan2(fx, fz) * 180 / Math.PI;
             double[] mid = [a[0] + fx * 40, a[1] + fz * 40];
             Prop("akwreck2", 3, [mid[0] + fz * 8, mid[1] - fx * 8], hd + 70);
             Prop("akwreck2", 3, [mid[0] - fz * 8, mid[1] + fx * 8], hd - 110);
@@ -147,7 +147,7 @@ public static class RemixDirector
                 void Guard()
                 {
                     double a = (r.Next(4) * 45 + 202.5) * Math.PI / 180, d = 6 + 5 * o.Sleepers.Count;   // the west side: the wrecks are east
-                    var g = NewCar(Heat[heat], [pickup.At[0] + d * Math.Sin(a), pickup.At[1] + d * Math.Cos(a)], r.Next(360));
+                    var g = NewCar(Heat[heat], [pickup.At[0] + d * DetMath.Sin(a), pickup.At[1] + d * DetMath.Cos(a)], r.Next(360));
                     o.Sleepers.Add(new SleeperSpec { Car = g, Wake = 220 });
                 }
                 Guard();
@@ -228,7 +228,7 @@ public static class RemixDirector
                 {
                     int i = escorts.Count;
                     double back = 20 * (i / 2 + 1), side = i % 2 == 0 ? -3.5 : 3.5;
-                    escorts.Add(NewCar(Heat[heat], [park[0] - Math.Sin(h) * back + Math.Cos(h) * side, park[1] - Math.Cos(h) * back - Math.Sin(h) * side], route.Heading));
+                    escorts.Add(NewCar(Heat[heat], [park[0] - DetMath.Sin(h) * back + DetMath.Cos(h) * side, park[1] - DetMath.Cos(h) * back - DetMath.Sin(h) * side], route.Heading));
                 }
                 Escort();
                 grow.Add(("escorts", () => escorts.Count, Escort));
@@ -271,7 +271,7 @@ public static class RemixDirector
                 double hd = Bearing(p0, p1), hr = hd * Math.PI / 180;
                 int li = r.Next(Leads.Length);
                 string what = LeadCalled[li];
-                spec.Start = new PoseSpec { At = [p0[0] - 35 * Math.Sin(hr), p0[1] - 35 * Math.Cos(hr)], Heading = (hd + 360) % 360 };
+                spec.Start = new PoseSpec { At = [p0[0] - 35 * DetMath.Sin(hr), p0[1] - 35 * DetMath.Cos(hr)], Heading = (hd + 360) % 360 };
                 start = new StartNode { Name = "escort", At = spec.Start.At, Heading = spec.Start.Heading, Called = $"behind the {what}" };
                 var van = $"car{++carNo}";
                 spec.Cars[van] = new CarSpec { Vcf = Leads[li], At = p0, Heading = (hd + 360) % 360 };
@@ -287,7 +287,7 @@ public static class RemixDirector
                 if (heat >= 1)
                 {
                     var wing = $"car{++carNo}";
-                    spec.Cars[wing] = new CarSpec { Vcf = r.Pick(Heat[1]), At = [spec.Start.At[0] + 8 * Math.Cos(hr), spec.Start.At[1] - 8 * Math.Sin(hr)], Heading = spec.Start.Heading };
+                    spec.Cars[wing] = new CarSpec { Vcf = r.Pick(Heat[1]), At = [spec.Start.At[0] + 8 * DetMath.Cos(hr), spec.Start.At[1] - 8 * DetMath.Sin(hr)], Heading = spec.Start.Heading };
                     ec.Wingmen.Add(wing);
                 }
                 // an ambush parked on the way, between the halfway point and the goal, woken as they come
@@ -295,7 +295,7 @@ public static class RemixDirector
                 void Ambusher()
                 {
                     double a = (r.Next(8) * 45) * Math.PI / 180, d = 8 + 6 * o.Sleepers.Count;
-                    var g = NewCar(Heat[heat], [lie[0] + d * Math.Sin(a), lie[1] + d * Math.Cos(a)], r.Next(360));
+                    var g = NewCar(Heat[heat], [lie[0] + d * DetMath.Sin(a), lie[1] + d * DetMath.Cos(a)], r.Next(360));
                     o.Sleepers.Add(new SleeperSpec { Car = g, Wake = 260 });
                 }
                 Ambusher();
@@ -341,7 +341,7 @@ public static class RemixDirector
                     for (int i = 0; i < 3; i++)
                     {
                         var t = $"car{++carNo}";
-                        spec.Cars[t] = new CarSpec { Vcf = Leads[(li + i) % Leads.Length], At = [yard.At[0] + (i - 1) * 14 * Math.Sin(yr), yard.At[1] + (i - 1) * 14 * Math.Cos(yr)], Heading = yh };
+                        spec.Cars[t] = new CarSpec { Vcf = Leads[(li + i) % Leads.Length], At = [yard.At[0] + (i - 1) * 14 * DetMath.Sin(yr), yard.At[1] + (i - 1) * 14 * DetMath.Cos(yr)], Heading = yh };
                         o.Targets.Add(t);
                     }
                     what = $"trucks parked at {yard.Called}";
@@ -353,7 +353,7 @@ public static class RemixDirector
                 void Guard()
                 {
                     double a = (r.Next(8) * 45) * Math.PI / 180, d = 6 + 5 * o.Sleepers.Count;
-                    var g = NewCar(Heat[heat], [gp[0] + d * Math.Sin(a), gp[1] + d * Math.Cos(a)], r.Next(360));
+                    var g = NewCar(Heat[heat], [gp[0] + d * DetMath.Sin(a), gp[1] + d * DetMath.Cos(a)], r.Next(360));
                     o.Sleepers.Add(new SleeperSpec { Car = g, Wake = 300 });
                 }
                 Guard();
@@ -498,7 +498,7 @@ public static class RemixDirector
     }
 
     /// <summary>Degrees from north (+Z) toward east (+X), -180..180.</summary>
-    public static double Bearing(double[] from, double[] to) => Math.Atan2(to[0] - from[0], to[1] - from[1]) * 180 / Math.PI;
+    public static double Bearing(double[] from, double[] to) => DetMath.Atan2(to[0] - from[0], to[1] - from[1]) * 180 / Math.PI;
 
     /// <summary>The eight-point compass word from one point to another ("north", "southwest").</summary>
     public static string Compass(double[] from, double[] to)
@@ -550,7 +550,7 @@ public static class RemixDirector
         public T Quiet<T>(RemixNodes map, IReadOnlyList<T> l, Func<T, double[]> at)
         {
             if (l.Count == 0) throw new RemixError("the director drew from an empty list");
-            var w = l.Select(x => (int)Math.Round(100 * (1 + 8 * Math.Pow(Math.Min(1, map.Quiet(at(x)) / 1200), 2)))).ToList();
+            var w = l.Select(x => (int)Math.Round(100 * (1 + 8 * DetMath.Pow(Math.Min(1, map.Quiet(at(x)) / 1200), (double)(2))))).ToList();
             int k = Next(w.Sum());
             for (int i = 0; i < l.Count; i++) { if (k < w[i]) return l[i]; k -= w[i]; }
             return l[^1];

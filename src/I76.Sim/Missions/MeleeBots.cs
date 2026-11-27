@@ -3,6 +3,7 @@ using I76.Sim.Fsm;
 using I76.Sim.Math;
 using I76.Sim.Save;
 using I76.Sim.Vehicles;
+using I76.Formats;
 
 namespace I76.Sim.Missions;
 
@@ -360,9 +361,9 @@ public sealed partial class MeleeGame
             if (w.Def.Class == 6) drop = true;
             else if (FacesBack(w)) rear = true;
         }
-        if (rear && NearestInArc(p, -fwd, range, RearCone) is { } behind && behind != ahead)
+        if (rear && NearestInArc(p, DetMath.Neg(fwd), range, RearCone) is { } behind && behind != ahead)
             Host.FireAt(p.Entity, behind, w => w.Def.Class != 6 && FacesBack(w), radar: ahead is null);
-        if (drop && NearestInArc(p, -fwd, range, 0f) is { } chaser && chaser != ahead)
+        if (drop && NearestInArc(p, DetMath.Neg(fwd), range, 0f) is { } chaser && chaser != ahead)
             Host.FireAt(p.Entity, chaser, w => w.Def.Class == 6, radar: false);
     }
 
@@ -623,7 +624,7 @@ public sealed partial class MeleeGame
         var ab = new Vector2(c3.X - a3.X, c3.Z - a3.Z);
         var ap = new Vector2(at.X - a3.X, at.Z - a3.Z);
         float len2 = ab.LengthSquared();
-        float t = len2 > 0 ? System.Math.Clamp(Vector2.Dot(ap, ab) / len2, 0f, 1f) : 0f;
+        float t = len2 > 0 ? System.Math.Clamp(DetMath.Dot(ap, ab) / len2, 0f, 1f) : 0f;
         return (ap - t * ab).LengthSquared();
     }
 
@@ -704,7 +705,7 @@ public sealed partial class MeleeGame
                     b.PatrolAt = Host.Now + 9f + (Rand.Next() % 600) / 100f;
                     b.Phase = (Rand.Next() % 628) / 100f;
                 }
-                var spot = stand + new Vector3(System.MathF.Sin(b.Phase), 0, System.MathF.Cos(b.Phase)) * 28f;
+                var spot = stand + new Vector3(DetMath.Sin(b.Phase), 0, DetMath.Cos(b.Phase)) * 28f;
                 Go(p, spot, PathSpeed(p) * 0.6f);
                 Shoot(p, 50f);
                 return;

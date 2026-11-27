@@ -1,5 +1,6 @@
 using System.Globalization;
 using I76.Sim.Vehicles;
+using I76.Formats;
 
 namespace I76.Sim.Session;
 
@@ -204,7 +205,7 @@ public static class MotionTrace
     public static string Row(int tick, float seconds, Vehicle v)
     {
         var f = v.Rot.Forward;
-        float heading = MathF.Atan2(f.X, f.Z), pitch = MathF.Asin(System.Math.Clamp(f.Y, -1f, 1f)), roll = MathF.Asin(System.Math.Clamp(v.Rot.Right.Y, -1f, 1f));
+        float heading = DetMath.Atan2(f.X, f.Z), pitch = DetMath.Asin(System.Math.Clamp(f.Y, -1f, 1f)), roll = DetMath.Asin(System.Math.Clamp(v.Rot.Right.Y, -1f, 1f));
         return string.Create(CultureInfo.InvariantCulture,
             $"{tick},{seconds:0.######},{v.Pos.X:0.####},{v.Pos.Y:0.####},{v.Pos.Z:0.####},{heading:0.#####},{pitch:0.#####},{roll:0.#####},"
             + $"{v.Vel.X:0.####},{v.Vel.Y:0.####},{v.Vel.Z:0.####},{v.Speed:0.####},{v.AngVel.X:0.#####},{v.AngVel.Y:0.#####},{v.AngVel.Z:0.#####},"

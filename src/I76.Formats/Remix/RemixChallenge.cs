@@ -57,7 +57,7 @@ public static class RemixChallenge
         void Group(string name, IEnumerable<string> cars, Func<string, double>? weight = null)
         {
             double sum = cars.Sum(c => strength(c) * k * (weight?.Invoke(c) ?? 1));
-            if (sum > 0) groups.Add((name, Math.Pow(sum, 1.5)));
+            if (sum > 0) groups.Add((name, DetMath.Pow(sum, 1.5)));
         }
         for (int i = 0; i < o.Waves.Count; i++) Group($"wave {i + 1}", o.Waves[i].Cars);
         if (o.Pursuit is { } p) Group("pursuit", p.Cars);
@@ -79,7 +79,7 @@ public static class RemixChallenge
         if (o.Deadline > 0 && Legs(spec) is var need and > 0) clock = Math.Min(2, 2 * need / 22 / o.Deadline);
         // a raid's way out: the leg from the targets to the escape against its seconds
         if (o.Escape is { Seconds: > 0 } esc && o.Arrive is { } ar && spec.Places.TryGetValue(esc.Place, out var ep) && spec.Places.TryGetValue(ar.Place, out var ap) && ep.Count > 0 && ap.Count > 0)
-            clock = Math.Min(2, 2 * Math.Sqrt(Math.Pow(ep[0][0] - ap[0][0], 2) + Math.Pow(ep[0][1] - ap[0][1], 2)) * 1.3 / 22 / esc.Seconds);
+            clock = Math.Min(2, 2 * Math.Sqrt(DetMath.Pow(ep[0][0] - ap[0][0], (double)(2)) + DetMath.Pow(ep[0][1] - ap[0][1], (double)(2))) * 1.3 / 22 / esc.Seconds);
         return new Parts(groups.Sum(g => g.Item2), steps, clock, groups);
     }
 

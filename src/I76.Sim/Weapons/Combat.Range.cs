@@ -1,6 +1,7 @@
 using System.Numerics;
 using I76.Formats.Bwd2;
 using I76.Sim.Math;
+using I76.Formats;
 
 namespace I76.Sim.Weapons;
 
@@ -66,7 +67,7 @@ public sealed partial class Combat
             // the roof mount (P) tips the stream five degrees down, so from a roof's height it meets the ground first; the side (S),
             // bonnet (I, five up) and turret mounts carry it level or above
             float down = -RestElevation(def);
-            float roof = down > 0.001f ? MathF.Min(FlameReach, RangeMuzzleHeight / MathF.Tan(down)) : FlameReach;
+            float roof = down > 0.001f ? MathF.Min(FlameReach, RangeMuzzleHeight / DetMath.Tan(down)) : FlameReach;
             return new(RangeKind.Stream, roof, FlameReach);
         }
         if (def.Ordnance is not { } ord || def.Kind is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 0x12 or 0x14 or 0x15 or 0x16)) return new(RangeKind.None, 0, 0);
@@ -95,7 +96,7 @@ public sealed partial class Combat
         int slot = def.MountsAsTurret ? 2 : 0;
         if (def.GunPoints.Length <= slot || def.GunPoints[slot] is not { } gp) return 0;
         var f = Rows.FromEngine(gp.Rotation).Forward;
-        return MathF.Asin(System.Math.Clamp(f.Y / MathF.Max(1e-6f, f.Length()), -1f, 1f));
+        return DetMath.Asin(System.Math.Clamp(f.Y / MathF.Max(1e-6f, f.Length()), -1f, 1f));
     }
 
     /// <summary>

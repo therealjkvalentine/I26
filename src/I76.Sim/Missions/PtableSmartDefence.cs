@@ -1,5 +1,6 @@
 using System.Numerics;
 using I76.Sim.Vehicles;
+using I76.Formats;
 
 namespace I76.Sim.Missions;
 
@@ -29,10 +30,10 @@ public sealed partial class Ptable
         float d = r2.Length();
         if (d > 50f || d < 1f) return;
         var f = new Vector2(e.Rot.Forward.X, e.Rot.Forward.Z);
-        if (f.LengthSquared() < 1e-6f || Vector2.Dot(r2 / d, -Vector2.Normalize(f)) < 0.9f) return;
+        if (f.LengthSquared() < 1e-6f || DetMath.Dot(r2 / d, DetMath.Neg(Vector2.Normalize(f))) < 0.9f) return;
         if (MathF.Abs(Delta(Hdg(t), Brg(t, e))) > 0.5f) return;
         var rv = tv.Vel - v.Vel;
-        if (Vector2.Dot(r2 / d, new Vector2(rv.X, rv.Z)) > 0f) return;
+        if (DetMath.Dot(r2 / d, new Vector2(rv.X, rv.Z)) > 0f) return;
         bool dropped = false;
         foreach (var w in a.Weapons)
             if (w.Def.Class == 6 && w.Hp > 0 && w.Ammo > 0) { w.Trigger = true; dropped = true; }

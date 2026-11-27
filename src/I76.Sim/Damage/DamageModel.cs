@@ -4,6 +4,7 @@ using I76.Sim.Math;
 using I76.Sim.Rng;
 using I76.Sim.Vehicles;
 using I76.Sim.Weapons;
+using I76.Formats;
 
 namespace I76.Sim.Damage;
 
@@ -611,13 +612,13 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     public void StaticContact(Vehicle v, StaticObject o, Contact rec)
     {
         if (o.SignPlacement || o.SignNode(rec.Node ?? -1)) { KnockSign(o); return; }
-        var impact = -v.Vel;
+        var impact = DetMath.Neg(v.Vel);
         int node = rec.Node ?? (o.Vehicle is null ? NearestNode(o, v.Pos.ToVector3() + v.Rot.ToWorld(rec.C)) : -1);
         if (node < 0 && o.Type == 4) { KnockSign(o); return; }   // the root itself is the sign
         // the car's own damage by the struck node's type: a type-3 node never damages it, a type-2 one of a type-3 placement does
         if (o.TypeAt(node) != 3) VehicleSlot(v, Impact(null, v.P.Mass, KOther, rec.N, impact), rec.C);
         if (o.Vehicle is not null) return;   // an emplacement has no collide callback: rams do it no harm
-        var sp = Impact(v, v.P.Mass, KVehicle, -rec.N, v.Vel);
+        var sp = Impact(v, v.P.Mass, KVehicle, DetMath.Neg(rec.N), v.Vel);
         StaticSlot(o, node, sp);
     }
 
@@ -651,7 +652,7 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
     /// what scenery gives it, trunc(m_self·d²·KOther); the wreck takes nothing and is nobody's rammer.
     /// </summary>
     public void WreckContact(Vehicle self, Vehicle wreck, Contact rec) =>
-        VehicleSlot(self, Impact(null, self.P.Mass, KOther, rec.N, -self.Vel), rec.C);
+        VehicleSlot(self, Impact(null, self.P.Mass, KOther, rec.N, DetMath.Neg(self.Vel)), rec.C);
 
     /// <summary>
     /// Co-op only (the port's own; docs/deviations.md): an AI car that drove into a human does not name that human its
@@ -667,8 +668,8 @@ public sealed partial class DamageModel : IDamageSink, IStepDamage, IHeliDamage
         if (!World.Coop || !World.IsHuman(other) || World.IsHuman(self)) return false;
         var d = other.Pos.ToVector3() - self.Pos.ToVector3();
         d.Y = 0;
-        if (d.LengthSquared() < 1e-6f) d = -rec.N;
-        return Vector3.Dot(self.Vel, d) > Vector3.Dot(other.Vel, -d);
+        if (d.LengthSquared() < 1e-6f) d = DetMath.Neg(rec.N);
+        return Vector3.Dot(self.Vel, d) > Vector3.Dot(other.Vel, DetMath.Neg(d));
     }
 
     // ---- structures ----
