@@ -62,7 +62,48 @@ public static class SoundFiles
         return d is null || d.Length < 28 || d[0] != 'G' || d[1] != 'A' || d[2] != 'S' || d[3] != '0' ? null : d;
     }
 
-    public static Pcm? Read(AssetVfs vfs, string name) => ReadRiff(vfs, name) is { } r ? Parse(r) : null;
+    public static Pcm? Read(AssetVfs vfs, string name) => Cut(name) is { } c ? CutOf(vfs, c) : ReadRiff(vfs, name) is { } r ? Parse(r) : null;
+
+    /// <summary>The fades a cut clip gets at its ends, milliseconds: in, and out.</summary>
+    public const int CutFadeIn = 12, CutFadeOut = 35;
+
+    /// <summary>
+    /// A cut of a clip (the port's, for the generated missions' radio; docs/remix-missions.md "The radio"): "STEM@START-END" with an
+    /// optional extension, START and END in milliseconds into the clip STEM's sound. Null for an ordinary name.
+    /// </summary>
+    public static (string Stem, int StartMs, int EndMs)? Cut(string name)
+    {
+        int at = name.IndexOf('@');
+        if (at <= 0) return null;
+        int dot = name.IndexOf('.', at);
+        var span = (dot < 0 ? name[(at + 1)..] : name[(at + 1)..dot]).Split('-');
+        if (span.Length != 2 || !int.TryParse(span[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int a)
+            || !int.TryParse(span[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int b) || b <= a) return null;
+        return (name[..at], a, b);
+    }
+
+    /// <summary>The cut's samples: the clip's from START to END (kept inside it), faded in and out over a few milliseconds.</summary>
+    private static Pcm? CutOf(AssetVfs vfs, (string Stem, int StartMs, int EndMs) c)
+    {
+        if (ReadRiff(vfs, c.Stem + ".wav") is not { } r || Parse(r) is not { } p || p.Rate <= 0 || p.Bits is not (8 or 16)) return null;
+        int frame = p.Channels * p.Bits / 8, frames = p.Data.Length / frame;
+        int f0 = Math.Clamp((int)((long)c.StartMs * p.Rate / 1000), 0, frames), f1 = Math.Clamp((int)((long)c.EndMs * p.Rate / 1000), f0, frames);
+        var d = new byte[(f1 - f0) * frame];
+        Array.Copy(p.Data, f0 * frame, d, 0, d.Length);
+        int n = f1 - f0, fin = Math.Min(n / 2, CutFadeIn * p.Rate / 1000), fout = Math.Min(n / 2, CutFadeOut * p.Rate / 1000);
+        for (int i = 0; i < n; i++)
+        {
+            int g = i < fin ? i * 1024 / Math.Max(1, fin) : n - 1 - i < fout ? (n - 1 - i) * 1024 / Math.Max(1, fout) : 1024;
+            if (g >= 1024) continue;
+            for (int ch = 0; ch < p.Channels; ch++)
+            {
+                int o = (i * p.Channels + ch) * (p.Bits / 8);
+                if (p.Bits == 16) { int s = (short)(d[o] | d[o + 1] << 8); s = s * g / 1024; d[o] = (byte)s; d[o + 1] = (byte)(s >> 8); }
+                else { int s = d[o] - 128; d[o] = (byte)(s * g / 1024 + 128); }
+            }
+        }
+        return p with { Data = d };
+    }
 
     /// <summary>
     /// The volume a sound's GAS0 header asks for, in percent: the int32 at offset 16, -1 (or no header) meaning 100. The original

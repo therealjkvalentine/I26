@@ -209,7 +209,7 @@ public static class RemixTemplates
         return ((int)Math.Round(-fx * back + fz * side), (int)Math.Round(-fz * back - fx * side));
     }
 
-    private static string SoundKey(string clip) => "rx_cb_" + clip.ToLowerInvariant();
+    private static string SoundKey(string clip) => "rx_cb_" + clip.ToLowerInvariant().Replace('@', '_').Replace('-', '_');
 
     /// <summary>
     /// What every template shares, as a document of its own (merged like the template's): the radio's clips in the sounds table,
@@ -221,8 +221,13 @@ public static class RemixTemplates
     {
         var y = new StringBuilder();
         var clips = c.Spec.Radio.All.ToList();
+        // a clip is a sound file's stem, or a cut of one: STEM@START-END, in milliseconds (docs/remix-missions.md "The radio")
         foreach (var clip in clips)
-            if (clip.Length is 0 or > 34 || clip.Any(ch => !char.IsAsciiLetterOrDigit(ch) && ch != '_')) throw new RemixError($"radio clip '{clip}': a sound file's stem");
+        {
+            var stem = Audio.SoundFiles.Cut(clip) is { } cut ? cut.Stem : clip;
+            if (clip.Length is 0 or > 34 || stem.Any(ch => !char.IsAsciiLetterOrDigit(ch) && ch != '_') || (stem != clip && Audio.SoundFiles.Cut(clip) is null))
+                throw new RemixError($"radio clip '{clip}': a sound file's stem, or STEM@START-END in milliseconds");
+        }
         if (clips.Count > 0)
         {
             y.Append("sounds:\n");

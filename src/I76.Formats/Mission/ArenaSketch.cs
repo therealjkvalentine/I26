@@ -77,6 +77,32 @@ public sealed class ArenaSketch
         return Build((sx, sz) => ter.Height(sx, sz), marks, [.. marks, .. lines.SelectMany(l => l)], roads, boxW, boxH);
     }
 
+    /// <summary>
+    /// A generated job's whole map (docs/remix-missions.md "The map"): every road of the mission (and the given lines) bounds the
+    /// region with the marks and the extra points (the exits), so the map shows all of it, not only the job's corner; the roads are
+    /// drawn by kind (Styled): paved solid, dirt dashed, a wash or planks dotted. Null when the mission has no terrain.
+    /// </summary>
+    public static ArenaSketch? Whole(MissionFile msn, TerrainTiles ter, IReadOnlyList<Vector2> marks, IReadOnlyList<Vector2[]> lines, IReadOnlyList<Vector2> extra, int boxW, int boxH)
+    {
+        if (marks.Count == 0) return null;
+        var segs = msn.RoadSegments().Where(r => r.Points.Count > 1).ToList();
+        var roads = segs.Select(r => r.Points.Select(p => p.Raw.Length >= 24
+            ? new Vector2((Bin.F32(p.Raw, 0) + Bin.F32(p.Raw, 12)) / 2, (Bin.F32(p.Raw, 8) + Bin.F32(p.Raw, 20)) / 2)
+            : new Vector2(p.X, p.Z)).ToArray()).ToList();
+        var kinds = segs.Select(r => (int)(r.Kind % 3)).Concat(lines.Select(_ => -1)).ToArray();
+        if (ter.Bounds() is var (r0, r1, _, _) && r1 < r0) return null;
+        var bound = marks.Concat(extra).Concat(lines.SelectMany(l => l)).Concat(roads.SelectMany(r => r.Where((_, i) => i % 4 == 0))).ToList();
+        var s = Build((sx, sz) => ter.Height(sx, sz), marks, bound, [.. roads, .. lines], boxW, boxH);
+        if (s is null) return null;
+        s._kinds = kinds;
+        s.Styled = true;
+        return s;
+    }
+
+    /// <summary>The roads drawn by kind (a generated job's whole map) rather than all alike (the host form's sketch).</summary>
+    public bool Styled { get; private set; }
+    private int[] _kinds = [];
+
     private Func<Vector2, Vector2>? _toBox;
 
     /// <summary>Where a world point (x, z) falls in the box, as fractions of its width and height (0,0 the top left).</summary>
@@ -340,8 +366,31 @@ public sealed class ArenaSketch
         float sx = (float)W / _gw, sy = (float)H / _gh;
         foreach (var (a, b) in Contour(_soft, _gw, _gh, 0.5f))
             Line(edge, W, H, new Vector2((a.X + 0.5f) * sx, (a.Y + 0.5f) * sy), new Vector2((b.X + 0.5f) * sx, (b.Y + 0.5f) * sy), 0.8f * k, aliased);
-        foreach (var r in _roads)
-            for (int i = 0; i + 1 < r.Length; i++) Line(roads, W, H, new Vector2(r[i].X * W, r[i].Y * H), new Vector2(r[i + 1].X * W, r[i + 1].Y * H), 0.5f * k, aliased);
+        for (int ri = 0; ri < _roads.Count; ri++)
+        {
+            var r = _roads[ri];
+            int kind = Styled && ri < _kinds.Length ? _kinds[ri] : -1;
+            // a whole map's roads by kind: paved solid and heavier, dirt dashed, a wash (or planks) dotted
+            float width = kind == 0 ? 1.0f * k : kind > 0 ? 0.8f * k : 0.6f * k, on = kind switch { 1 => 4.5f * k, 2 => 1.3f * k, _ => float.MaxValue }, off = kind switch { 1 => 3f * k, 2 => 2.6f * k, _ => 0 };
+            if (aliased && kind == 2) { on = 1.5f; off = 3f; }
+            float walked = 0;
+            for (int i = 0; i + 1 < r.Length; i++)
+            {
+                var p = new Vector2(r[i].X * W, r[i].Y * H);
+                var q = new Vector2(r[i + 1].X * W, r[i + 1].Y * H);
+                if (kind is not (1 or 2)) { Line(roads, W, H, p, q, Styled ? width : 0.5f * k, aliased); continue; }
+                float len = Vector2.Distance(p, q);
+                for (float t = 0; t < len;)
+                {
+                    float phase = walked % (on + off);
+                    float left = phase < on ? on - phase : on + off - phase;
+                    float step = MathF.Min(left, len - t);
+                    if (phase < on && step > 0) Line(roads, W, H, Vector2.Lerp(p, q, t / len), Vector2.Lerp(p, q, (t + step) / len), width, aliased);
+                    t += MathF.Max(step, 1e-3f);
+                    walked += MathF.Max(step, 1e-3f);
+                }
+            }
+        }
         foreach (var s in _starts)
         {
             float px = s.X * W, py = s.Y * H, a = aliased ? 2 : 2.25f * k;
@@ -360,7 +409,7 @@ public sealed class ArenaSketch
             }
             Over(hatch[i] * fade[i] * 0.45f, Graphite);
             Over(edge[i] * fade[i] * 0.85f, Ink);
-            Over(roads[i] * fade[i] * 0.55f, Sepia);
+            Over(roads[i] * fade[i] * (Styled ? 0.8f : 0.55f), Sepia);
             Over(marks[i] * 0.95f, Ink);
             if (al <= 0) continue;
             // straight alpha: the inks' mix over one another, apart from how much of the pixel they cover

@@ -303,4 +303,71 @@ public class RemixRound5Tests
         Assert.False(d.Script.Result);
         Assert.Equal(RemixRun.Outcome.Dead, RemixRun.Classify(false, d.Script.Host.End!.Value.FailMessage, spec.Text.Failures.Count, true));
     }
+
+    /// <summary>The radio's cut: Groove's "Dig incoming bandits" cut to its last two words, faded at both ends; the jobs use it.</summary>
+    [Fact]
+    public void TheIncomingCueIsACutOfItsClip()
+    {
+        Assert.Equal(("06sgc15", 1625, 2895), I76.Formats.Audio.SoundFiles.Cut("06sgc15@1625-2895.wav"));
+        Assert.Null(I76.Formats.Audio.SoundFiles.Cut("06sgc15.wav"));
+        Assert.Null(I76.Formats.Audio.SoundFiles.Cut("06sgc15@2895-1625"));
+        Assert.Equal(RemixDirector.Bandits, "06sgc15@1625-2895");
+        var jobs = Enumerable.Range(1, 60).Select(seed => RemixDirector.Roll(seed)).ToList();
+        Assert.Contains(jobs, j => j.Radio.All.Contains(RemixDirector.Bandits));
+        Assert.DoesNotContain(jobs, j => j.Radio.All.Contains("06sgc15"));
+        Assert.All(jobs, j => Assert.All(j.Radio.All, c => Assert.True(j.Radio.Words.ContainsKey(c), $"no words for {c}")));
+        if (SnapshotRig.Install is not { } inst) return;
+        var vfs = new AssetVfs(new GameInstall(inst));
+        var whole = I76.Formats.Audio.SoundFiles.Read(vfs, "06sgc15.wav")!;
+        var cut = I76.Formats.Audio.SoundFiles.Read(vfs, "06sgc15@1625-2895.wav")!;
+        Assert.InRange(whole.Seconds, 2.9, 3.05);
+        Assert.InRange(cut.Seconds, 1.26, 1.28);
+        Assert.Equal(whole.Rate, cut.Rate);
+        // faded: the cut's first sample is silent, a sample in its middle is the clip's own
+        int frame = cut.Channels * cut.Bits / 8;
+        Assert.Equal(cut.Bits == 16 ? 0 : 128, cut.Bits == 16 ? (short)(cut.Data[0] | cut.Data[1] << 8) : cut.Data[0]);
+        int mid = cut.Data.Length / frame / 2 * frame, from = (int)(1625L * whole.Rate / 1000) * frame;
+        Assert.Equal(whole.Data[from + mid], cut.Data[mid]);
+    }
+
+    /// <summary>
+    /// The job's map: the whole map (every road inside the sketch's box), one or two landmarks, each objective's place for the
+    /// line that letters it (distance and compass), the radio's words; the region's map holds every trip map.
+    /// </summary>
+    [Fact]
+    public void AJobsMapShowsTheWholeMapItsLandmarksAndItsSteps()
+    {
+        var specs = Enumerable.Range(1, 40).Select(seed => RemixDirector.Roll(seed)).ToList();
+        Assert.All(specs, s => Assert.InRange(s.Landmarks.Count, 1, 2));
+        var region = RemixRegion.Builtin();
+        foreach (var t in RemixNodes.Builtin())
+        {
+            Assert.True(region.Maps.ContainsKey(t.Base), $"{t.Base} not on the region's map");
+            var (x, y) = region.Project(region.Maps[t.Base], 304, 334);
+            Assert.InRange(x, 0, 304);
+            Assert.InRange(y, 0, 334);
+        }
+        Assert.All(region.Highways, h => Assert.True(region.Route(h).Count() == h.Towns.Count, $"highway {h.Name}: a town not in the list"));
+        if (Dir() is not { } dir) return;
+        var install = new GameInstall(SnapshotRig.Install!);
+        var spec = RemixDirector.Roll(8, id: "xmapw");
+        var built = RemixBuilder.Build(install, spec);
+        built.WriteTo(dir);
+        var marks = RemixMarks.Parse(built.Marks!);
+        Assert.Equal(spec.Landmarks.Count, marks.Landmarks.Count);
+        Assert.NotEmpty(marks.Steps);
+        Assert.Equal(spec.Radio.Words.Count, marks.Words.Count);
+        Assert.Equal(built.Marks, RemixMarks.Parse(built.Marks!).ToText());
+        var msn = new I76.Formats.Mission.MissionFile(install.FindMission("xmapw")!);
+        var ter = I76.Formats.Mission.TerrainTiles.Load(msn, I76.Formats.Assembly.MissionWorld.FindTerrain(install, msn)!);
+        var sk = I76.Formats.Mission.ArenaSketch.Whole(msn, ter, [.. marks.Points.Select(p => p.At)], [.. marks.Lines.Select(l => l.Points)], [], 560, 392)!;
+        Assert.True(sk.Styled);
+        foreach (var r in msn.RoadSegments())
+            foreach (var q in r.Points)
+            {
+                var u = sk.InBox(new System.Numerics.Vector2(q.X, q.Z));
+                Assert.InRange(u.X, -0.01f, 1.01f);
+                Assert.InRange(u.Y, -0.01f, 1.01f);
+            }
+    }
 }

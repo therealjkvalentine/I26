@@ -37,6 +37,8 @@ public sealed partial class CbRadio(Func<string, float?> lengthSeconds, Func<obj
     public event Action<Line>? Started;
     /// <summary>A playing line was cut off (flush or interrupt).</summary>
     public event Action<Line>? Cut;
+    /// <summary>A line whose sound the install lacks, dropped from the queue (the generated missions letter its words instead).</summary>
+    public event Action<string>? Missing;
 
     public void Say(string name, object? speaker, int prio)
     {
@@ -109,7 +111,7 @@ public sealed partial class CbRadio(Func<string, float?> lengthSeconds, Func<obj
         {
             var h = _q[0];
             if (h.Priority == 4 && NowMs - h.QueuedMs > ExpireMs) { _q.RemoveAt(0); continue; }
-            if (lengthSeconds(h.Name) is not { } len) { _q.RemoveAt(0); continue; }
+            if (lengthSeconds(h.Name) is not { } len) { _q.RemoveAt(0); Missing?.Invoke(h.Name); continue; }
             h.StartedMs = NowMs;
             h.Length = len;
             Started?.Invoke(h);

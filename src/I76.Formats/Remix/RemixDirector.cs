@@ -43,8 +43,25 @@ public static class RemixDirector
 
     // The radio, by what it says (clips of the install by stem: never shipped, only named). Each step's instruction.
     private const string GoThere = "01sta63", GoNorth = "01sta20", Rendezvous = "14sta06", GetThem = "01sta26", Found = "01sta24",
-        Company = "05sgc05", Bandits = "06sgc15", GotAway = "gdsgc74", Problem = "gdsta14", GotIt = "14sta05", UhOh = "07sgc23",
+        Company = "05sgc05", GotAway = "gdsgc74", Problem = "gdsta14", GotIt = "14sta05", UhOh = "07sgc23",
         LastOfThem = "gdsgc32", Clean = "10sta06", TookLong = "11sta08", OhNo = "12sgc08", RightOn = "gdsgc16";
+
+    /// <summary>
+    /// The incoming-enemies cue (the owner: "just saying 'incoming bandits' is probably more subtle"): Groove's "Yeah, I dig. Dig
+    /// incoming bandits." cut to its last two words (1625-2895 ms, the splice work's alignment), not the whole stuttering line.
+    /// The good-rated "More creepers coming from the east." is the Nitro Pack's words spliced, and names a direction the job does
+    /// not know; Taurus's "incoming bandits" takes are all from a panicked line the owner rated bad.
+    /// </summary>
+    public const string Bandits = "06sgc15@1625-2895";
+
+    /// <summary>What each clip says, for the radio's text fallback (an install without the clip).</summary>
+    public static readonly Dictionary<string, string> Words = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [GoThere] = "Get over there.", [GoNorth] = "That's just north of here.", [Rendezvous] = "Get over to the rendezvous.", [GetThem] = "Pick your shots.",
+        [Found] = "There they are.", [Company] = "Looks like we got company.", [Bandits] = "Incoming bandits.", [GotAway] = "We got away.", [Problem] = "We got a problem.",
+        [GotIt] = "Got it.", [UhOh] = "Uh oh.", [LastOfThem] = "That's the last of them.", [Clean] = "We're clean.", [TookLong] = "Took long enough.", [OhNo] = "Oh no.",
+        [RightOn] = "Right on.", ["gdsta14"] = "We got a problem.",
+    };
 
     /// <summary>A job's description from a seed, over the node tables (the built-in ones by default), at a challenge level.</summary>
     public static RemixSpec Roll(int seed, IReadOnlyList<RemixNodes>? tables = null, string id = JobStem, int level = RemixChallenge.DefaultLevel) =>
@@ -506,8 +523,29 @@ public static class RemixDirector
             g.Add();
         }
         spec.Text.Notes.Add($"{job}: {map.Base.ToUpperInvariant()}, challenge {Score(spec) / RemixChallenge.Spanner:0.0} (Back to Spanner 1.0).");
+        spec.Landmarks.AddRange(Landmarks(map, spec));
+        foreach (var clip in spec.Radio.All) if (Words.TryGetValue(clip, out var w)) spec.Radio.Words[clip] = w;
         return spec;
     }
+
+    /// <summary>
+    /// One or two landmarks for a job's map (docs/remix-missions.md "The map"): the map's named clusters (a town's street, an oil
+    /// field) and places of note (a fort, a barn, a bridge), the two nearest the job's places that are not one of its marks.
+    /// </summary>
+    private static List<LandmarkSpec> Landmarks(RemixNodes map, RemixSpec spec)
+    {
+        var used = spec.Places.Values.Where(p => p.Count == 1).Select(p => p[0]).Append(spec.Start?.At ?? [0, 0]).ToList();
+        double cx = used.Average(p => p[0]), cz = used.Average(p => p[1]);
+        // the clusters and places of note first, then any named node (a far corner's road end names little)
+        var cands = map.Clusters.Where(c => c.Called.Length > 0).Select(c => (Name: c.Called, c.At, Rank: 0))
+            .Concat(map.Nodes.Where(n => n.IsSpecial && n.Called.Length > 0).Select(n => (Name: n.Called, n.At, Rank: 0)))
+            .Concat(map.Nodes.Where(n => !n.IsSpecial && n.Called.Length > 0).Select(n => (Name: n.Called, n.At, Rank: 1)))
+            .Where(c => used.All(u => Dist(u, c.At) > 250)).GroupBy(c => c.Name).Select(g => g.First())
+            .OrderBy(c => c.Rank).ThenBy(c => Dist(c.At, [cx, cz])).Take(2);
+        return [.. cands.Select(c => new LandmarkSpec { Name = Upper(c.Name.StartsWith("the ", StringComparison.Ordinal) ? c.Name[4..] : c.Name), At = c.At })];
+    }
+
+    private static string Upper(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
     /// <summary>The death line before a job's own: failure line 1, as every template's (the templates show each step's own).</summary>
     private const string Deaths0 = "You should be more careful... try to stay alive.";

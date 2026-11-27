@@ -694,13 +694,31 @@ public partial class Main : Node3D
 		_sim.AddChild(layer);
 		var ob = _script.Host.Objectives;
 		int shown = -1;
-		ob.Sound += _ =>
+		var steps = I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Steps ?? [];
+		void SayOpen()
 		{
-			// the first objective neither done nor hidden: when it changes, say it
+			// the first objective neither done nor hidden: when it changes, say it, and how far and which way its place is from the
+			// player now (docs/remix-missions.md "Finding the places": the stock game has no objective marker on the radar)
 			int open = System.Array.FindIndex(ob.Flags, f => (f & (I76.Sim.Missions.Objectives.Hidden | I76.Sim.Missions.Objectives.Succeeded | I76.Sim.Missions.Objectives.Failed)) == 0);
 			if (open < 0 || open == shown || !GodotObject.IsInstanceValid(line)) return;
 			shown = open;
-			line.Say(I76.Formats.Remix.RemixBuilder.Plain(ob.Text.Objectives[open].Text) is var t && t.Length > 0 ? char.ToUpperInvariant(t[0]) + t[1..] : t);
+			string t = I76.Formats.Remix.RemixBuilder.Plain(ob.Text.Objectives[open].Text);
+			if (t.Length > 0) t = char.ToUpperInvariant(t[0]) + t[1..];
+			if (steps.FirstOrDefault(st => st.Objective == open + 1) is { Objective: > 0 } step && _sim?.World.Player is { } me)
+			{
+				double[] from = [me.Pos.X, me.Pos.Z], to = [step.At.X, step.At.Y];
+				if (System.Math.Sqrt((to[0] - from[0]) * (to[0] - from[0]) + (to[1] - from[1]) * (to[1] - from[1])) > 120)
+					t += $" ({I76.Formats.Remix.RemixDirector.Distance(from, to)} {I76.Formats.Remix.RemixDirector.Compass(from, to)})";
+			}
+			line.Say(t);
+		}
+		ob.Sound += _ => SayOpen();
+		SayOpen();
+		// a radio clip the install lacks: its words lettered instead (the description's radio.words)
+		var words = I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Words;
+		_script.Host.Cb.Missing += name =>
+		{
+			if (words is not null && words.TryGetValue(System.IO.Path.GetFileNameWithoutExtension(name), out var w) && GodotObject.IsInstanceValid(line)) line.Say(w);
 		};
 		OpenPicture(MissionPicture.Kind.Notepad);
 	}
@@ -740,7 +758,7 @@ public partial class Main : Node3D
 		var view = new MissionPicture
 		{
 			What = kind, Picture = pic, Objectives = objectives, Lee = lee,
-			Marks = remix?.Marks ?? [], Title = remix?.Title, Routes = remix?.Lines ?? [], Notes = notes,
+			Marks = remix?.Marks ?? [], Title = remix?.Title, Routes = remix?.Lines ?? [], Notes = notes, Landmarks = remix?.Landmarks ?? [],
 			// the art's pixels kept in both looks (the text is set at the window's scale); an upscale filtered smooth
 			TextureFilter = hd is null ? CanvasItem.TextureFilterEnum.Nearest : CanvasItem.TextureFilterEnum.LinearWithMipmaps,
 			Closed = k =>
@@ -1481,6 +1499,7 @@ public partial class Main : Node3D
 		AddChild(damageView);
 		foreach (var step in damageView.ReadySteps()) yield return step;
 		_damageView = damageView;
+		damageView.OpenRemoved();   // a generated mission's doors taken off before the start (docs/remix-missions.md "Places")
 		MissionBuilder.Trace("spawn: damage view");
 		// the player's car's wreck and the other cars' (built once): their models assembled on a worker while the fire's materials are
 		// made here, their meshes built here after (the mission's materials are this thread's while its frames run: DamageView.PrewarmWrecksBeside)

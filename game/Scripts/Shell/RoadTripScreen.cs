@@ -162,7 +162,167 @@ public sealed class RoadTripScreen : ShellScreen
     /// <summary>The debrief page's second button: RETRY JOB with the Developer setting on.</summary>
     private static readonly Rect2I Retry = new(170, 450, 140, 19);
 
-    private Rect2I Box(int i) => new(Left, Top + i * (BoxH + BoxGap), Right - Left, BoxH);
+    private Rect2I Box(int i) => Mood == "choose" ? new(OfferX, 80 + i * 58, Right - OfferX, 52) : new(Left, Top + i * (BoxH + BoxGap), Right - Left, BoxH);
+
+    // ---- the choice map (docs/remix-missions.md "The choice map"): the region with the offers as points of interest ----
+
+    private const int OfferX = 344;
+    /// <summary>The region's box on the sheet, and the chosen job's own map under the offers.</summary>
+    private static readonly Rect2I RegionBox = new(28, 76, 304, 334), JobMapBox = new(OfferX, 256, Right - OfferX, 132);
+
+    private (int X, int Y) InRegion(double[] latLon)
+    {
+        var (x, y) = RemixRegion.Builtin().Project(latLon, RegionBox.Size.X, RegionBox.Size.Y);
+        return (RegionBox.Position.X + (int)Math.Round(x), RegionBox.Position.Y + (int)Math.Round(y));
+    }
+
+    /// <summary>A pen line on the frame (Bresenham), solid or dashed (on, off pixels).</summary>
+    private void Pen(int x0, int y0, int x1, int y1, byte ink, int on = 0, int off = 0, int width = 1)
+    {
+        int dx = Math.Abs(x1 - x0), dy = -Math.Abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy, n = 0;
+        while (true)
+        {
+            if (on == 0 || n % (on + off) < on) Frame.Fill(x0, y0, width, width, ink);
+            n++;
+            if (x0 == x1 && y0 == y1) break;
+            int e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x0 += sx; }
+            if (e2 <= dx) { err += dx; y0 += sy; }
+        }
+    }
+
+    private void Ring(int cx, int cy, int r, byte ink, int width = 1)
+    {
+        int steps = Math.Max(16, r * 8);
+        for (int i = 0; i < steps; i++)
+        {
+            double a = 2 * Math.PI * i / steps;
+            Frame.Fill(cx + (int)Math.Round(r * Math.Cos(a)), cy + (int)Math.Round(r * Math.Sin(a)), width, width, ink);
+        }
+    }
+
+    /// <summary>The region drawn: the state line, the highways and their numbers, the towns, the trip's maps, the run's road so far and the offers.</summary>
+    private void DrawRegion()
+    {
+        var reg = RemixRegion.Builtin();
+        byte ink = Frame.Nearest(Color.Color8(40, 30, 18)), sepia = Frame.Nearest(Color.Color8(92, 58, 26)), pencil = Frame.Nearest(Color.Color8(120, 110, 96)), red = Frame.Nearest(Color.Color8(222, 96, 38));
+        var b = RegionBox;
+        foreach (var l in reg.Lines)
+            for (int i = 0; i + 1 < l.Count; i++) { var p = InRegion(l[i]); var q = InRegion(l[i + 1]); Clip(ref p, ref q); Pen(p.X, p.Y, q.X, q.Y, pencil, 5, 3); }
+        foreach (var h in reg.Highways)
+        {
+            var pts = reg.Route(h).Select(InRegion).ToList();
+            for (int i = 0; i + 1 < pts.Count; i++) { var p = pts[i]; var q = pts[i + 1]; Clip(ref p, ref q); Pen(p.X, p.Y, q.X, q.Y, sepia); }
+            if (pts.Count > 1)
+            {
+                var m = ((pts[0].X + pts[1].X) / 2, (pts[0].Y + pts[1].Y) / 2);
+                if (b.HasPoint(new Vector2I(m.Item1, m.Item2))) Frame.Text(_small, m.Item1 + 3, m.Item2 - 12, h.Name, Solid(_small, sepia));
+            }
+        }
+        foreach (var s in reg.States) { var p = InRegion(s.At); Frame.Text(_small, p.X - _small.Measure(s.Name) / 2, p.Y, s.Name, Solid(_small, pencil)); }
+        foreach (var t in reg.Towns)
+        {
+            var p = InRegion(t.At);
+            if (!b.HasPoint(new Vector2I(p.X, p.Y))) continue;
+            Frame.Fill(p.X - 1, p.Y - 1, 3, 3, ink);
+            int w = _small.Measure(t.Name);
+            int tx = p.X + 4 + w > b.End.X ? p.X - 4 - w : p.X + 4;
+            Frame.Text(_small, tx, p.Y - 6, t.Name, Solid(_small, ink));
+        }
+        // the trip's maps: a small ring; those the run has been to filled; the run's road so far in red pencil
+        var visited = Run.Legs.Select(l => l.Map).ToList();
+        foreach (var (map, at) in reg.Maps)
+        {
+            var p = InRegion(at);
+            if (visited.Contains(map, StringComparer.OrdinalIgnoreCase)) Frame.Fill(p.X - 2, p.Y - 2, 5, 5, ink);
+            else Ring(p.X, p.Y, 2, pencil);
+        }
+        for (int i = 0; i + 1 < visited.Count; i++)
+            if (reg.Maps.TryGetValue(visited[i], out var a) && reg.Maps.TryGetValue(visited[i + 1], out var c)) { var p = InRegion(a); var q = InRegion(c); Pen(p.X, p.Y, q.X, q.Y, red, 3, 2, 2); }
+        // the offers: numbered rings, the chosen one doubled in red pencil, a line from where the run is
+        double[]? here = Run.Map.Length > 0 && reg.Maps.TryGetValue(Run.Map, out var hh) ? hh : null;
+        for (int i = 0; i < _offers.Count; i++)
+        {
+            if (!reg.Maps.TryGetValue(_offers[i].Map, out var at)) continue;
+            var p = InRegion(at);
+            // offers on the same map side by side
+            p = (p.X + (i - (_offers.Count - 1) / 2) * (_offers.Count(o => o.Map == _offers[i].Map) > 1 ? 14 : 0), p.Y);
+            if (here is not null && i == _sel) { var h0 = InRegion(here); Pen(h0.X, h0.Y, p.X, p.Y, red, 4, 3, 2); }
+            Ring(p.X, p.Y, 8, i == _sel ? red : ink, i == _sel ? 2 : 1);
+            if (i == _sel) Ring(p.X, p.Y, 12, red);
+            string n = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Frame.Text(_small, p.X - _small.Measure(n) / 2, p.Y - 6, n, Solid(_small, i == _sel ? red : ink));
+            _hits[i] = new Rect2I(p.X - 12, p.Y - 12, 24, 24);
+        }
+    }
+
+    /// <summary>A segment kept to the region's box (the region's lines run off its edges).</summary>
+    private static void Clip(ref (int X, int Y) p, ref (int X, int Y) q)
+    {
+        var b = RegionBox;
+        p = (Math.Clamp(p.X, b.Position.X, b.End.X - 1), Math.Clamp(p.Y, b.Position.Y, b.End.Y - 1));
+        q = (Math.Clamp(q.X, b.Position.X, b.End.X - 1), Math.Clamp(q.Y, b.Position.Y, b.End.Y - 1));
+    }
+
+    private readonly Dictionary<int, Rect2I> _hits = [];
+    private readonly Dictionary<int, (byte[] Ink, List<(int X, int Y, string Label)> Marks, List<string> Notes)?> _jobMaps = [];
+
+    /// <summary>
+    /// The chosen offer's own map: its whole map's sketch (ArenaSketch.Whole: the roads by kind) with its marks, drawn in the frame's
+    /// inks at the box's size, and its notes under it (where its places are, in words). Made once an offer.
+    /// </summary>
+    private void DrawJobMap(RunOffer offer)
+    {
+        if (!_jobMaps.TryGetValue(offer.Seed, out var made))
+        {
+            made = null;
+            try
+            {
+                var spec = Run.Spec(offer);
+                var install = new GameInstall(Shell.Install.Root!);
+                if (install.FindMission(spec.Base) is { } path && spec.Start?.At is [var sx, var sz])
+                {
+                    var msn = new I76.Formats.Mission.MissionFile(path);
+                    var marks = RemixMarks.Of(spec, new System.Numerics.Vector2((float)sx, (float)sz),
+                        n => spec.Places.TryGetValue(n, out var pts) ? [.. pts.Select(q => new System.Numerics.Vector2((float)q[0], (float)q[1]))] : [],
+                        n => spec.Cars.TryGetValue(n, out var c) && c.At is [var cx, var cz] ? new System.Numerics.Vector2((float)cx, (float)cz) : null);
+                    var exits = (msn.ReadFsmProgram()?.Paths ?? []).Where(p => p.Name.StartsWith("exit", StringComparison.OrdinalIgnoreCase)).SelectMany(p => p.Points).Select(p => new System.Numerics.Vector2(p.X, p.Z)).ToList();
+                    if (I76.Formats.Assembly.MissionWorld.FindTerrain(install, msn) is { } ter
+                        && I76.Formats.Mission.ArenaSketch.Whole(msn, I76.Formats.Mission.TerrainTiles.Load(msn, ter), [.. marks.Points.Select(p => p.At)], [.. marks.Lines.Select(l => l.Points)], exits, JobMapBox.Size.X, JobMapBox.Size.Y) is { } sk)
+                    {
+                        var px = sk.Render(1, aliased: true);
+                        var ms = marks.Points.Select(p => { var u = sk.InBox(p.At); return ((int)(u.X * JobMapBox.Size.X), (int)(u.Y * JobMapBox.Size.Y), p.Label); }).ToList();
+                        made = (px, ms, spec.Text.Notes.Take(2).ToList());
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { GD.PrintErr($"road trip: the job's map: {ex.Message}"); }
+            _jobMaps[offer.Seed] = made;
+        }
+        if (made is not { } m) return;
+        byte ink = Frame.Nearest(Color.Color8(40, 30, 18)), sepia = Frame.Nearest(Color.Color8(92, 58, 26)), red = Frame.Nearest(Color.Color8(222, 96, 38));
+        var b = JobMapBox;
+        for (int y = 0; y < b.Size.Y; y++)
+            for (int x = 0; x < b.Size.X; x++)
+            {
+                int i = (y * b.Size.X + x) * 4;
+                if (m.Ink[i + 3] < 40) continue;
+                // the roads in sepia, the ground's edges and hatching in ink
+                bool road = m.Ink[i] > 70 && m.Ink[i + 2] < 40;
+                Frame.Fill(b.Position.X + x, b.Position.Y + y, 1, 1, road ? sepia : ink);
+            }
+        foreach (var (x, y, label) in m.Marks)
+        {
+            Ring(b.Position.X + x, b.Position.Y + y, 5, red, 2);
+            string word = label.Split(" / ")[^1];
+            int w = _small.Measure(word);
+            int tx = b.Position.X + x + 8 + w > b.End.X ? b.Position.X + x - 8 - w : b.Position.X + x + 8;
+            Frame.Text(_small, tx, b.Position.Y + y - 6, word, Solid(_small, red));
+        }
+        int ny = b.End.Y + 4;
+        foreach (var note in m.Notes)
+            foreach (var w in Wrap(_small, note, b.Size.X).Take(2)) { if (ny > 436) break; Frame.Text(_small, b.Position.X, ny, Fit(_small, w, b.Size.X), ShellFrame.OverlayInk); ny += 14; }
+    }
 
     public override void Repaint()
     {
@@ -182,20 +342,23 @@ public sealed class RoadTripScreen : ShellScreen
         {
             case "choose":
                 Title("ROAD TRIP");
-                Centre(_small, 48, $"Run {num}: job {Run.Legs.Count + 1} of {RemixRun.Jobs}. {Run.Model}: {condition}.");
-                Centre(_small, 66, Run.Map.Length == 0 ? "Pick where the run starts." : $"Leaving {MapName(Run.Map)}. Pick the next job down the road.");
+                Centre(_small, 44, $"Run {num}: job {Run.Legs.Count + 1} of {RemixRun.Jobs}{(Run.Busts > 0 ? $" ({Run.Busts} busted)" : "")}. {Run.Model}: {condition}.");
+                Centre(_small, 58, Run.Map.Length == 0 ? "Pick where the run starts." : $"Leaving {MapName(Run.Map)}. Pick the next job down the road.");
+                // the region with the offers on it (left), the offers and the chosen one's own map and notes (right)
+                _hits.Clear();
+                DrawRegion();
                 for (int i = 0; i < _offers.Count; i++)
                 {
                     var o = _offers[i];
                     var b = Box(i);
                     if (i == _sel) Mark(b);
-                    Line(_hand, b.Position.X + 12, b.Position.Y + 8, $"{i + 1}. {o.Name.ToUpperInvariant()}: {RemixRun.JobWord(o.Template)}");
-                    Line(_small, b.Position.X + 30, b.Position.Y + 34, $"Challenge {o.Challenge:0.0} (Back to Spanner 1.0)");
-                    var words = Wrap(_small, o.Flavour, b.Size.X - 50);
-                    for (int k = 0; k < Math.Min(3, words.Count); k++) Line(_small, b.Position.X + 30, b.Position.Y + 52 + k * 16, words[k]);
+                    Line(_small, b.Position.X + 12, b.Position.Y + 6, $"{i + 1}. {o.Name.ToUpperInvariant()}: {RemixRun.JobWord(o.Template)}, {o.Challenge:0.0}");
+                    var words = Wrap(_small, o.Flavour, b.Size.X - 24);
+                    for (int k = 0; k < Math.Min(2, words.Count); k++) Line(_small, b.Position.X + 12, b.Position.Y + 22 + k * 14, words[k]);
                 }
                 if (_offers.Count == 0) Centre(_hand, 200, "No jobs on the road from here.");
-                Centre(_small, 410, "Up and Down choose, Enter takes the job; Esc goes back (the run is kept).");
+                else DrawJobMap(_offers[Math.Clamp(_sel, 0, _offers.Count - 1)]);
+                Centre(_small, 424, "Up and Down (or a point on the map) choose, Enter takes the job; Esc goes back (the run is kept).");
                 Button(Take, "TAKE THE JOB");
                 Button(Later, "BACK");
                 break;
@@ -336,6 +499,13 @@ public sealed class RoadTripScreen : ShellScreen
             if (Developer && Retry.HasPoint(m)) { RetryJob(); return; }
             return;
         }
+        if (Mood == "choose")
+            foreach (var (i, r) in _hits)
+                if (r.HasPoint(m) && i < Count)
+                {
+                    if (_sel == i) { Act(); return; }
+                    _sel = i; Shell.Sound(82); Repaint(); return;
+                }
         for (int i = 0; i < Count; i++)
             if (Box(i).HasPoint(m))
             {

@@ -21,6 +21,7 @@ public static class RemixCommand
         if (argv.Count >= 3 && argv[1] == "structures") return RemixStructures.Run(install, argv);
         if (argv.Count >= 4 && argv[1] == "driveout") return RemixDriveOutCommand.Run(install, argv);
         if (argv.Count >= 3 && argv[1] == "roadsurvey") return RemixRoadSurvey.Run(install, argv);
+        if (argv.Count >= 3 && argv[1] == "mapsketch") return RemixMapSketch.Run(install, argv);
         if (argv.Count < 3 || argv[1] != "build") { Console.Error.WriteLine("usage: i76 remix build SPEC.yaml...|--builtin [--out DIR] | map BASE [--json FILE]"); return 2; }
         int oi = argv.IndexOf("--out");
         string outDir = oi >= 0 ? argv[oi + 1] : GameInstall.UserMissionDir ?? "remix";

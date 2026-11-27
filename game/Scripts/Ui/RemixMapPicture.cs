@@ -7,9 +7,9 @@ namespace I76.Game.Ui;
 
 /// <summary>
 /// The map (M) of a generated remix (docs/remix-missions.md): the base mission's own map art is a drawing of the stock mission
-/// with its marks painted in, so a remix shows the port's pen sketch of the ground round its places (ArenaSketch.Around) on a
-/// plain sheet, with the remix's marks (RemixMarks: the start, the template's places) lettered beside them by MissionPicture.
-/// Built once per mission and look.
+/// with its marks painted in, so a remix shows the port's pen sketch of the WHOLE map (ArenaSketch.Whole: every road, paved
+/// solid, dirt dashed, a wash dotted) on a plain sheet, with the remix's marks (RemixMarks: the start, the template's places) and
+/// one or two landmarks lettered beside them by MissionPicture. Built once per mission and look.
 /// </summary>
 public static class RemixMapPicture
 {
@@ -17,25 +17,31 @@ public static class RemixMapPicture
     private static readonly Rect2I Box = new(40, 56, 560, 392);
     /// <summary>The sheet's paper and the frame's ink.</summary>
     public static readonly Color Paper = Color.Color8(232, 222, 196), Ink = Color.Color8(40, 30, 18);
-    private static readonly Dictionary<string, (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>)?> Made = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>, List<(Vector2, string)>)?> Made = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The picture, its marks (where on the 640 x 480 sheet, and the label), its title and its routes (sheet points), or null when the mission is no remix or has no terrain.</summary>
-    public static (Texture2D Picture, List<(Vector2 At, string Label)> Marks, string? Title, List<Vector2[]> Lines)? For(string? installRoot, string? mission, bool look1997)
+    /// <summary>
+    /// The picture, its marks (where on the 640 x 480 sheet, and the label), its title, its routes (sheet points) and its landmarks,
+    /// or null when the mission is no remix or has no terrain.
+    /// </summary>
+    public static (Texture2D Picture, List<(Vector2 At, string Label)> Marks, string? Title, List<Vector2[]> Lines, List<(Vector2 At, string Label)> Landmarks)? For(string? installRoot, string? mission, bool look1997)
     {
         if (installRoot is null || mission is null || RemixMarks.For(mission) is not { } marks) return null;
         // by the build's stamp too: RANDOM JOB rebuilds xjob for every roll, and a picture kept by the stem alone showed the first
         // job's map for every later one in the same run
         string key = $"{mission}:{look1997}:{RemixMarks.StampOf(mission)}";
         if (Made.TryGetValue(key, out var done)) return done;
-        (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>)? made = null;
+        (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>, List<(Vector2, string)>)? made = null;
         try
         {
             var install = new GameInstall(installRoot);
             if (install.FindMission(mission) is { } path)
             {
                 var msn = new MissionFile(path);
+                // the leave-map exits bound the whole map with its roads
+                var exits = (msn.ReadFsmProgram()?.Paths ?? []).Where(p => p.Name.StartsWith("exit", StringComparison.OrdinalIgnoreCase))
+                    .SelectMany(p => p.Points).Select(p => new System.Numerics.Vector2(p.X, p.Z)).ToList();
                 if (I76.Formats.Assembly.MissionWorld.FindTerrain(install, msn) is { } ter
-                    && ArenaSketch.Around(msn, TerrainTiles.Load(msn, ter), [.. marks.Points.Select(p => p.At)], [.. marks.Lines.Select(l => l.Points)], Box.Size.X, Box.Size.Y) is { } sketch)
+                    && ArenaSketch.Whole(msn, TerrainTiles.Load(msn, ter), [.. marks.Points.Select(p => p.At)], [.. marks.Lines.Select(l => l.Points)], exits, Box.Size.X, Box.Size.Y) is { } sketch)
                 {
                     int scale = look1997 ? 1 : 2;
                     var ink = sketch.Render(scale, aliased: look1997);
@@ -54,7 +60,8 @@ public static class RemixMapPicture
                     var at = sketch.StartsInBox.Select((p, k) => (new Vector2(Box.Position.X + p.X * Box.Size.X, Box.Position.Y + p.Y * Box.Size.Y), marks.Points[k].Label)).ToList();
                     Vector2 Sheet(System.Numerics.Vector2 wpt) { var u = sketch.InBox(wpt); return new(Box.Position.X + u.X * Box.Size.X, Box.Position.Y + u.Y * Box.Size.Y); }
                     var lines = marks.Lines.Select(l => l.Points.Select(Sheet).ToArray()).ToList();
-                    made = (ImageTexture.CreateFromImage(img), at, WorldSettings.ArenaName(msn)?.Trim().ToUpperInvariant(), lines);
+                    var land = marks.Landmarks.Select(l => (Sheet(l.At), l.Label)).ToList();
+                    made = (ImageTexture.CreateFromImage(img), at, WorldSettings.ArenaName(msn)?.Trim().ToUpperInvariant(), lines, land);
                 }
             }
         }

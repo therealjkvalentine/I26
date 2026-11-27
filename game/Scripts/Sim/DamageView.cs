@@ -117,7 +117,26 @@ public partial class DamageView : Node3D
     {
         foreach (var (v, car) in Cars) Resync(v, car);
         foreach (var o in PlacementOf.Keys)
-            if (o.Destroyed || o.Thrown || o.Nodes.Any(n => n.Destroyed)) Destroy(o, quiet: true);
+            if (o.Destroyed || o.Thrown || o.Nodes.Any(n => n.Destroyed || n.Removed)) Destroy(o, quiet: true);
+    }
+
+    /// <summary>
+    /// A generated mission's opened doors (docs/remix-missions.md "Places"): each structure that lost nodes at the mission build
+    /// drawn without them from the start (their 'A' wrecks too: a removed node is gone, not broken).
+    /// </summary>
+    public void OpenRemoved()
+    {
+        foreach (var o in PlacementOf.Keys)
+            if (o.Nodes.Any(n => n.Removed)) Destroy(o, quiet: true);
+    }
+
+    /// <summary>Whether a model part belongs to a removed node: its name, or its other detail levels' and its 'A' twin's (HF2ADRL1 for HF1_DRL1).</summary>
+    private static bool RemovedPart(I76.Sim.Collision.StaticObject o, string part)
+    {
+        if (!o.Nodes.Any(n => n.Removed)) return false;
+        static string Key(string s) => s.Length >= 5 ? (s[..2] + s[4..]).ToUpperInvariant() : s.ToUpperInvariant();
+        string k = Key(part);
+        return o.Nodes.Any(n => n.Removed && (n.Name.Equals(part, StringComparison.OrdinalIgnoreCase) || Key(n.Name) == k));
     }
 
     /// <summary>One car's look from its state: a network car first drawn dead (it died before this client joined), whose death's event never came here.</summary>
@@ -685,7 +704,7 @@ public partial class DamageView : Node3D
                     if (n.Destroyed && n.Type == 7)
                         Builder.Scenery!.GateDied(p, n.Name, Builder.Meshes!.Build(m, include: part => n.Name.Equals(Builder.Scenery.GateOf(p, part.NodeName), StringComparison.OrdinalIgnoreCase), skipFace: GroundFaces(p, m)));
                 // the camera-facing cards (the pine's stump) are the spawner's to draw
-                alt = Builder.Meshes!.Build(m, include: part => !Builder.Scenery!.IsGatePart(p, part.NodeName) && !Builder.Scenery.IsCardPart(p, part.NodeName) && !NoLot(m, part), skipFace: GroundFaces(p, m));
+                alt = Builder.Meshes!.Build(m, include: part => !Builder.Scenery!.IsGatePart(p, part.NodeName) && !Builder.Scenery.IsCardPart(p, part.NodeName) && !NoLot(m, part) && !RemovedPart(o, part.NodeName), skipFace: GroundFaces(p, m));
                 altModel = m;
             }
             else foreach (var n in o.Nodes) if (n.Destroyed && n.Type == 7) Builder.Scenery!.GateDied(p, n.Name, null);

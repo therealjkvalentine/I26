@@ -218,6 +218,18 @@ public partial class LoadingScreen : CanvasLayer
         _lastDraw = System.Diagnostics.Stopwatch.GetTimestamp();
         RenderingServer.FramePostDraw += Drawn;
         LoadProgress.Present = Present;
+        // capture hook: I76_LOADING_SHOT=PATH saves the loading screen's frames
+        if (System.Environment.GetEnvironmentVariable("I76_LOADING_SHOT") is { } remixShot && RemixLoadingCard.Available(Install, Mission))
+        {
+            _shotPath = remixShot;
+            RenderingServer.FramePostDraw += Shot;
+        }
+        // a generated job (docs/remix-missions.md "Loading"): its own briefing for a card, its map and its notepad's text
+        if (RemixLoadingCard.Available(Install, Mission))
+        {
+            _root.AddChild(new RemixLoadingCard { Install = Install, Mission = Mission!, Faithful = Faithful, Name = "RemixCard" });
+            return;
+        }
         // Nitro: a mission named p.. shows addon\pNNload.pcx, anything else loadscr.pcx
         var path = (Install.IsNitro && Mission is { Length: > 1 } m && char.ToLowerInvariant(m[0]) == 'p' ? Install.Resolve("addon", System.IO.Path.GetFileNameWithoutExtension(m) + "load.pcx") : null)
             ?? Install.Resolve("addon", "loadscr.pcx") ?? Install.FindFile("loadscr.pcx");

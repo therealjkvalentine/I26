@@ -18,6 +18,15 @@ public sealed class RemixMarks
     public List<(string Label, Vector2[] Points)> Lines { get; } = [];
     /// <summary>Lines for the notepad and the map's foot: where the places are, in words (the description's text.notes).</summary>
     public List<string> Notes { get; } = [];
+    /// <summary>Landmarks lettered on the map for bearings (the description's landmarks): "LANDMARK name x z".</summary>
+    public List<(string Label, Vector2 At)> Landmarks { get; } = [];
+    /// <summary>
+    /// Where each objective takes the player, by its number from 1 ("STEP k x z"): as it opens, its line at the top of the screen
+    /// says how far and which way it is from where he is (docs/remix-missions.md "Finding the places").
+    /// </summary>
+    public List<(int Objective, Vector2 At)> Steps { get; } = [];
+    /// <summary>What each radio clip says ("SAY clip words"): the game letters it when the install lacks the clip.</summary>
+    public Dictionary<string, string> Words { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Every point the marks name, the region the sketch is drawn round.</summary>
     public IEnumerable<Vector2> All => Points.Select(p => p.At).Concat(Lines.SelectMany(l => l.Points));
@@ -64,6 +73,24 @@ public sealed class RemixMarks
                 break;
         }
         if (o.Finish is { } fin) Zone(fin, FinishLabel(spec));
+        foreach (var l in spec.Landmarks) if (l.At is [var lx, var lz]) m.Landmarks.Add((l.Name, new Vector2((float)lx, (float)lz)));
+        foreach (var (clip, words) in spec.Radio.Words) m.Words[clip] = words;
+        // each objective's place (none for one that has no place: shake the tail, the targets once there, a fight where he is)
+        Vector2? P(ZoneSpec? z) => z is not null && place(z.Place) is [var at, ..] ? at : null;
+        void Step(int k, Vector2? at) { if (at is { } a) m.Steps.Add((k, a)); }
+        switch (o.Template)
+        {
+            case "deliver":
+                if (o.Pickup is not null) { Step(1, P(o.Pickup)); Step(2, P(o.Home)); }
+                else Step(1, P(o.Home));
+                break;
+            case "tail": Step(2, P(o.Hideout)); break;
+            case "intercept": if (o.Convoy is { } c2 && car(c2.Lead) is { } ld) Step(1, ld); break;
+            case "defend": Step(1, P(o.Arrive)); break;
+            case "escort": Step(1, P(o.Escort?.Mid)); Step(2, P(o.Escort?.Goal)); break;
+            case "raid": Step(1, P(o.Arrive)); Step(3, P(o.Escape)); break;
+        }
+        if (o.Finish is not null) Step(RemixTemplates.FinishObjective(spec), P(o.Finish));
         return m;
     }
 
@@ -85,6 +112,9 @@ public sealed class RemixMarks
         foreach (var (l, at) in Points) b.Append(inv, $"MARK {l.Replace(' ', '_')} {at.X:0.#} {at.Y:0.#}\n");
         foreach (var (l, pts) in Lines) b.Append(inv, $"LINE {l.Replace(' ', '_')} {string.Join(" ", pts.Select(p => string.Create(inv, $"{p.X:0.#} {p.Y:0.#}")))}\n");
         foreach (var n in Notes) b.Append($"NOTE {n.Replace('\n', ' ')}\n");
+        foreach (var (l, at) in Landmarks) b.Append(inv, $"LANDMARK {l.Replace(' ', '_')} {at.X:0.#} {at.Y:0.#}\n");
+        foreach (var (k, at) in Steps) b.Append(inv, $"STEP {k} {at.X:0.#} {at.Y:0.#}\n");
+        foreach (var (clip, words) in Words) b.Append($"SAY {clip} {words.Replace('\n', ' ')}\n");
         return b.ToString();
     }
 
@@ -95,12 +125,15 @@ public sealed class RemixMarks
         foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             if (line.StartsWith("NOTE ", StringComparison.Ordinal)) { m.Notes.Add(line[5..]); continue; }
+            if (line.StartsWith("SAY ", StringComparison.Ordinal) && line.IndexOf(' ', 4) is var sp and > 4) { m.Words[line[4..sp]] = line[(sp + 1)..]; continue; }
             var f = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             if (f.Length < 4) continue;
             var n = f.Skip(2).Select(s => float.TryParse(s, NumberStyles.Float, inv, out var v) ? v : float.NaN).ToArray();
             if (n.Any(float.IsNaN) || n.Length % 2 != 0) continue;
             var pts = Enumerable.Range(0, n.Length / 2).Select(i => new Vector2(n[2 * i], n[2 * i + 1])).ToArray();
             if (f[0] == "MARK") m.Points.Add((f[1].Replace('_', ' '), pts[0]));
+            else if (f[0] == "LANDMARK") m.Landmarks.Add((f[1].Replace('_', ' '), pts[0]));
+            else if (f[0] == "STEP" && int.TryParse(f[1], NumberStyles.Integer, inv, out int k)) m.Steps.Add((k, pts[0]));
             else if (f[0] == "LINE" && pts.Length > 1) m.Lines.Add((f[1].Replace('_', ' '), pts));
         }
         return m;

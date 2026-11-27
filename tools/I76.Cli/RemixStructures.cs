@@ -111,3 +111,65 @@ public static class RemixRoadSurvey
         return 0;
     }
 }
+
+/// <summary>
+/// i76 remix mapsketch (--seed N | --run N --picks P | SPEC.yaml) OUT.png [--scale 2]: a job's map as the game draws it, without
+/// the lettering (that is the game's font): the whole map's sketch on the sheet (ArenaSketch.Whole: roads by kind), each mark
+/// ringed, each landmark a small square. For checking a job's map headless.
+/// </summary>
+public static class RemixMapSketch
+{
+    public static int Run(GameInstall install, List<string> argv)
+    {
+        var inv = CultureInfo.InvariantCulture;
+        string? Opt(string n) => argv.IndexOf(n) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        I76.Formats.Remix.RemixSpec spec;
+        if (Opt("--seed") is { } sd) spec = I76.Formats.Remix.RemixDirector.Roll(int.Parse(sd, inv), new I76.Formats.Remix.RemixDirector.JobAsk { Id = "xmap", Template = Opt("--template"), Map = Opt("--map") });
+        else if (Opt("--run") is { } rn) spec = I76.Formats.Remix.RemixRun.Walk(int.Parse(rn, inv), Opt("--picks") ?? "0").Spec;
+        else spec = I76.Formats.Remix.RemixSpec.Load(argv[2]);
+        string outPng = argv.Last(a => a.EndsWith(".png", StringComparison.OrdinalIgnoreCase));
+        int scale = Opt("--scale") is { } sc ? int.Parse(sc, inv) : 2;
+        string dir = Path.Combine(Path.GetTempPath(), "i26-remix-map-" + Environment.ProcessId);
+        GameInstall.UserMissionDir = dir;
+        var built = I76.Formats.Remix.RemixBuilder.Build(install, spec);
+        built.WriteTo(dir);
+        var marks = I76.Formats.Remix.RemixMarks.Parse(built.Marks ?? "");
+        var path = install.FindMission(spec.Id)!;
+        var msn = new I76.Formats.Mission.MissionFile(path);
+        var ter = I76.Formats.Mission.TerrainTiles.Load(msn, MissionWorld.FindTerrain(install, msn)!);
+        var exits = (msn.ReadFsmProgram()?.Paths ?? []).Where(p => p.Name.StartsWith("exit", StringComparison.OrdinalIgnoreCase)).SelectMany(p => p.Points).Select(p => new System.Numerics.Vector2(p.X, p.Z)).ToList();
+        var sk = I76.Formats.Mission.ArenaSketch.Whole(msn, ter, [.. marks.Points.Select(p => p.At)], [.. marks.Lines.Select(l => l.Points)], exits, 560, 392)!;
+        var ink = sk.Render(scale, aliased: scale == 1);
+        int W = 640 * scale, H = 480 * scale;
+        var px = new byte[W * H * 4];
+        for (int i = 0; i < W * H; i++) { px[i * 4] = 232; px[i * 4 + 1] = 222; px[i * 4 + 2] = 196; px[i * 4 + 3] = 255; }
+        int bw = 560 * scale, bh = 392 * scale, ox = 40 * scale, oy = 56 * scale;
+        for (int y = 0; y < bh; y++)
+            for (int x = 0; x < bw; x++)
+            {
+                int s = (y * bw + x) * 4, d = ((oy + y) * W + ox + x) * 4;
+                float a = ink[s + 3] / 255f;
+                for (int c = 0; c < 3; c++) px[d + c] = (byte)(px[d + c] * (1 - a) + ink[s + c] * a);
+            }
+        void Dot(System.Numerics.Vector2 world, int r, bool ring, (byte, byte, byte) col)
+        {
+            var u = sk.InBox(world);
+            int cx = ox + (int)(u.X * bw), cy = oy + (int)(u.Y * bh);
+            for (int y = -r - 2; y <= r + 2; y++)
+                for (int x = -r - 2; x <= r + 2; x++)
+                {
+                    double dd = Math.Sqrt(x * x + y * y);
+                    bool on = ring ? Math.Abs(dd - r) < 1.2 * scale : Math.Max(Math.Abs(x), Math.Abs(y)) <= r;
+                    int X = cx + x, Y = cy + y;
+                    if (!on || X < 0 || Y < 0 || X >= W || Y >= H) continue;
+                    int d = (Y * W + X) * 4;
+                    px[d] = col.Item1; px[d + 1] = col.Item2; px[d + 2] = col.Item3;
+                }
+        }
+        foreach (var (l, at) in marks.Points) Dot(at, 9 * scale, true, (40, 30, 18));
+        foreach (var (l, at) in marks.Landmarks) Dot(at, 3 * scale, false, (92, 58, 26));
+        File.WriteAllBytes(outPng, I76.Formats.Export.PngWriter.Encode(W, H, px, true));
+        Console.WriteLine($"{spec.Base} {spec.Objective.Template}: marks {string.Join(", ", marks.Points.Select(p => p.Label))}; landmarks {string.Join(", ", marks.Landmarks.Select(p => p.Label))}; steps {string.Join(", ", marks.Steps.Select(s => s.Objective))}; wrote {outPng}");
+        return 0;
+    }
+}

@@ -43,6 +43,8 @@ public sealed class RemixSpec
     public List<OpenSpec> Open { get; set; } = [];
     /// <summary>Places inside or under structures the job uses (where, the way out, what), checked by driving out of each (i76 remix check).</summary>
     public List<InsideSpec> Inside { get; set; } = [];
+    /// <summary>One or two places of the map lettered on the job's map for bearings (a town, a fort, a bridge): a name and a point.</summary>
+    public List<LandmarkSpec> Landmarks { get; set; } = [];
     /// <summary>The stock leave-map threads dropped, by their exit path's label (a start beside an exit).</summary>
     public List<string> DropExits { get; set; } = [];
     /// <summary>
@@ -83,6 +85,13 @@ public sealed class OpenSpec
     public string Object { get; set; } = "";
     public int Nth { get; set; }
     public List<string> Nodes { get; set; } = [];
+}
+
+/// <summary>A landmark lettered on a job's map: its name and where it is.</summary>
+public sealed class LandmarkSpec
+{
+    public string Name { get; set; } = "";
+    public double[] At { get; set; } = [];
 }
 
 /// <summary>A place of a job inside or under a structure: its point, the way a car there faces, the point outside it drives out to, and its words.</summary>
@@ -318,6 +327,8 @@ public sealed class RadioSpec
     public List<List<string>> Steps { get; set; } = [];
     /// <summary>Clips for a reinforcement's arrival.</summary>
     public List<string> Reinforce { get; set; } = [];
+    /// <summary>What a clip says, in words: lettered at the top of the screen when the install has no such clip (the radio's text fallback).</summary>
+    public Dictionary<string, string> Words { get; set; } = [];
     [YamlIgnore] public IEnumerable<string> All => Start.Concat(Trap).Concat(Wave).Concat(Win).Concat(Steps.SelectMany(s => s)).Concat(Reinforce).Distinct(StringComparer.OrdinalIgnoreCase);
 }
 
