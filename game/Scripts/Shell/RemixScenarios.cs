@@ -14,8 +14,10 @@ public static class RemixScenarios
 {
     public static string Dir => ProjectSettings.GlobalizePath("user://remix");
 
-    /// <summary>The list's last row: a job the director rolls afresh each time it is entered (RollJob).</summary>
+    /// <summary>The list's last row but one: a job the director rolls afresh each time it is entered (RollJob).</summary>
     public const string RandomJob = "RANDOM JOB";
+    /// <summary>The list's last row: a run of four jobs across the region (RoadTripScreen; docs/remix-missions.md "Road trip").</summary>
+    public const string RoadTrip = "ROAD TRIP";
 
     /// <summary>The last jobs rolled, newest first, one number a line (user://remix/jobs.txt).</summary>
     public static string HistoryFile => System.IO.Path.Combine(Dir, "jobs.txt");
@@ -96,7 +98,7 @@ public static class RemixScenarios
             if (built.Count > 0) GD.Print($"remix: built {string.Join(", ", built)} into {Dir} ({Time.GetTicksMsec() - t0} ms)");
             var ids = specs.Select(s => { try { return RemixSpec.Parse(s.Yaml).Id.ToLowerInvariant(); } catch (RemixError) { return null; } }).OfType<string>().ToHashSet();
             _scenarios = [.. I76.Formats.Mission.MissionTitles.BaseScenarios, .. RemixBuilder.Listed(Dir).Where(l => ids.Contains(l.Stem)).Select(l => (l.Title, l.Stem)),
-                (RandomJob, RemixDirector.JobStem)];
+                (RandomJob, RemixDirector.JobStem), (RoadTrip, RemixRun.Stem)];
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {

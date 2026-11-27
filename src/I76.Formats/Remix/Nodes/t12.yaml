@@ -1,0 +1,51 @@
+# T12's map (Roswell: the Autowerks Komplex in the northwest, the school and houses to the east, the west road south): coordinates
+# read off the map (i76 remix map t12) and the atlas's unvisited areas, written by hand with the port's own words. T12's own action
+# is the Komplex and the east road; jobs lean on the west road's south end and the streets by the school.
+base: t12
+name: Roswell
+neighbours: [t11, t13]
+lot: [4435, 44855]                  # the south edge, off the roads
+cast:
+  - {name: Oktoberfest, side: gang}
+  - {name: Nostromo, side: gang}
+  - {name: Disco Cat, side: gang}
+stock_action: [[3725, 47120], [4010, 47335], [4090, 47970], [3545, 47900], [6100, 45990], [5800, 46015], [5575, 46570], [5225, 46175], [4040, 46835], [5090, 46525], [3242, 47928]]
+starts:
+  - {name: west_south, at: [4090, 46049], heading: 0, called: on the west road south of the Komplex}
+  - {name: school_road, at: [4976, 46175], heading: 270, called: on the road past the school}
+  - {name: east_road, at: [5701, 46325], heading: 180, called: on the east road above the houses}
+  - {name: crossroads, at: [4524, 46175], heading: 90, called: at the crossroads southeast of the Komplex}
+nodes:
+  - {name: west_south, kinds: [pickup, hideout, yard], at: [4090, 45670], called: the south end of the west road}
+  - {name: west_mid, kinds: [pickup], at: [4090, 46500], called: the west road below the Komplex}
+  - {name: school, kinds: [home, hideout], at: [5158, 46315], called: Jim Bowie Elementary School}
+  - {name: crossroads, kinds: [pickup, yard], at: [4524, 46175], called: the crossroads southeast of the Komplex}
+  - {name: east_road, kinds: [pickup, home], at: [5701, 46325], called: the east road above the houses}
+  - {name: komplex_road, kinds: [home], at: [4090, 47091], called: the west road beside the Komplex}
+  - {name: building_600, kinds: [pickup], at: [3596, 47311], called: Building 600 on the Komplex's north side}
+  - {name: southwest_ground, kinds: [hideout], at: [3835, 45655], called: the open ground southwest of the west road}
+entries:
+  - {name: south, at: [[4090, 45434], [4090, 45559]]}
+  - {name: west_mid, at: [[4090, 46439], [4090, 46316]]}
+  - {name: crossroads, at: [[4535, 46175], [4660, 46175]]}
+  - {name: east, at: [[6278, 46245], [6260, 46365]]}
+  - {name: school, at: [[5036, 46175], [5159, 46175]]}
+  - {name: north, at: [[4090, 47091], [4090, 46966]]}
+routes:
+  - {name: west_and_north, heading: 300, exit: [4090, 47398], points: [[5701, 46325], [5576, 46560], [5432, 46325], [5195, 46216], [5149, 46175], [4825, 46175], [4524, 46175], [4210, 46175], [4090, 46357], [4090, 46662], [4090, 46976], [4090, 47288], [4090, 47398]]}
+  - {name: to_the_school, escort: true, called: Jim Bowie Elementary School, heading: 0, points: [[4090, 45670], [4090, 45926], [4147, 46175], [4397, 46175], [4670, 46175], [4966, 46175], [5195, 46268], [5158, 46315]]}
+clusters:
+  - name: school
+    called: the school and the houses round it
+    at: [5158, 46309]
+    radius: 220
+    objects: [{object: bhschol1}, {object: bhjhous1}, {object: bhjhous1, nth: 1}, {object: bhjhous1, nth: 2}, {object: bhjhous1, nth: 3}, {object: bhjhous1, nth: 4}, {object: bhjhous1, nth: 5}]
+    entries: [school, crossroads, east, west_mid]
+    uses: [defend]
+  - name: komplex
+    called: the Komplex's outbuildings
+    at: [3734, 47002]
+    radius: 260
+    objects: [{object: bcaik4}, {object: bcaik_s4}]
+    entries: [north, west_mid, crossroads]
+    uses: [raid]

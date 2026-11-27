@@ -1,0 +1,47 @@
+# T17's map (Malocchio's oil field: one dirt road through the pumps, one way out to the south): coordinates read off the map (i76
+# remix map t17) and the atlas's unvisited areas, written by hand with the port's own words. T17's own action is the duel among
+# the south pumps; jobs lean on the road's northwest end and the north pumps.
+base: t17
+name: "Malocchio's oil field"
+neighbours: [t15, t16]
+lot: [1720, 46665]                  # the far west, off the road
+cast:
+  - {name: Malocchio, side: gang}
+  - {name: Cloaker, side: gang}
+stock_action: [[3195, 47115], [2985, 46150], [2975, 46530], [2820, 45560]]
+starts:
+  - {name: northwest, at: [2020, 47905], heading: 130, called: at the northwest end of the oil field road}
+  - {name: north, at: [2406, 47665], heading: 90, called: on the oil field road north of the pumps}
+  - {name: south, at: [2914, 46440], heading: 30, called: on the oil field road south of the pumps}
+nodes:
+  - {name: northwest, kinds: [hideout, home], at: [2020, 47905], called: the northwest end of the oil field road}
+  - {name: north_ground, kinds: [hideout], at: [2620, 47865], called: the open ground north of the oil field road}
+  - {name: north, kinds: [pickup, home], at: [2406, 47665], called: the oil field road north of the pumps}
+  - {name: north_pumps, kinds: [pickup, yard], at: [2863, 47657], called: the north pumps}
+  - {name: middle, kinds: [pickup, yard], at: [3122, 47282], called: the middle of the oil field}
+  - {name: east_pumps, kinds: [pickup, hideout], at: [3210, 46834], called: the east pumps}
+  - {name: south, kinds: [home], at: [2914, 46440], called: the south end of the oil field}
+entries:
+  - {name: northwest, at: [[2020, 47905], [2102, 47811]]}
+  - {name: north, at: [[2467, 47666], [2591, 47668]]}
+  - {name: middle, at: [[2972, 47630], [3028, 47526]]}
+  - {name: south, at: [[3325, 45745], [3250, 45846]]}
+  - {name: east, at: [[3215, 46843], [3148, 46736]]}
+routes:
+  - {name: out_south, heading: 130, exit: [3240, 45889], points: [[2020, 47905], [2199, 47730], [2457, 47666], [2737, 47667], [2994, 47607], [3114, 47324], [3168, 47065], [3205, 46824], [3034, 46602], [2885, 46347], [2995, 46152], [3217, 46032], [3240, 45889]]}
+  - {name: up_the_field, escort: true, called: the northwest end of the oil field road, heading: 30, points: [[2914, 46440], [3074, 46649], [3226, 46893], [3139, 47133], [3089, 47382], [2942, 47639], [2674, 47669], [2406, 47665], [2149, 47768], [2020, 47905]]}
+clusters:
+  - name: north_pumps
+    called: the north pumps
+    at: [2850, 47600]
+    radius: 250
+    objects: [{object: amoilpm2, nth: 23}, {object: amoilpm2, nth: 24}, {object: amoilpm2, nth: 25}, {object: amoilpm2, nth: 26}, {object: amoilpm2, nth: 27}, {object: amoilpm2, nth: 28}, {object: amoilpm2, nth: 29}, {object: amoilpm2, nth: 30}, {object: amoilpm2, nth: 31}]
+    entries: [north, middle, northwest]
+    uses: [raid, defend]
+  - name: east_pumps
+    called: the east pumps
+    at: [3500, 46900]
+    radius: 250
+    objects: [{object: amoilpm2, nth: 15}, {object: amoilpm2, nth: 16}, {object: amoilpm2, nth: 18}, {object: amoilpm2, nth: 19}, {object: amoilpm2, nth: 21}, {object: amoilpm2, nth: 22}]
+    entries: [east, middle, south]
+    uses: [raid]

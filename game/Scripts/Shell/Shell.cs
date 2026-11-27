@@ -29,7 +29,13 @@ public sealed record ShellLaunch(string Mission, GameKind Kind, string? Car = nu
     public byte[]? Resume { get; init; }
     /// <summary>Trip+'s rules for a trip launch (the play fork's; docs/deviations.md "Trip+"); null, the original's trip.</summary>
     public I76.Sim.Trip.TripPlusRules? TripPlus { get; init; }
+    /// <summary>A road trip's job (the play fork's; docs/remix-missions.md "Road trip"): the car's damage it carries in (null: as built), applied at load.</summary>
+    public bool RoadTrip { get; init; }
+    public I76.Formats.Remix.RunCar? Carry { get; init; }
 }
+
+/// <summary>What a road trip's job hands back: won or not, the player's kills, and the car's damage to carry on.</summary>
+public sealed record RunResult(bool Won, int Kills, I76.Formats.Remix.RunCar Car);
 
 /// <summary>The trip at a mission's launch: the mission number (trip.cfg's) and the car with its parts (the bookmark .cmp body, <see cref="I76.Sim.Trip.TripInventory.Save"/>).</summary>
 /// <param name="Lap">The Trip+ lap (the play fork's): 1 the original's trip.</param>
@@ -220,6 +226,8 @@ public partial class Shell : CanvasLayer
     public TripResult? LastTrip { get; init; }
     /// <summary>What the last melee or scenario handed back.</summary>
     public MeleeResult? LastMelee { get; init; }
+    /// <summary>What the last road trip job handed back (RoadTripScreen).</summary>
+    public RunResult? LastRun { get; init; }
     /// <summary>What the last network melee handed back.</summary>
     public NetResult? LastNet { get; init; }
     /// <summary>Why the last launch could not be built, or null.</summary>
@@ -562,6 +570,8 @@ public partial class Shell : CanvasLayer
             int ch = NitroProgress.Data.Characters.FindIndex(c => c.Missions.Any(m => m.Stem.Equals(nl0.Mission, StringComparison.OrdinalIgnoreCase)));
             return new ScenarioScreen { Character = Math.Max(0, ch) };
         }
+        // back from a road trip's job (the play fork's): its reward, the next choice, or the run's end (docs/remix-missions.md "Road trip")
+        if (LastLaunch is { Kind: GameKind.Scenario, RoadTrip: true }) return RoadTripScreen.Back(LastRun, LoadError);
         // back from a melee (the original front end's main loop decides by kind, whatever the state): STANDINGS, or the scenario form
         if (LastLaunch is { Kind: GameKind.Scenario } sl)
         {

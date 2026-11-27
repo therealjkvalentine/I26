@@ -1,0 +1,50 @@
+# T09's map (Callisto's oil field off 214: dirt roads through the pumps): coordinates read off the map (i76 remix map t09), written
+# by hand with the port's own words. T09's own action runs the field's main loop; jobs lean on its ends and the pumps themselves.
+base: t09
+name: the oil field off 214
+neighbours: [t01, t07, t08, t10]
+lot: [95, 48711]                    # the far west edge, off the roads
+cast:
+  - {name: Callisto, side: gang}
+  - {name: Disco Cat, side: gang}
+stock_action: [[1375, 48935], [1135, 48335], [1180, 47960], [1335, 47645], [1750, 47705], [2035, 47610], [1905, 48035], [1450, 48165], [1740, 48505], [2265, 48365], [2365, 48650], [2615, 48875], [2895, 48615], [2945, 48315], [3250, 48260], [3585, 48490], [3430, 48970], [3065, 49015], [2850, 49235], [2435, 49165], [2150, 49055], [1825, 48985], [290, 49140], [1260, 49260]]
+starts:
+  - {name: southwest, at: [1145, 48109], heading: 0, called: on the dirt road southwest of the oil field}
+  - {name: east, at: [3256, 49048], heading: 270, called: on the dirt road by the northeast pumps}
+  - {name: south, at: [2030, 47854], heading: 330, called: on the dirt road south of the oil field}
+  - {name: north, at: [2627, 49274], heading: 265, called: on the dirt road north of the oil field}
+nodes:
+  - {name: west_road, kinds: [pickup, yard], at: [1181, 48561], called: the dirt road west of the oil field}
+  - {name: east_pumps, kinds: [home, hideout], at: [3575, 48619], called: the east pumps}
+  - {name: south, kinds: [pickup, hideout], at: [2030, 47854], called: the dirt road south of the oil field}
+  - {name: southwest_bend, kinds: [pickup, hideout, yard], at: [1417, 47632], called: the southwest bend of the dirt road}
+  - {name: north, kinds: [pickup, home], at: [2627, 49274], called: the dirt road north of the oil field}
+  - {name: middle, kinds: [pickup], at: [1903, 48460], called: the track through the middle of the field}
+  - {name: northeast, kinds: [home, hideout], at: [3256, 49048], called: the northeast pumps}
+  - {name: east_track, kinds: [pickup, yard], at: [2892, 48465], called: the track east of the middle pumps}
+entries:
+  - {name: west, at: [[824, 49234], [908, 49324]]}
+  - {name: southwest, at: [[1181, 48561], [1182, 48687]]}
+  - {name: south, at: [[2030, 47854], [1957, 47959]]}
+  - {name: east, at: [[3256, 49048], [3130, 49035]]}
+  - {name: north, at: [[2627, 49274], [2512, 49221]]}
+  - {name: southeast, at: [[3575, 48619], [3550, 48741]]}
+  - {name: field_north, at: [[1984, 49016], [1856, 48991]]}
+routes:
+  - {name: field_west, heading: 330, points: [[3575, 48619], [3490, 48895], [3256, 49048], [2967, 49081], [2743, 49269], [2452, 49177], [2155, 49055], [1877, 48995], [1683, 48809], [1462, 48778], [1304, 48936], [1258, 49231], [1057, 49367], [824, 49234]]}
+  - {name: round_the_south, escort: true, called: the track through the middle of the oil field, heading: 170, points: [[1145, 48109], [1201, 47821], [1417, 47632], [1671, 47713], [1956, 47620], [2085, 47759], [1922, 48010], [1721, 48177], [1447, 48173], [1481, 48400], [1713, 48499], [1936, 48418], [2158, 48296], [2311, 48485], [2433, 48754]]}
+clusters:
+  - name: west_pumps
+    called: the west pumps
+    at: [1897, 49116]
+    radius: 220
+    objects: [{object: amoilpm2}, {object: amoilpm2, nth: 1}, {object: amoilpm2, nth: 2}, {object: amoilpm2, nth: 3}, {object: amoilpm2, nth: 4}, {object: amoilpm2, nth: 5}, {object: amoilpm2, nth: 6}, {object: amoilpm2, nth: 7}]
+    entries: [west, field_north, north, southwest]
+    uses: [raid, defend]
+  - name: east_pumps
+    called: the east pumps
+    at: [3571, 48506]
+    radius: 220
+    objects: [{object: amoilpm2, nth: 25}, {object: amoilpm2, nth: 26}, {object: amoilpm2, nth: 27}, {object: amoilpm2, nth: 28}, {object: amoilpm2, nth: 29}, {object: amoilpm2, nth: 30}]
+    entries: [east, southeast, north]
+    uses: [raid]

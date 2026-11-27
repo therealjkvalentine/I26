@@ -77,6 +77,9 @@ public static class RemixChallenge
         int steps = Math.Max(0, Math.Max(RemixTemplates.OwnObjectives(spec), RemixTemplates.FinishObjective(spec)) - 1);
         double clock = 0;
         if (o.Deadline > 0 && Legs(spec) is var need and > 0) clock = Math.Min(2, 2 * need / 22 / o.Deadline);
+        // a raid's way out: the leg from the targets to the escape against its seconds
+        if (o.Escape is { Seconds: > 0 } esc && o.Arrive is { } ar && spec.Places.TryGetValue(esc.Place, out var ep) && spec.Places.TryGetValue(ar.Place, out var ap) && ep.Count > 0 && ap.Count > 0)
+            clock = Math.Min(2, 2 * Math.Sqrt(Math.Pow(ep[0][0] - ap[0][0], 2) + Math.Pow(ep[0][1] - ap[0][1], 2)) * 1.3 / 22 / esc.Seconds);
         return new Parts(groups.Sum(g => g.Item2), steps, clock, groups);
     }
 
@@ -88,7 +91,7 @@ public static class RemixChallenge
         var chain = new List<double[]?>();
         bool fromPickup = o.Pickup is not null && (o.DeadlineFrom ?? "pickup") == "pickup";
         if (!fromPickup) chain.Add(spec.Start?.At);
-        chain.Add(P(o.Pickup)); chain.Add(P(o.Arrive)); chain.Add(P(o.Home)); chain.Add(P(o.Hideout));
+        chain.Add(P(o.Pickup)); chain.Add(P(o.Arrive)); chain.Add(P(o.Home)); chain.Add(P(o.Hideout)); chain.Add(P(o.Escort?.Mid)); chain.Add(P(o.Escort?.Goal));
         var pts = chain.Where(x => x is { Length: 2 }).Cast<double[]>().ToList();
         double d = 0;
         for (int i = 1; i < pts.Count; i++) d += Math.Sqrt((pts[i][0] - pts[i - 1][0]) * (pts[i][0] - pts[i - 1][0]) + (pts[i][1] - pts[i - 1][1]) * (pts[i][1] - pts[i - 1][1]));

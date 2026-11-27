@@ -1,0 +1,37 @@
+# T03's map (114 south past the Bar-D to the loop road): coordinates read off the map (i76 remix map t03) and the atlas's
+# unvisited areas (the hills either side of the loop), written by hand with the port's own words for the places. T03's own
+# action runs the whole road; jobs lean on the loop's corners and the hills beside it.
+base: t03
+name: the Bar-D on 114
+neighbours: [t02, t05]          # T04 is a dream: the trip's road goes on to T05
+lot: [105, 46180]                   # the far southwest hills, off every road
+cast:
+  - {name: Leadsled, side: gang}
+  - {name: Road Knight, side: gang}
+stock_action: [[1045, 49295], [1195, 48430], [1510, 47085], [535, 50130], [795, 49690], [1360, 47790], [1595, 46725], [1095, 46815], [625, 47050], [590, 47360], [625, 47905], [665, 48380], [1640, 48560], [2035, 48545], [2190, 48095], [2085, 47745], [660, 50500], [145, 51050], [465, 50730], [1045, 48915], [1255, 48105], [1595, 46195], [1605, 44940], [1370, 47430], [1985, 47080]]
+starts:
+  - {name: highway_mid, at: [1365, 47621], heading: 345, called: on 114 north of the Sincere station}
+  - {name: west_loop, at: [611, 47633], heading: 0, called: on the west side of the loop road}
+  - {name: east_loop, at: [2169, 47907], heading: 190, called: on the east side of the loop road}
+  - {name: south, at: [1595, 46325], heading: 0, called: on the road south of the Bar-D}
+nodes:
+  - {name: bard, kinds: [home, hideout], at: [1595, 46598], called: the Bar-D roadhouse}
+  - {name: farm, kinds: [pickup, home], at: [1046, 48898], called: the barn and house beside 114}
+  - {name: loop_ne, kinds: [pickup, hideout], at: [2099, 48490], called: the northeast corner of the loop road}
+  - {name: loop_se, kinds: [pickup, yard], at: [2015, 46912], called: the southeast bend of the loop road}
+  - {name: loop_sw, kinds: [pickup, hideout, yard], at: [722, 46955], called: the southwest corner of the loop road}
+  - {name: loop_nw, kinds: [pickup, home], at: [746, 48495], called: the northwest corner of the loop road}
+  - {name: west_hills, kinds: [hideout], at: [430, 47600], called: the hills west of the loop road}
+  - {name: east_hills, kinds: [hideout], at: [2250, 46900], called: the hills east of the loop road's south bend}
+  - {name: gas, kinds: [pickup, yard], at: [1365, 47580], called: the Sincere Gas station on 114}
+entries:
+  - {name: south, at: [[1595, 45791], [1595, 45912]]}
+  - {name: loop_east, at: [[1936, 47471], [1931, 47344]]}
+  - {name: loop_west, at: [[611, 47633], [601, 47508]]}
+  - {name: loop_north, at: [[1483, 48560], [1361, 48560]]}
+  - {name: loop_nw, at: [[746, 48495], [851, 48553]]}
+  - {name: north, at: [[724, 50390], [697, 50272]]}
+routes:
+  - {name: loop_round, heading: 90, exit: [1595, 46096], points: [[746, 48495], [1017, 48560], [1300, 48560], [1586, 48560], [1873, 48560], [2143, 48447], [2190, 48160], [2140, 47826], [1971, 47585], [1935, 47304], [2007, 46996], [1821, 46800], [1595, 46703], [1595, 46409], [1595, 46096]]}
+  - {name: highway_down, escort: true, called: the Bar-D roadhouse, heading: 160, points: [[1046, 48898], [1095, 48650], [1202, 48374], [1254, 48110], [1345, 47874], [1365, 47621], [1395, 47346], [1495, 47106], [1595, 46829], [1595, 46598]]}   # not round the corner east at the Bar-D: a bus jammed there
+  - {name: loop_north, escort: true, called: the northeast corner of the loop road, heading: 0, points: [[611, 47633], [625, 47925], [628, 48228], [746, 48495], [1006, 48560], [1300, 48560], [1586, 48560], [1873, 48560], [2099, 48490]]}

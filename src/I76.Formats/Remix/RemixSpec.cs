@@ -103,6 +103,8 @@ public sealed class ReinforceSpec
     public int Delay { get; set; } = 5;
     public int Speed { get; set; } = 25;
     public bool Siren { get; set; }
+    /// <summary>Whom they come for: the player (null), or the escorted car ("escort": an escort's ambush).</summary>
+    public string? Target { get; set; }
 }
 
 public sealed class BindSpec
@@ -147,7 +149,8 @@ public sealed class ObjectiveSpec
 {
     /// <summary>
     /// defend (attackers by several entries pick structures; lose when they are gone), deliver (an optional pickup, then home
-    /// with nobody near), tail (lose the pursuers, then the hideout) or intercept (stop a convoy before its exit).
+    /// with nobody near), tail (lose the pursuers, then the hideout), intercept (stop a convoy before its exit), escort (see a
+    /// slow friendly through to a goal) or raid (destroy the targets, then get out before the roads close).
     /// </summary>
     public string Template { get; set; } = "";
     // ---- defend ----
@@ -180,6 +183,13 @@ public sealed class ObjectiveSpec
     public LostSpec? Lost { get; set; }
     // ---- intercept ----
     public ConvoySpec? Convoy { get; set; }
+    // ---- escort ----
+    public EscortSpec? Escort { get; set; }
+    // ---- raid ----
+    /// <summary>raid: what must be destroyed (structures by bind, or parked cars that never start), each a name.</summary>
+    public List<string> Targets { get; set; } = [];
+    /// <summary>raid: where to get out to once the targets are down, and the seconds allowed (from the last target's fall).</summary>
+    public ZoneSpec? Escape { get; set; }
     // ---- every template ----
     /// <summary>Twists: more cars brought in as an objective step opens (reinforcements).</summary>
     public List<ReinforceSpec> Reinforce { get; set; } = [];
@@ -225,6 +235,27 @@ public sealed class ConvoySpec
     public int Spacing { get; set; } = 20;
     /// <summary>The escorts must die too (objective 2); false: the lead alone.</summary>
     public bool KillEscorts { get; set; } = true;
+}
+
+/// <summary>
+/// escort: a slow friendly car driving a route from its first point to a goal, a waypoint on the way; it drives only while the
+/// player keeps up (within <see cref="Wait"/> metres; it waits for him to come back within <see cref="Resume"/>), so it never runs
+/// ahead alone (the owner's complaint about the stock escorts). Wingmen follow the player and fire at the nearest enemy.
+/// </summary>
+public sealed class EscortSpec
+{
+    /// <summary>The escorted car (a cars entry: the player's team).</summary>
+    public string Car { get; set; } = "";
+    /// <summary>The route it drives (a place of several points, or a stock path).</summary>
+    public string Route { get; set; } = "";
+    /// <summary>The halfway point (objective 1) and the goal (objective 2): zones the escorted car must reach.</summary>
+    public ZoneSpec? Mid { get; set; }
+    public ZoneSpec? Goal { get; set; }
+    public int Speed { get; set; } = 14;
+    public int Wait { get; set; } = 220;
+    public int Resume { get; set; } = 120;
+    /// <summary>Friendly cars that follow the player (cars entries, the player's team), each at a station beside him.</summary>
+    public List<string> Wingmen { get; set; } = [];
 }
 
 public sealed class WaveSpec

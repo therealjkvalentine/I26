@@ -41,7 +41,7 @@ public sealed record RemixOutput(string Stem, byte[] Mission, string Text, strin
 public static class RemixBuilder
 {
     /// <summary>The generator's version, in the stamp: a build by another version is made again.</summary>
-    public const int Version = 3;
+    public const int Version = 4;
     /// <summary>The stock library's routines lead every mission's code: Interstate '76's 15, the Nitro Pack's 28 (docs/mission-scripts.md).</summary>
     public const int LibraryRoutines = 15, NitroLibraryRoutines = 28;
     public const string PathPrefix = "rx_";
@@ -163,8 +163,9 @@ public static class RemixBuilder
         // the sides: every car the template turns on the player is the enemy's (team 2), as every stock mission's enemies are, so the
         // target keys (E, T) cycle to it and the radar shows it; a new car is nobody's (team 0) unless told, which the keys skip
         var hostile = RemixRoles.Hostiles(spec).Select(r => r.Car).ToHashSet(StringComparer.Ordinal);
+        var friendly = RemixRoles.Friendlies(spec).Select(r => r.Car).ToHashSet(StringComparer.Ordinal);
         foreach (var (name, c) in spec.Cars)
-            if (ObjectOf(name) is { } o) SetTeam(o, c.Team ?? (hostile.Contains(name) ? RemixRoles.EnemyTeam : 0));
+            if (ObjectOf(name) is { } o) SetTeam(o, c.Team ?? (hostile.Contains(name) ? RemixRoles.EnemyTeam : friendly.Contains(name) ? RemixRoles.PlayerTeam : 0));
         foreach (var name in hostile.Where(n => !spec.Cars.ContainsKey(n)))
             if (ObjectOf(name) is { } o && o.ObjectType == 1) SetTeam(o, RemixRoles.EnemyTeam);
         MapObject? ObjectOf(string name)
@@ -173,16 +174,17 @@ public static class RemixBuilder
                 : stock.Actors.FirstOrDefault(a => a.Key == name)?.Id;
             return id is null ? null : doc.Objects.FirstOrDefault(o => o.Payload.AsSpan(0, 8).SequenceEqual(id));
         }
-        // the stock cars nothing drives any more: the base's mission threads (dropped) did; they would only stand where it parked them
+        // the stock cars (and helicopters, type 9) nothing drives any more: the base's mission threads (dropped) did; they would only stand
+        // where it parked them (an idle helicopter by a riverbed kept a tail from ever being lost)
         switch (spec.IdleCars)
         {
             case "keep": break;
             case "remove":
                 var keep = new HashSet<string>(newActors.Select(a => Convert.ToHexString(a.Id!)), StringComparer.Ordinal);
                 foreach (var a in stock.Actors.Where(a => a.Id is not null && used.Contains(a.Key))) keep.Add(Convert.ToHexString(a.Id!));
-                var gone = doc.Objects.Where(o => o.ObjectType == 1 && o != player && !keep.Contains(Convert.ToHexString(o.Payload, 0, 8)))
+                var gone = doc.Objects.Where(o => o.ObjectType is 1 or 9 && o != player && !keep.Contains(Convert.ToHexString(o.Payload, 0, 8)))
                     .Select(o => Convert.ToHexString(o.Payload, 0, 8)).ToHashSet(StringComparer.Ordinal);
-                doc.Objects.RemoveAll(o => o.ObjectType == 1 && gone.Contains(Convert.ToHexString(o.Payload, 0, 8)));
+                doc.Objects.RemoveAll(o => o.ObjectType is 1 or 9 && gone.Contains(Convert.ToHexString(o.Payload, 0, 8)));
                 // and the library threads that watched them (a car's kill line, the ally's friendly-fire chatter): their car is gone
                 var goneKeys = stock.Actors.Where(a => a.Id is not null && gone.Contains(Convert.ToHexString(a.Id))).Select(a => a.Key).ToHashSet(StringComparer.Ordinal);
                 var globalsByName = src.Globals.GroupBy(g => g.Name, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First().Value, StringComparer.Ordinal);

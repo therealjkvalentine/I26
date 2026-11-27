@@ -16,6 +16,8 @@ public sealed class JobNumberPopup : ShellScreen
     public required Action<int?> Picked { get; init; }
     public required Action Cancelled { get; init; }
     public IReadOnlyList<int> Recent { get; init; } = [];
+    /// <summary>What the number is called ("Job number"; a road trip's "Run number").</summary>
+    public string Noun { get; init; } = "Job number";
     public override bool EscapeOpensOptions => false;
     public override bool TextEditing => true;
     private static readonly Rect2I Ok = new(119, 61, 42, 16);
@@ -33,7 +35,7 @@ public sealed class JobNumberPopup : ShellScreen
         int w = s?.Width ?? 282, h = s?.Height ?? 93;
         Frame.Fill(X + 6, Y + h, w, 6, 0x0f);
         Frame.Fill(X + w, Y + 6, 6, h, 0x0f);
-        string ask = _text.Length == 0 ? (Recent.Count > 0 ? "Job number: blank for new, Up for recent" : "Job number: blank for a new one") : "Job number";
+        string ask = _text.Length == 0 ? (Recent.Count > 0 ? $"{Noun}: blank for new, Up for recent" : $"{Noun}: blank for a new one") : Noun;
         Frame.Text(Font, X + w / 2, Y + 14, "~" + AddressBookPopup.Fit(Font, ask, w - 24));
         Frame.Text(Font, X + w / 2, Y + 36, "~" + (_text.Length == 0 ? "NEW_" : _text + "_"));
     }

@@ -17,6 +17,7 @@ namespace I76.Sim.Tests;
 /// repeatable and round-trips through the script compiler, never touches the install, and each mission's win and fail
 /// paths fire when played headless; a run is deterministic and a mid-mission snapshot restores into a rebuilt mission.
 /// </summary>
+[Collection("remix")]   // GameInstall.UserMissionDir is one for the process: the remix test classes take turns
 public class RemixMissionTests
 {
     private static readonly object Gate = new();

@@ -37,8 +37,22 @@ public static class RemixCheck
             int i = Array.IndexOf(keys, spec.Cars.ContainsKey(name) || spec.Bind.ContainsKey(name) ? RemixBuilder.PathPrefix + name : name);
             return i >= 0 && vm.Actors[i].Handle is Entity { Vehicle: { } v } ? v : null;
         }
+        Entity? EntityOf(string name)
+        {
+            int i = Array.IndexOf(keys, spec.Cars.ContainsKey(name) || spec.Bind.ContainsKey(name) ? RemixBuilder.PathPrefix + name : name);
+            return i >= 0 ? vm.Actors[i].Handle as Entity : null;
+        }
         var combat = s.Combat!;
         int myTeam = combat.Team(me);
+        // the player's side: an escort's car and its wingmen, on his team
+        foreach (var f in RemixRoles.Friendlies(spec))
+        {
+            if (CarOf(f.Car) is not { } fv) { bad.Add($"{f.Part} {f.Car}: no car in the built mission"); continue; }
+            if (combat.Team(fv) != myTeam) bad.Add($"{f.Part} {f.Car}: on team {combat.Team(fv)}, not the player's ({myTeam})");
+        }
+        // a raid's targets: each a structure or a car of the built mission
+        foreach (var t in spec.Objective.Targets)
+            if (EntityOf(t) is null) bad.Add($"target {t}: nothing in the built mission");
         var roles = RemixRoles.Hostiles(spec);
         var cars = new Dictionary<string, Vehicle>();
         foreach (var r in roles)
@@ -96,7 +110,7 @@ public static class RemixCheck
         // rolling; then each must be a contact the next-target key reaches from 60 m
         var seen = new HashSet<string>();
         var grounded = new HashSet<string>();
-        int ticks = (int)(System.Math.Min(180, Horizon(spec)) / s.TickSeconds);
+        int ticks = (int)(System.Math.Min(spec.Objective.Escort is null ? 180 : 600, Horizon(spec)) / s.TickSeconds);
         var doom = new List<(float At, Vehicle Car)>();
         var objectives = setup.Script!.Host.Objectives;
         int walked = 0;
@@ -107,7 +121,30 @@ public static class RemixCheck
             float now = t * s.TickSeconds;
             int open = Array.FindIndex(objectives.Flags, f => (f & (Objectives.Hidden | Objectives.Succeeded | Objectives.Failed)) == 0) + 1;
             if (open > walked) { walked = open; stepAt = now + 6; }
-            if (stepAt > 0 && now >= stepAt) { stepAt = 0; if (StepPlace(spec, walked) is { } sp) Put(setup, me, (float)sp[0], (float)sp[1]); }
+            if (spec.Objective.Escort is { } ec)
+            {
+                // an escort is walked behind the escorted car (it drives only while he keeps up), 70 m back along its facing every two
+                // seconds: out of its way when it backs off a junction
+                if (t % (int)(2 / s.TickSeconds) == 0 && CarOf(ec.Car) is { } van && !Weapons.Combat.IsDead(van))
+                {
+                    var f = van.Rot.Forward;
+                    double fl = System.Math.Max(1e-3, System.Math.Sqrt(f.X * f.X + f.Z * f.Z));
+                    Put(setup, me, (float)(van.Pos.X - 70 * f.X / fl), (float)(van.Pos.Z - 70 * f.Z / fl));
+                }
+            }
+            else if (stepAt > 0 && now >= stepAt)
+            {
+                stepAt = 0;
+                if (StepPlace(spec, walked) is { } sp) Put(setup, me, (float)sp[0], (float)sp[1]);
+                // a raid's targets fall as its second step opens: the structures shot through, the parked cars as the player's kills
+                if (spec.Objective.Template == "raid" && walked == 2)
+                    foreach (var tn in spec.Objective.Targets)
+                        if (EntityOf(tn) is { } te)
+                        {
+                            if (te.Static is { } ws) Wreck(setup, ws);
+                            else if (!te.Dead) { te.KilledByPlayer = true; s.Script!.Host.Destroy(te); }
+                        }
+            }
             s.Tick([new CarInput()]);
             s.Combat?.Events.Clear();
             (s.Combat?.Damage as Damage.DamageModel)?.Events.Clear();
@@ -147,6 +184,14 @@ public static class RemixCheck
                 seen.Add(name);
                 doom.Add((now + 3, v));
             }
+        }
+        // an escort: the escorted car must have followed its route to the goal (it drives only while the player keeps up: the walk does)
+        if (spec.Objective.Escort is { } esc && CarOf(esc.Car) is { } vanEnd && spec.Places.TryGetValue(esc.Route, out var rpts) && rpts.Count > 1
+            && spec.Objective.Escort.Goal is { } eg && spec.Places.TryGetValue(eg.Place, out var gp) && gp.Count > 0)
+        {
+            float toGoal = Planar(vanEnd, (float)gp[0][0], (float)gp[0][1]);
+            bool won = objectives.Flags.Length > 1 && (objectives.Flags[1] & Objectives.Succeeded) != 0;
+            if (!won && s.Script!.Result != false) bad.Add($"escorted {esc.Car}: {toGoal:0} m short of its goal after {s.Script.Host.Now:0} s ({string.Join(", ", objectives.Flags.Select(Objectives.Describe))})");
         }
         // (a mission over early, the player dead or the job done, leaves the rest unseen: only a running one says so)
         foreach (var r in roles)
@@ -202,9 +247,21 @@ public static class RemixCheck
     private static string Part(List<RemixRoles.Role> roles, string name) => roles.First(r => r.Car == name).Part;
 
     /// <summary>Whether a car may stay parked through the check (a sleeper woken only by the player near it, which the walk need not pass).</summary>
-    private static bool Expected(RemixSpec spec, RemixRoles.Role r) => r.Part == "sleeper";
+    private static bool Expected(RemixSpec spec, RemixRoles.Role r) => r.Part is "sleeper" or "target";
 
     private static float Planar(Vehicle v, float x, float z) => MathF.Sqrt((float)((v.Pos.X - x) * (v.Pos.X - x) + (v.Pos.Z - z) * (v.Pos.Z - z)));
+
+    /// <summary>A structure shot through, gunfire's way: every node, then the root, takes a round larger than its hit points.</summary>
+    public static void Wreck(MissionSetup setup, I76.Sim.Collision.StaticObject ws)
+    {
+        for (int nk = -1; nk < ws.Nodes.Count; nk++)
+        {
+            int hp = nk < 0 ? ws.Hp : ws.Nodes[nk].Hp;
+            var pk = new Weapons.DamagePacket { Attacker = setup.World.Player, Mask = 2, Kind = Damage.DamageKind.Round };
+            pk.Ch[1] = hp + 1;
+            setup.Damage.StructureSlot(ws, nk < 0 ? -1 : nk, pk);
+        }
+    }
 
     private static void Put(MissionSetup setup, Vehicle me, float x, float z)
     {
@@ -216,11 +273,15 @@ public static class RemixCheck
     private static IEnumerable<(string Label, ZoneSpec Zone)> Zones(RemixSpec spec)
     {
         var o = spec.Objective;
-        if (o.Arrive is { } a) yield return ("DEFEND", a);
+        if (o.Arrive is { } a && o.Template == "defend") yield return ("DEFEND", a);
         if (o.Pickup is { } p) yield return ("PICKUP", p);
         if (o.Home is { } h) yield return ("HOME", h);
         if (o.Hideout is { } hd) yield return ("HIDEOUT", hd);
         if (o.Convoy?.Exit is { } e) yield return ("EXIT", e);
+        if (o.Escort?.Mid is { } em) yield return ("HALFWAY", em);
+        if (o.Escort?.Goal is { } eg) yield return ("GOAL", eg);
+        if (o.Template == "raid" && o.Arrive is { } ra) yield return ("TARGET", ra);
+        if (o.Escape is { } es) yield return ("ESCAPE", es);
         if (o.Finish is { } f) yield return (RemixMarks.FinishLabel(spec), f);
     }
 
@@ -232,7 +293,17 @@ public static class RemixCheck
         foreach (var w in o.Waves) h = System.Math.Max(h, w.AtSeconds + 40);
         if (o.Pursuit is { } p) h = System.Math.Max(h, p.Delay + 60);
         foreach (var r in o.Reinforce) h = System.Math.Max(h, r.Delay + 90);
+        // an escort: the escorted car's whole drive at its speed, and the reinforcements after its halfway point
+        if (o.Escort is { } e && spec.Places.TryGetValue(e.Route, out var pts) && pts.Count > 1)
+            h = System.Math.Max(h, (float)(RouteLength(pts) * 2.0 / System.Math.Max(1, e.Speed)) + 60);   // room for a jam at a junction (a bus at the Bar-D took a minute)
         return h + 30;
+    }
+
+    private static double RouteLength(List<double[]> pts)
+    {
+        double d = 0;
+        for (int i = 1; i < pts.Count; i++) d += System.Math.Sqrt((pts[i][0] - pts[i - 1][0]) * (pts[i][0] - pts[i - 1][0]) + (pts[i][1] - pts[i - 1][1]) * (pts[i][1] - pts[i - 1][1]));
+        return d;
     }
 
     /// <summary>Metres a place the player must reach keeps from a leave-map exit.</summary>
@@ -257,6 +328,9 @@ public static class RemixCheck
             "deliver" => k == 1 && o.Pickup is not null ? P(o.Pickup) : P(o.Home),
             "tail" => k >= 2 ? P(o.Hideout) : null,
             "defend" => P(o.Arrive),
+            // an escort: beside the escorted car's next zone (it drives only while he keeps up); a raid: the targets, then out
+            "escort" => k == 1 ? P(o.Escort?.Mid) : P(o.Escort?.Goal),
+            "raid" => k == 3 ? P(o.Escape) : P(o.Arrive),
             _ => null,
         };
     }

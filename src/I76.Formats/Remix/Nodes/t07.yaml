@@ -1,5 +1,7 @@
 # T07's map (Highway 380 between two roadblocks, farms to the north): coordinates read off the map (i76 remix map t07).
 base: t07
+name: the farms on 380
+neighbours: [t01, t02, t06, t08, t09]
 hour: 17
 lot: [100, 49300]                   # beside T07's police lot, off the play area
 gates: [gate1]                      # T07's east fence across 380, opened at the start as T07 does
@@ -13,7 +15,7 @@ starts:
   - {name: east, at: [4400, 47930], heading: 270, called: on 380 at the east end}
   - {name: south_loop, at: [3755, 47300], heading: 0, called: on the loop south of 380}
 nodes:
-  - {name: south_farm, kinds: [pickup, hideout], at: [3720, 47520], called: the saloon in the old town on the south loop}
+  - {name: south_farm, kinds: [pickup, hideout], at: [3755, 47515], called: the saloon in the old town on the south loop}
   - {name: roadside, kinds: [pickup], at: [2120, 47960], called: the hut beside 380}
   - {name: north_farm, kinds: [pickup, hideout], at: [850, 49100], called: 'the north farm, by its barn and water tank'}
   - {name: on_380, kinds: [home], at: [2923, 48003], called: 380 west of the south loop}

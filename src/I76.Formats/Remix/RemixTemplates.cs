@@ -13,14 +13,17 @@ public static class RemixTemplates
 {
     public sealed record Context(RemixSpec Spec, string Player, Func<string, string> Actor, Func<string, string> Place, Func<string, int> Heading);
 
-    public static string Emit(Context c) => Common(c) + (c.Spec.Objective.Template switch
+    // (the source's raw strings carry the file's line ends: a checkout with CRLF ones must emit the same source as one with LF)
+    public static string Emit(Context c) => (Common(c) + (c.Spec.Objective.Template switch
     {
         "defend" => Defend(c),
         "deliver" => Deliver(c),
         "tail" => Tail(c),
         "intercept" => Intercept(c),
-        var t => throw new RemixError($"objective template '{t}': defend, deliver, tail or intercept"),
-    }) + (c.Spec.Objective.Template is "intercept" or "defend" ? Sleepers(c) : "") + Reinforcements(c);
+        "escort" => Escort(c),
+        "raid" => Raid(c),
+        var t => throw new RemixError($"objective template '{t}': defend, deliver, tail, intercept, escort or raid"),
+    }) + (c.Spec.Objective.Template is "intercept" or "defend" or "escort" or "raid" ? Sleepers(c) : "") + Reinforcements(c)).Replace("\r\n", "\n");
 
     /// <summary>
     /// Sleepers for the templates without their own (intercept, defend): each waits parked where it is until the player comes within
@@ -31,7 +34,7 @@ public static class RemixTemplates
         var o = c.Spec.Objective;
         if (o.Sleepers.Count == 0) return "";
         var y = new StringBuilder("---\nglobals:\n");
-        if (o.Template == "intercept" || o.Template == "defend") y.Append($"  rx_suser: actor.{c.Player}\n");
+        y.Append($"  rx_suser: actor.{c.Player}\n");
         for (int i = 0; i < o.Sleepers.Count; i++) y.Append($"  rx_y{i}: actor.{c.Actor(o.Sleepers[i].Car)}\n  rx_yw{i}: {N(o.Sleepers[i].Wake)}\n  rx_ys{i}: {(o.Sleepers[i].Siren ? 1 : 0)}\n");
         y.Append($$"""
             scripts:
@@ -69,6 +72,8 @@ public static class RemixTemplates
             "deliver" => (o.Pickup is not null ? 2 : 1) + (o.Clear > 0 ? 1 : 0),
             "tail" => 2,
             "intercept" => o.Convoy is { KillEscorts: true, Escorts.Count: > 0 } ? 2 : 1,
+            "escort" => 2,
+            "raid" => 3,
             _ => 0,
         };
     }
@@ -140,10 +145,18 @@ public static class RemixTemplates
             int hd = c.Heading(r.Entry);
             double rad = hd * Math.PI / 180;
             y.Append($"  rx_re{j}: path.{c.Place(r.Entry)}\n  rx_rh{j}: {N(hd)}\n  rx_ra{j}: {N(r.AtStep)}\n  rx_rd{j}: {N(r.Delay)}\n  rx_rs{j}: {N(r.Speed)}\n  rx_rn{j}: {(r.Siren ? 1 : 0)}\n");
+            // whom they come for: the player, or an escort's car (an ambush on the van)
+            string target = r.Target switch
+            {
+                null or "" or "player" => "rx_user",
+                "escort" when c.Spec.Objective.Escort is { Car.Length: > 0 } => $"rx_rt{j}",
+                var t => throw new RemixError($"reinforce {j + 1}: target '{t}': player, or escort (an escort's car)"),
+            };
+            if (target != "rx_user") y.Append($"  rx_rt{j}: actor.{c.Actor(c.Spec.Objective.Escort!.Car)}\n");
             for (int i = 0; i < r.Cars.Count; i++, n++)
             {
                 y.Append($"  rx_r{n}: actor.{c.Actor(r.Cars[i])}\n  rx_rx{n}: {N(Off(i, r.Cars.Count, rad).X)}\n  rx_rz{n}: {N(Off(i, r.Cars.Count, rad).Z)}\n  rx_rf{n}: {(i == 0 ? 1 : 0)}\n");
-                threads.Append($"  rx_reinf{n}: {{script: rx_reinf, args: {{car: rx_r{n}, user: rx_user, step: rx_step, at: rx_ra{j}, delay: rx_rd{j}, entry: rx_re{j}, heading: rx_rh{j}, speed: rx_rs{j}, dx: rx_rx{n}, dz: rx_rz{n}, siren: rx_rn{j}, first: rx_rf{n}}}}}\n");
+                threads.Append($"  rx_reinf{n}: {{script: rx_reinf, args: {{car: rx_r{n}, user: {target}, step: rx_step, at: rx_ra{j}, delay: rx_rd{j}, entry: rx_re{j}, heading: rx_rh{j}, speed: rx_rs{j}, dx: rx_rx{n}, dz: rx_rz{n}, siren: rx_rn{j}, first: rx_rf{n}}}}}\n");
             }
         }
         var call = string.Concat(Say(c.Spec.Radio.Reinforce.Take(1)).Select(a => $"\n              - {a}"));
@@ -562,7 +575,7 @@ public static class RemixTemplates
             var globals = string.Concat(Enumerable.Range(0, pu2.Cars.Count).Select(i => $"  rx_pf{i}: {(i == 0 ? 1 : 0)}\n"));
             for (int i = 0; i < pu2.Cars.Count; i++)
                 y.Append($"  rx_pursuer{i}: {{script: rx_pursuer, args: {{car: rx_p{i}, user: rx_user, have: rx_have, entry: rx_pentry, heading: rx_ph, delay: rx_pdelay, speed: rx_pspeed, dx: rx_px{i}, dz: rx_pz{i}, first: rx_pf{i}}}}}\n");
-            y.Insert(y.ToString().IndexOf("scripts:\n", StringComparison.Ordinal), globals);
+            y.Insert(y.ToString().IndexOf("scripts:", StringComparison.Ordinal), globals);
         }
         return y.ToString();
     }
@@ -786,6 +799,135 @@ public static class RemixTemplates
         y.Append("  rx_lead: {script: rx_lead, args: {car: rx_lead, user: rx_user, route: rx_route, alert: rx_alert}}\n");
         for (int i = 0; i < n; i++)
             y.Append($"  rx_escort{i}: {{script: rx_escort, args: {{car: rx_c{i}, lead: rx_lead, user: rx_user, alert: rx_alert, edead: rx_edead, dx: rx_cx{i}, dz: rx_cz{i}}}}}\n");
+        return y.ToString();
+    }
+
+    /// <summary>
+    /// Escort (the design list's escort, written fresh): a slow friendly car drives a route to its goal by way of a halfway point.
+    /// It drives only while the player keeps up: once he is more than the wait radius away it stops, and goes on when he is back
+    /// within the resume radius (the stock escorts' helpers ran ahead or fell behind: the owner's complaint), so it never meets an
+    /// ambush alone. Wingmen ride with the escorted car, in line behind it on the road (a station off to its side put one in a ditch), firing at the nearest enemy, and stop when
+    /// it stops (one left following a stopped van nosed into it and stayed in its collision dodge; following the
+    /// player instead, a wingman fell 250 m behind, forever avoiding the player's own car in the column). Ambushers (sleepers on the way,
+    /// reinforcements as a step opens, some of them for the escorted car) come for them. Objectives: 1 the halfway point, 2 the
+    /// goal (then the finish, when there is one). Failures: 1 death, 2 left the map, 3 the escorted car destroyed.
+    /// </summary>
+    private static string Escort(Context c)
+    {
+        var o = c.Spec.Objective;
+        if (o.Escort is not { } e || e.Car.Length == 0 || e.Route.Length == 0 || e.Mid is not { } mid || e.Goal is not { } goal)
+            throw new RemixError("escort: needs escort with car, route, mid and goal");
+        if (c.Spec.Text.Objectives.Count < 2) throw new RemixError("escort: two objective lines (the halfway point, the goal)");
+        if (c.Spec.Text.Failures.Count < 3) throw new RemixError("escort: failure line 3 (the escorted car destroyed)");
+        if (e.Speed < 1 || e.Resume < 20 || e.Wait <= e.Resume) throw new RemixError("escort: speed 1 or more, resume 20 m or more, wait beyond resume");
+        var y = new StringBuilder("globals:\n");
+        y.Append($"  rx_user: actor.{c.Player}\n  rx_van: actor.{c.Actor(e.Car)}\n  rx_route: path.{c.Place(e.Route)}\n  rx_mid: path.{c.Place(mid.Place)}\n  rx_goal: path.{c.Place(goal.Place)}\n  rx_vgo: 1\n");
+        // the wingmen's stations: in line 40 m behind the escorted car and more (metres in its frame, +z ahead): nearer, one kept nosing
+        // into its back and stopping to dodge it, and fell 150 m behind
+        for (int i = 0; i < e.Wingmen.Count; i++)
+            y.Append($"  rx_w{i}: actor.{c.Actor(e.Wingmen[i])}\n  rx_wx{i}: 0\n  rx_wz{i}: {N(-40 - 15 * i)}\n");
+        y.Append($$"""
+            scripts:
+              rx_van:
+                fields: [car, user, route, go]
+                guards:
+                  - when: isDead(car)
+                    goto: stop
+                steps:
+                  - do:
+                      - setSkill(car, 2, 2)
+                      - startCar(car)
+                  - repeat:
+                      - wait_until: '!isWithin(car, user, {{e.Wait}})'
+                        then: set(go, 0)
+                        while_waiting: goto(car, route, {{e.Speed}})
+                      - wait_until: isWithin(car, user, {{e.Resume}})
+                        then: set(go, 1)
+                        while_waiting: sit(car)
+              rx_wing:
+                fields: [car, van, go, dx, dz]
+                variables: {foe: null, timer: null}
+                guards:
+                  - when: isDead(car)
+                    goto: stop
+                steps:
+                  - do:
+                      - setSkill(car, 2, 2)
+                      - startCar(car)
+                  - repeat:
+                      - wait_until: go == 1
+                        while_waiting: sit(car)
+                      - do:
+                          - nearestEnemy(car, foe)
+                          - startTimer(timer)
+                      - wait_until: timeGreater(timer, 3) || go == 0
+                        while_waiting: follow(car, van, foe, 1, dx, dz)
+              rx_escort:
+                fields: [user, van, mid, goal{{GateFields(c)}}{{StepFields}}{{FinishField(c)}}]
+                steps:
+
+            """);
+        string vanDead = "          - when: isDead(van)\n            then: failAllObj(6, 3)\n            goto: stop\n";
+        y.Append("      - wait:\n" + Death + vanDead);
+        y.Append($"          - when: isWithinNav(mid, van, {mid.Radius})\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c.Spec.Radio.Trap))));
+        y.Append("      - wait:\n" + Death + vanDead);
+        // the goal: the escorted car there (the finish, when there is one, then wants the player there with nobody near)
+        y.Append(Ending(c, $"isWithinNav(goal, van, {goal.Radius})", ["success(2)"]).Replace("      - wait:\n" + Death, "      - wait:\n" + Death + vanDead));
+        y.Append("threads:\n");
+        y.Append($"  rx_escort: {{script: rx_escort, args: {{user: rx_user, van: rx_van, mid: rx_mid, goal: rx_goal{GateArgs(c)}{StepArgs}{FinishArg(c)}}}}}\n");
+        y.Append("  rx_van: {script: rx_van, args: {car: rx_van, user: rx_user, route: rx_route, go: rx_vgo}}\n");
+        for (int i = 0; i < e.Wingmen.Count; i++) y.Append($"  rx_wing{i}: {{script: rx_wing, args: {{car: rx_w{i}, van: rx_van, go: rx_vgo, dx: rx_wx{i}, dz: rx_wz{i}}}}}\n");
+        return y.ToString();
+    }
+
+    /// <summary>
+    /// Raid (the design list's hit-and-run): the targets (structures of the base, or parked cars that never start) stand at a place
+    /// with guards parked by them; objective 1 is getting there (or hitting one from afar), 2 every target down, 3 getting out to the
+    /// escape zone before the roads close: the escape's seconds run from the last target's fall, and the reinforcements that come
+    /// in as step 3 opens close in on the way out. Objectives: 1 there, 2 the targets, 3 out. Failures: 1 death, 2 left the map,
+    /// 3 too slow getting out.
+    /// </summary>
+    private static string Raid(Context c)
+    {
+        var o = c.Spec.Objective;
+        if (o.Targets.Count == 0 || o.Escape is not { } esc || esc.Seconds <= 0) throw new RemixError("raid: needs targets and escape (with its seconds)");
+        if (c.Spec.Text.Objectives.Count < 3) throw new RemixError("raid: three objective lines (get there, the targets, get out)");
+        if (c.Spec.Text.Failures.Count < 3) throw new RemixError("raid: failure line 3 (too slow getting out)");
+        int n = o.Targets.Count;
+        var y = new StringBuilder("globals:\n");
+        y.Append($"  rx_user: actor.{c.Player}\n  rx_tdead: 0\n  rx_escape: path.{c.Place(esc.Place)}\n");
+        if (o.Arrive is { } ar) y.Append($"  rx_zone: path.{c.Place(ar.Place)}\n");
+        for (int i = 0; i < n; i++) y.Append($"  rx_t{i}: actor.{c.Actor(o.Targets[i])}\n");
+        var parked = o.Targets.Where(t => c.Spec.Cars.ContainsKey(t)).ToList();
+        y.Append("""
+            scripts:
+              rx_target:
+                fields: [t, tdead]
+                steps:
+                  - wait_until: isDead(t)
+                    then: inc(tdead)
+              rx_parked:
+                fields: [car]
+                guards:
+                  - when: isDead(car)
+                    goto: stop
+                steps:
+                  - wait_until: 'false'
+                    while_waiting: hide(car)
+
+            """);
+        y.Append($"  rx_raid:\n    fields: [user, tdead, escape{(o.Arrive is null ? "" : ", zone")}{GateFields(c)}{StepFields}{FinishField(c)}]\n    variables: {{out: null}}\n    steps:\n");
+        y.Append("      - wait:\n" + Death);
+        string there = o.Arrive is { } a ? $"isWithinNav(zone, user, {a.Radius}) || tdead > 0" : "tdead > 0";
+        y.Append($"          - when: {there}\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c.Spec.Radio.Trap))));
+        y.Append("      - wait:\n" + Death);
+        y.Append($"          - when: '!(tdead < {n})'\n" + Then(12, new[] { "success(2)", "reveal(3)", "startTimer(out)" }.Concat(Open(c, 3))));
+        y.Append("      - wait:\n" + Death + $"          - when: timeGreater(out, {esc.Seconds})\n            then: failAllObj(6, 3)\n            goto: stop\n");
+        y.Append(Ending(c, $"isWithinNav(escape, user, {esc.Radius})", ["success(3)"]));
+        y.Append("threads:\n");
+        y.Append($"  rx_raid: {{script: rx_raid, args: {{user: rx_user, tdead: rx_tdead, escape: rx_escape{(o.Arrive is null ? "" : ", zone: rx_zone")}{GateArgs(c)}{StepArgs}{FinishArg(c)}}}}}\n");
+        for (int i = 0; i < n; i++) y.Append($"  rx_target{i}: {{script: rx_target, args: {{t: rx_t{i}, tdead: rx_tdead}}}}\n");
+        for (int i = 0; i < n; i++) if (parked.Contains(o.Targets[i])) y.Append($"  rx_parked{i}: {{script: rx_parked, args: {{car: rx_t{i}}}}}\n");
         return y.ToString();
     }
 }

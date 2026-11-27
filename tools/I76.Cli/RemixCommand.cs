@@ -16,6 +16,7 @@ public static class RemixCommand
         if (argv.Count >= 2 && argv[1] == "roll") return Roll(install, argv);
         if (argv.Count >= 2 && argv[1] == "check") return Check(install, argv);
         if (argv.Count >= 2 && argv[1] == "score") return Score(install, argv);
+        if (argv.Count >= 2 && argv[1] == "trip") return Trip(install, argv);
         if (argv.Count < 3 || argv[1] != "build") { Console.Error.WriteLine("usage: i76 remix build SPEC.yaml...|--builtin [--out DIR] | map BASE [--json FILE]"); return 2; }
         int oi = argv.IndexOf("--out");
         string outDir = oi >= 0 ? argv[oi + 1] : GameInstall.UserMissionDir ?? "remix";
@@ -48,6 +49,7 @@ public static class RemixCommand
     private static int Check(GameInstall install, List<string> argv)
     {
         string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        if (argv.Contains("--nodes")) return CheckNodes(install, argv);
         string outDir = Opt("--out") ?? Path.Combine(Path.GetTempPath(), "i26-remix-check-" + Environment.ProcessId);
         GameInstall.UserMissionDir = outDir;
         var jobs = new List<(string Name, RemixSpec Spec)>();
@@ -56,7 +58,7 @@ public static class RemixCommand
         {
             var ab = range.Split('-');
             int a = int.Parse(ab[0], System.Globalization.CultureInfo.InvariantCulture), b = ab.Length > 1 ? int.Parse(ab[1], System.Globalization.CultureInfo.InvariantCulture) : a;
-            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, id: "xchk")));
+            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, Ask(argv, "xchk", 1.0))));
         }
         int bad = 0, n = 0;
         var kinds = new Dictionary<string, int>();
@@ -84,6 +86,31 @@ public static class RemixCommand
     }
 
     /// <summary>
+    /// i76 remix check --nodes [BASE|FILE.yaml...] [--verbose]: each node table (the shipped ones, or those named: a base's shipped
+    /// table or a table file) held to its map (RemixNodeCheck: on the ground, on a road or drivable ground, clear of the exits,
+    /// reachable from the first start). Prints a line per problem (and per place with --verbose); exit 1 when any.
+    /// </summary>
+    private static int CheckNodes(GameInstall install, List<string> argv)
+    {
+        var named = argv.Skip(2).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+        var tables = new List<RemixNodes>();
+        if (named.Count == 0) tables.AddRange(RemixNodes.Builtin().Where(t => install.FindMission(t.Base) is not null));
+        foreach (var n in named)
+            if (File.Exists(n)) tables.Add(RemixNodes.Parse(File.ReadAllText(n)));
+            else tables.AddRange(RemixNodes.Builtin().Where(t => t.Base.Equals(n, StringComparison.OrdinalIgnoreCase)));
+        int bad = 0;
+        foreach (var t in tables)
+        {
+            var (problems, places) = RemixNodeCheck.Run(install, t);
+            if (argv.Contains("--verbose")) foreach (var p in places) Console.WriteLine($"{t.Base}: {p}");
+            foreach (var p in problems) Console.WriteLine($"{t.Base}: PROBLEM {p}");
+            Console.WriteLine($"{t.Base}: {t.Starts.Count} starts, {t.Nodes.Count} nodes, {t.Entries.Count} entries, {t.Routes.Count} routes, {t.Clusters.Count} clusters: {(problems.Count == 0 ? "ok" : $"{problems.Count} problems")}");
+            if (problems.Count > 0) bad++;
+        }
+        return bad == 0 ? 0 : 1;
+    }
+
+    /// <summary>
     /// i76 remix score [--builtin] [--seeds A-B] [--level N]: each job's challenge (RemixChallenge) with its cars' measured
     /// strengths, against Back to Spanner's.
     /// </summary>
@@ -99,7 +126,7 @@ public static class RemixCommand
         {
             var ab = range.Split('-');
             int a = int.Parse(ab[0], System.Globalization.CultureInfo.InvariantCulture), b = ab.Length > 1 ? int.Parse(ab[1], System.Globalization.CultureInfo.InvariantCulture) : a;
-            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, id: "xsco", level: level)));
+            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, Ask(argv, "xsco", Opt("--challenge") is { } ch ? double.Parse(ch, System.Globalization.CultureInfo.InvariantCulture) : RemixChallenge.Levels[Math.Clamp(level, 0, RemixChallenge.Levels.Length - 1)]))));
         }
 
         var all = new List<double>();
@@ -116,6 +143,13 @@ public static class RemixCommand
         return 0;
     }
 
+    /// <summary>A roll's ask from the command line: --template T and --map BASE narrow it (a run's choice), --challenge the budget.</summary>
+    private static RemixDirector.JobAsk Ask(List<string> argv, string id, double challenge)
+    {
+        string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        return new RemixDirector.JobAsk { Id = id, Challenge = challenge, Template = Opt("--template"), Map = Opt("--map") };
+    }
+
     private static int Roll(GameInstall install, List<string> argv)
     {
         string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
@@ -125,7 +159,7 @@ public static class RemixCommand
             return 2;
         }
         RemixSpec spec;
-        try { spec = RemixDirector.Roll(seed, id: Opt("--id") ?? RemixDirector.JobStem); }
+        try { spec = RemixDirector.Roll(seed, Ask(argv, Opt("--id") ?? RemixDirector.JobStem, Opt("--challenge") is { } ch ? double.Parse(ch, System.Globalization.CultureInfo.InvariantCulture) : 1.0)); }
         catch (RemixError ex) { Console.Error.WriteLine($"seed {seed}: {ex.Message}"); return 1; }
         var yaml = RemixDirector.ToYaml(spec);
         if (Opt("--yaml") is { } file) { File.WriteAllText(file, yaml); Console.WriteLine($"wrote {file}"); }
@@ -138,5 +172,63 @@ public static class RemixCommand
             return 0;
         }
         catch (RemixError ex) { Console.Error.WriteLine($"seed {seed}: {ex.Message}"); return 1; }
+    }
+
+    /// <summary>
+    /// i76 remix trip --number N [--picks A,B,...] [--rewards repair,rearm,...] [--lose K] [--damage F] [--write DIR]: a road trip walked
+    /// by its number (RemixRun): the offers at each step, the pick taken (offer A, then B...; each job won, but the K-th lost), the reward
+    /// after each win; --damage F (0..1) has each won job leave the car with that share of its armour, chassis, engine and rounds gone
+    /// (the run's carry read off the built job's player car, as the game does); --write leaves the run's file in DIR as the game keeps it.
+    /// </summary>
+    private static int Trip(GameInstall install, List<string> argv)
+    {
+        string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        int number = int.Parse(Opt("--number") ?? "1", inv);
+        var picks = (Opt("--picks") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => int.Parse(x, inv)).ToList();
+        var rewards = (Opt("--rewards") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+        int lose = int.Parse(Opt("--lose") ?? "0", inv);
+        double damage = double.Parse(Opt("--damage") ?? "0", inv);
+        string outDir = Path.Combine(Path.GetTempPath(), "i26-remix-trip-" + Environment.ProcessId);
+        GameInstall.UserMissionDir = outDir;
+        var tables = RemixNodes.Builtin();
+        var run = RemixRun.Start(number, "vppirna1.vcf", "Unnamed", "Piranha", 0);
+        for (int step = 0; step < picks.Count && !run.Over; step++)
+        {
+            if (run.Phase == "reward") { var rw = step - 1 < rewards.Count ? rewards[step - 1] : "bonus"; run.Reward(rw); Console.WriteLine($"  reward: {rw}"); }
+            var offers = run.Offers(tables);
+            Console.WriteLine($"job {run.Legs.Count + 1} (from {(run.Map.Length == 0 ? "the start" : run.Map)}):");
+            for (int i = 0; i < offers.Count; i++) Console.WriteLine($"  {i}: {offers[i].Map} {offers[i].Name} {RemixRun.JobWord(offers[i].Template)} {offers[i].Challenge:0.0} seed {offers[i].Seed}: {offers[i].Flavour}");
+            var pick = offers[Math.Clamp(picks[step], 0, offers.Count - 1)];
+            run.Take(pick);
+            RunCar? car = null;
+            if (damage > 0)
+            {
+                // the job built and its player car loaded, damaged by the share asked, and read off as the game does at a job's end
+                var built = RemixBuilder.Build(install, run.Spec(pick, tables));
+                built.WriteTo(outDir);
+                var vfs = new AssetVfs(install);
+                var asm = new I76.Formats.Assembly.ModelAssembler(vfs);
+                var setup = I76.Sim.Missions.MissionSetup.Build(vfs, new I76.Formats.Assembly.MissionWorld(vfs, asm, install.FindMission(RemixRun.Stem)!), asm, run.Car, rand: new I76.Sim.Rng.CrtRand(1));
+                var p = setup.World.Player!;
+                if (run.State is { } carried) I76.Sim.Trip.RunCarry.Apply(carried, p);
+                var d = p.Health!;
+                for (int z = 0; z < 4; z++) { d.Armour[z] = (int)(d.Armour[z] * (1 - damage)); d.Chassis[z] = (int)(d.Chassis[z] * (1 - damage / 2)); }
+                if (d.Engine is { } en) en.Hp = (int)(en.Hp * (1 - damage / 2));
+                foreach (var w in p.Armory?.LoadOrder ?? []) w.Ammo = (int)(w.Ammo * (1 - damage));
+                car = I76.Sim.Trip.RunCarry.Capture(p);
+            }
+            bool won = step + 1 != lose;
+            run.Finish(won, 3, car);
+            Console.WriteLine($"  took {pick.Map} {pick.Template}: {(won ? "won" : "lost")}; phase {run.Phase}{(run.State is { } st ? $"; car armour {st.ArmourLeft}% chassis {st.ChassisLeft}% ammo {st.AmmoLeft}%" : "")}");
+        }
+        if (!run.Over && run.Phase == "choose")
+        {
+            var offers = run.Offers(tables);
+            Console.WriteLine($"job {run.Legs.Count + 1} offers:");
+            for (int i = 0; i < offers.Count; i++) Console.WriteLine($"  {i}: {offers[i].Map} {RemixRun.JobWord(offers[i].Template)} {offers[i].Challenge:0.0}: {offers[i].Flavour}");
+        }
+        if (Opt("--write") is { } dir) { run.Save(dir); Console.WriteLine($"wrote {Path.Combine(dir, RemixRun.FileName)} ({run.Phase})"); }
+        return 0;
     }
 }

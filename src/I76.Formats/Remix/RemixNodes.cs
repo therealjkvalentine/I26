@@ -15,6 +15,15 @@ public sealed class RemixNodes
 {
     /// <summary>The stock mission lending the map.</summary>
     public string Base { get; set; } = "";
+    /// <summary>What the map is called on a run's choice screen, in the port's words (a town or a road: "Seagraves", "the Pecos bridge").</summary>
+    public string Name { get; set; } = "";
+    /// <summary>
+    /// The maps next to this one in the region (their bases), for a run's route (docs/remix-missions.md "Road trip"): written by hand
+    /// from the roguelike gazetteer's road and neighbour links, kept to maps that have a table.
+    /// </summary>
+    public List<string> Neighbours { get; set; } = [];
+    /// <summary>The map is a Nitro Pack mission's: a job on it is offered only with the Nitro install.</summary>
+    public bool Nitro { get; set; }
     /// <summary>The light preset (WRLD hour), or null for the stock one.</summary>
     public int? Hour { get; set; }
     /// <summary>Where new cars wait, hidden, until a template starts them: away from every node.</summary>
@@ -58,7 +67,7 @@ public sealed class RemixNodes
         return o;
     }
 
-    /// <summary>The nodes of a kind (pickup, home, hideout).</summary>
+    /// <summary>The nodes of a kind (pickup, home, hideout, yard: where a raid's convoy parks).</summary>
     public IEnumerable<PointNode> Of(string kind) => Nodes.Where(n => n.Kinds.Contains(kind, StringComparer.Ordinal));
 }
 
@@ -109,6 +118,10 @@ public sealed class RouteNode
     /// <summary>Where the convoy's cars are parked to start (the route's first point when left out), and the way they face.</summary>
     public double[]? Park { get; set; }
     public double Heading { get; set; }
+    /// <summary>The route can carry an escort (its end a place the player must reach, clear of the exits; the first point where the escorted car waits).</summary>
+    public bool Escort { get; set; }
+    /// <summary>Where the route ends, in the port's words ("the dirt road east of town"), for an escort's objective.</summary>
+    public string Called { get; set; } = "";
 }
 
 public sealed class ClusterNode
@@ -123,4 +136,7 @@ public sealed class ClusterNode
     public List<string> Entries { get; set; } = [];
     /// <summary>What the objective calls it ("the farms").</summary>
     public string Called { get; set; } = "";
+    /// <summary>The templates it serves: defend (raiders come for it), raid (the player comes for it). Defend only when left out.</summary>
+    public List<string> Uses { get; set; } = [];
+    public bool Serves(string template) => Uses.Count == 0 ? template == "defend" : Uses.Contains(template, StringComparer.Ordinal);
 }
