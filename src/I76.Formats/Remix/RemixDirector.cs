@@ -329,7 +329,7 @@ public static class RemixDirector
                 if (tg.Cluster is { } cl)
                 {
                     for (int i = 0; i < Math.Min(6, cl.Objects.Count); i++) { spec.Bind[$"t{i}"] = cl.Objects[i]; o.Targets.Add($"t{i}"); }
-                    what = cl.Called;
+                    what = cl.Called.StartsWith("the ", StringComparison.Ordinal) ? cl.Called[4..] : cl.Called;   // "Cloaker's pumps in the middle of the mesa"
                     o.Arrive = new ZoneSpec { Place = Place("target", cl.At), Radius = cl.Radius };
                 }
                 else

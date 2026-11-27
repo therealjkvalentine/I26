@@ -16,6 +16,7 @@ public static class RemixCommand
         if (argv.Count >= 2 && argv[1] == "roll") return Roll(install, argv);
         if (argv.Count >= 2 && argv[1] == "check") return Check(install, argv);
         if (argv.Count >= 2 && argv[1] == "score") return Score(install, argv);
+        if (argv.Count >= 2 && argv[1] == "trip") return Trip(install, argv);
         if (argv.Count < 3 || argv[1] != "build") { Console.Error.WriteLine("usage: i76 remix build SPEC.yaml...|--builtin [--out DIR] | map BASE [--json FILE]"); return 2; }
         int oi = argv.IndexOf("--out");
         string outDir = oi >= 0 ? argv[oi + 1] : GameInstall.UserMissionDir ?? "remix";
@@ -171,5 +172,63 @@ public static class RemixCommand
             return 0;
         }
         catch (RemixError ex) { Console.Error.WriteLine($"seed {seed}: {ex.Message}"); return 1; }
+    }
+
+    /// <summary>
+    /// i76 remix trip --number N [--picks A,B,...] [--rewards repair,rearm,...] [--lose K] [--damage F] [--write DIR]: a road trip walked
+    /// by its number (RemixRun): the offers at each step, the pick taken (offer A, then B...; each job won, but the K-th lost), the reward
+    /// after each win; --damage F (0..1) has each won job leave the car with that share of its armour, chassis, engine and rounds gone
+    /// (the run's carry read off the built job's player car, as the game does); --write leaves the run's file in DIR as the game keeps it.
+    /// </summary>
+    private static int Trip(GameInstall install, List<string> argv)
+    {
+        string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        int number = int.Parse(Opt("--number") ?? "1", inv);
+        var picks = (Opt("--picks") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).Select(x => int.Parse(x, inv)).ToList();
+        var rewards = (Opt("--rewards") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+        int lose = int.Parse(Opt("--lose") ?? "0", inv);
+        double damage = double.Parse(Opt("--damage") ?? "0", inv);
+        string outDir = Path.Combine(Path.GetTempPath(), "i26-remix-trip-" + Environment.ProcessId);
+        GameInstall.UserMissionDir = outDir;
+        var tables = RemixNodes.Builtin();
+        var run = RemixRun.Start(number, "vppirna1.vcf", "Unnamed", "Piranha", 0);
+        for (int step = 0; step < picks.Count && !run.Over; step++)
+        {
+            if (run.Phase == "reward") { var rw = step - 1 < rewards.Count ? rewards[step - 1] : "bonus"; run.Reward(rw); Console.WriteLine($"  reward: {rw}"); }
+            var offers = run.Offers(tables);
+            Console.WriteLine($"job {run.Legs.Count + 1} (from {(run.Map.Length == 0 ? "the start" : run.Map)}):");
+            for (int i = 0; i < offers.Count; i++) Console.WriteLine($"  {i}: {offers[i].Map} {offers[i].Name} {RemixRun.JobWord(offers[i].Template)} {offers[i].Challenge:0.0} seed {offers[i].Seed}: {offers[i].Flavour}");
+            var pick = offers[Math.Clamp(picks[step], 0, offers.Count - 1)];
+            run.Take(pick);
+            RunCar? car = null;
+            if (damage > 0)
+            {
+                // the job built and its player car loaded, damaged by the share asked, and read off as the game does at a job's end
+                var built = RemixBuilder.Build(install, run.Spec(pick, tables));
+                built.WriteTo(outDir);
+                var vfs = new AssetVfs(install);
+                var asm = new I76.Formats.Assembly.ModelAssembler(vfs);
+                var setup = I76.Sim.Missions.MissionSetup.Build(vfs, new I76.Formats.Assembly.MissionWorld(vfs, asm, install.FindMission(RemixRun.Stem)!), asm, run.Car, rand: new I76.Sim.Rng.CrtRand(1));
+                var p = setup.World.Player!;
+                if (run.State is { } carried) I76.Sim.Trip.RunCarry.Apply(carried, p);
+                var d = p.Health!;
+                for (int z = 0; z < 4; z++) { d.Armour[z] = (int)(d.Armour[z] * (1 - damage)); d.Chassis[z] = (int)(d.Chassis[z] * (1 - damage / 2)); }
+                if (d.Engine is { } en) en.Hp = (int)(en.Hp * (1 - damage / 2));
+                foreach (var w in p.Armory?.LoadOrder ?? []) w.Ammo = (int)(w.Ammo * (1 - damage));
+                car = I76.Sim.Trip.RunCarry.Capture(p);
+            }
+            bool won = step + 1 != lose;
+            run.Finish(won, 3, car);
+            Console.WriteLine($"  took {pick.Map} {pick.Template}: {(won ? "won" : "lost")}; phase {run.Phase}{(run.State is { } st ? $"; car armour {st.ArmourLeft}% chassis {st.ChassisLeft}% ammo {st.AmmoLeft}%" : "")}");
+        }
+        if (!run.Over && run.Phase == "choose")
+        {
+            var offers = run.Offers(tables);
+            Console.WriteLine($"job {run.Legs.Count + 1} offers:");
+            for (int i = 0; i < offers.Count; i++) Console.WriteLine($"  {i}: {offers[i].Map} {RemixRun.JobWord(offers[i].Template)} {offers[i].Challenge:0.0}: {offers[i].Flavour}");
+        }
+        if (Opt("--write") is { } dir) { run.Save(dir); Console.WriteLine($"wrote {Path.Combine(dir, RemixRun.FileName)} ({run.Phase})"); }
+        return 0;
     }
 }

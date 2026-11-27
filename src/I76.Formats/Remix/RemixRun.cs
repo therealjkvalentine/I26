@@ -82,7 +82,7 @@ public sealed class RemixRun
             int seed = 1 + rng.Next(999_999_998);
             var offer = new RunOffer { Map = t.Base, Name = t.Name.Length > 0 ? t.Name : t.Base.ToUpperInvariant(), Template = pick, Seed = seed, Challenge = NextChallenge };
             // the flavour: the job's own first objective, without its label ("Road trip 12, job 2: ")
-            try { var first = Spec(offer, tables).Text.Objectives[0]; offer.Flavour = first.IndexOf(": ", StringComparison.Ordinal) is var k and > 0 ? first[(k + 2)..] : first; }
+            try { var first = Spec(offer, tables).Text.Objectives[0]; offer.Flavour = first.IndexOf(": ", StringComparison.Ordinal) is var k and > 0 ? first[(k + 2)..] : first; offer.Flavour = char.ToUpperInvariant(offer.Flavour[0]) + offer.Flavour[1..]; }
             catch (RemixError) { continue; }
             o.Add(offer);
         }
