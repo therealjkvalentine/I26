@@ -18,9 +18,10 @@ public class HeadTrackTests
         return d;
     }
 
+    // the first mapping (in proportion, held to 80°): what the tests below were measured on
     private static HeadLook Tracker(HeadTrackMode mode, double yaw, double pitch, float sens = 1)
     {
-        var h = new HeadLook { Mode = mode, Sensitivity = sens };
+        var h = new HeadLook { Mode = mode, Sensitivity = sens, Reach = 80, Centre = HeadTrackCentre.Off };
         h.Feed(new HeadPose(0, 0, 0, yaw, pitch, 0));
         return h;
     }
@@ -68,7 +69,7 @@ public class HeadTrackTests
         float w = 1;
         for (int i = 0; i < 4; i++) { h.Feed(new HeadPose(0, 0, 0, 10, 0, 0)); w = h.Step(0.05, true).Weight; }
         Assert.Equal(0f, w);                                                                   // stood aside within 150 ms
-        Assert.Equal((false, false, false), Tracker(HeadTrackMode.Digital, -40, 0, 3).Glances(true));
+        Assert.Equal((false, false, false, false), Tracker(HeadTrackMode.Digital, -40, 0, 3).Glances(true));
         h.Feed(new HeadPose(0, 0, 0, 10, 0, 0));
         Assert.True(h.Step(0.05, false).Weight > 0);                                          // let go: back in
     }
@@ -101,21 +102,21 @@ public class HeadTrackTests
     [Fact] public void DigitalSnapsToTheGlancesPastItsThresholds()
     {
         var h = Tracker(HeadTrackMode.Digital, 13, 0, 3);                                        // 39°: not yet
-        Assert.Equal((false, false, false), h.Glances(false));
+        Assert.Equal((false, false, false, false), h.Glances(false));
         h.Feed(new HeadPose(0, 0, 0, 14, 0, 0));                                                  // 42°: the right glance
-        Assert.Equal((false, true, false), h.Glances(false));
+        Assert.Equal((false, true, false, false), h.Glances(false));
         h.Feed(new HeadPose(0, 0, 0, 10.5, 0, 0));                                                // 31.5°: held (back under 30°)
         Assert.True(h.Glances(false).Right);
         h.Feed(new HeadPose(0, 0, 0, 9.9, 0, 0));
         Assert.False(h.Glances(false).Right);
         h.Feed(new HeadPose(0, 0, 0, -14, 0, 0));
-        Assert.Equal((true, false, false), h.Glances(false));
+        Assert.Equal((true, false, false, false), h.Glances(false));
         h.Feed(new HeadPose(0, 0, 0, 0, -5.1, 0));                                                // a nod down past 15°: the dash
-        Assert.Equal((false, false, true), h.Glances(false));
+        Assert.Equal((false, false, true, false), h.Glances(false));
         h.Feed(new HeadPose(0, 0, 0, 0, -3.5, 0));                                                // 10.5°: held
         Assert.True(h.Glances(false).Down);
         h.Feed(new HeadPose(0, 0, 0, 0, 10, 0));                                                  // up: nothing (the up glance is the look rear)
-        Assert.Equal((false, false, false), h.Glances(false));
+        Assert.Equal((false, false, false, false), h.Glances(false));
         Assert.Equal(0f, h.Step(0.2, false).Weight);                                              // digital moves no analog head
     }
 

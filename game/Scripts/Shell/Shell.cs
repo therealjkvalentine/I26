@@ -1601,8 +1601,12 @@ public sealed class ShellSettings
     /// not off): opentrack's "UDP over network" or FreeTrack output turns the head in the car (<see cref="I76.Game.HeadLook"/>). Off, as the original.
     /// </summary>
     public I76.Game.HeadTrackMode HeadTrack { get; set; }
-    /// <summary>Head tracking's sensitivity, the tracked angle's multiplier (the Controls sheet; [port] head_track_sensitivity, written only when not 3).</summary>
+    /// <summary>Head tracking's sensitivity: the full look comes at a head turn of reach ÷ sensitivity (the Controls sheet; [port] head_track_sensitivity, written only when not 7, and then with the reach and centre beside it).</summary>
     public float HeadTrackSensitivity { get; set; } = I76.Game.HeadLook.DefaultSensitivity;
+    /// <summary>Head Track Reach: degrees of view each side at the full head turn, 80 / 120 / 160 / 180 ([port] head_track_reach, written only when not 180).</summary>
+    public int HeadTrackReach { get; set; } = I76.Game.HeadLook.DefaultReach;
+    /// <summary>Head Track Centre: the still zone and curve round straight ahead ([port] head_track_centre = off / light / snap / strong, written only when not snap).</summary>
+    public I76.Game.HeadTrackCentre HeadTrackCentre { get; set; } = I76.Game.HeadLook.DefaultCentre;
     /// <summary>The UDP port opentrack sends to ([port] head_track_port, written only when not 4242; kept out of the menus).</summary>
     public int HeadTrackPort { get; set; } = I76.Game.HeadLook.DefaultPort;
     /// <summary>The address head tracking listens on ([port] head_track_bind, written only when not 127.0.0.1; 0.0.0.0 takes a tracker on another machine).</summary>
@@ -2341,6 +2345,12 @@ public sealed class ShellSettings
         // no version step: absent, head tracking is off at its defaults
         s.HeadTrack = Enum.TryParse<I76.Game.HeadTrackMode>((string)c.GetValue("port", "head_track", "off"), true, out var ht) ? ht : I76.Game.HeadTrackMode.Off;
         s.HeadTrackSensitivity = Math.Clamp((float)(double)c.GetValue("port", "head_track_sensitivity", (double)I76.Game.HeadLook.DefaultSensitivity), 0.1f, 10f);
+        // a sensitivity saved before the reach and the centre existed was tuned on the first mapping (in proportion, held to 80°): kept so
+        // (this version writes the reach and centre beside any sensitivity it writes)
+        bool legacyHead = c.HasSectionKey("port", "head_track_sensitivity") && !c.HasSectionKey("port", "head_track_reach");
+        s.HeadTrackReach = Math.Clamp((int)c.GetValue("port", "head_track_reach", legacyHead ? (int)I76.Formats.Input.FreeLook.MaxYaw : I76.Game.HeadLook.DefaultReach), 30, 180);
+        s.HeadTrackCentre = legacyHead && !c.HasSectionKey("port", "head_track_centre") ? I76.Game.HeadTrackCentre.Off
+            : Enum.TryParse<I76.Game.HeadTrackCentre>(((string)c.GetValue("port", "head_track_centre", "snap")).Trim(), true, out var hc) && Enum.IsDefined(hc) ? hc : I76.Game.HeadLook.DefaultCentre;
         s.HeadTrackPort = Math.Clamp((int)c.GetValue("port", "head_track_port", I76.Game.HeadLook.DefaultPort), 1, 65535);
         s.HeadTrackBind = (string)c.GetValue("port", "head_track_bind", "127.0.0.1");
         s.HeadTrackPosition = (bool)c.GetValue("port", "head_track_position", false);
@@ -2604,7 +2614,10 @@ public sealed class ShellSettings
         if (UnlimTurrets) c.SetValue("port", "unlim_turrets", true);
         if (!UpdateCheck) c.SetValue("port", "update_check", false);
         if (HeadTrack != I76.Game.HeadTrackMode.Off) c.SetValue("port", "head_track", HeadTrack.ToString().ToLowerInvariant());
-        if (HeadTrackSensitivity != I76.Game.HeadLook.DefaultSensitivity) c.SetValue("port", "head_track_sensitivity", (double)HeadTrackSensitivity);
+        bool sens = HeadTrackSensitivity != I76.Game.HeadLook.DefaultSensitivity;
+        if (sens) c.SetValue("port", "head_track_sensitivity", (double)HeadTrackSensitivity);
+        if (sens || HeadTrackReach != I76.Game.HeadLook.DefaultReach) c.SetValue("port", "head_track_reach", HeadTrackReach);
+        if (sens || HeadTrackCentre != I76.Game.HeadLook.DefaultCentre) c.SetValue("port", "head_track_centre", HeadTrackCentre.ToString().ToLowerInvariant());
         if (HeadTrackPort != I76.Game.HeadLook.DefaultPort) c.SetValue("port", "head_track_port", HeadTrackPort);
         if (HeadTrackBind != "127.0.0.1") c.SetValue("port", "head_track_bind", HeadTrackBind);
         if (HeadTrackPosition) c.SetValue("port", "head_track_position", true);

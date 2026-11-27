@@ -566,7 +566,7 @@ public partial class Cockpit : Node
         || pose switch { FreeLook.Pose.Left => _tracked.Left, FreeLook.Pose.Right => _tracked.Right, FreeLook.Pose.Dash => _tracked.Down, _ => false };
 
     // the head tracker (HeadLook): digital's glances this frame, and the head as drawn (the glance machine's blended with analog's)
-    private (bool Left, bool Right, bool Down) _tracked;
+    private (bool Left, bool Right, bool Down, bool Rear) _tracked;
     private float _viewYaw, _viewPitch = -13 * Mathf.Pi / 180, _viewRoll;
 
     // ---- the 2D dash (dash3d == 0): what Hud draws over the driver's view ----
@@ -625,7 +625,7 @@ public partial class Cockpit : Node
         if (Binoculars) { BinoHead(dt); return; }
         bool l = Glance("pilot_glance_left", FreeLook.Pose.Left);
         bool r = Glance("pilot_glance_right", FreeLook.Pose.Right);
-        bool up = Controls.Down("pilot_glance_up");       // towards the back (the stick's rear look is aimed below, over the shoulder on its side)
+        bool up = Controls.Down("pilot_glance_up") || _tracked.Rear;   // towards the back (the stick's rear look is aimed below, over the shoulder on its side)
         bool down = Glance("pilot_glance_down", FreeLook.Pose.Dash);   // forward, tipped 6° down (the dash and the wheel)
         int col = (l, r, up, down) switch
         {
