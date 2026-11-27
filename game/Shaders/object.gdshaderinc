@@ -624,6 +624,9 @@ vec4 i76_cockpit_soft(vec2 uv) {
 }
 #endif
 
+#ifdef TRIM
+#include "res://Shaders/cockpit_trim.gdshaderinc"
+#endif
 void fragment() {
 	vec2 tuv = UV;
 #ifndef FAITHFUL
@@ -816,6 +819,13 @@ void fragment() {
 		METALLIC = base_metallic;
 		SPECULAR = base_specular;
 		CLEARCOAT = 0.0;
+#ifdef TRIM
+		// the cockpit trim's vinyl (cockpit_trim.gdshaderinc), its size a pixel in the mesh's metres
+		float trim_fw = max(length(dFdx(v_local)), length(dFdy(v_local)));
+		vec3 trim_dn;
+		trim_surface(c.rgb, v_local, v_nlocal, trim_fw, ALBEDO, ROUGHNESS, SPECULAR, trim_dn);
+		NORMAL = normalize(NORMAL + mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * trim_dn);
+#endif
 	}
 	if (((car_paint && !wheel_face) || hood_surface > 0.5) && i76_hood_gloss < 1.0 && !prelit) {
 		// Hood Gloss below 100 (Gloss, the full coat): Satin (50) thins the clear coat and blurs the sheen, Matte (0) takes both off;

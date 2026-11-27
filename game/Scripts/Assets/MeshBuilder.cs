@@ -141,7 +141,7 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
     /// <param name="signPart">with <paramref name="retro"/>: which parts are a sign's (by node name); null takes every part as one</param>
     public ArrayMesh? Build(AssembledModel model, bool wheels = true, Func<ModelPart, bool>? include = null, System.Numerics.Vector3 origin = default,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace = null, bool bothSides = false, bool oneSided1997 = false, Func<string, int>? frameOf = null,
-        bool selfLit = false, bool retro = false, bool unkeyed = false, Func<string, bool>? signPart = null)
+        bool selfLit = false, bool retro = false, bool unkeyed = false, Func<string, bool>? signPart = null, I76.Game.Sim.CockpitTrim.Style trim = I76.Game.Sim.CockpitTrim.Style.Off)
     {
         var members = model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces).Where(f => f.Texture.Length > 0 && f.Unk_0x20 != 0)
             .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0)).OfType<string>().ToList();
@@ -153,7 +153,7 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
         materials.PrefetchKeyEdges(model.Parts.Where(p => include is null || include(p)).SelectMany(p => p.Mesh.Faces)
             .Where(f => f.Texture.Length > 0 && MaterialLibrary.ModeOf(f.Unk_0x20, f.Unk_0x21, unkeyed) == MaterialLibrary.FaceMode.Cutout)
             .Select(f => resolver.ResolveFace(f.Texture, model.ObjectCode, model.TmtNames, vtfMaps: model.VtfMaps, frame: frameOf?.Invoke(f.Texture) ?? 0)).OfType<string>());
-        return Build(model, wheels, include, origin, skipFace, PaintOf(model), bothSides, oneSided1997, frameOf, selfLit, retro, unkeyed, signPart);
+        return Build(model, wheels, include, origin, skipFace, PaintOf(model), bothSides, oneSided1997, frameOf, selfLit, retro, unkeyed, signPart, trim);
     }
 
     /// <summary>
@@ -165,15 +165,18 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
 
     private ArrayMesh? Build(AssembledModel model, bool wheels, Func<ModelPart, bool>? include, System.Numerics.Vector3 origin,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace, I76.Formats.Imaging.CarMaterial.Paint? paint, bool bothSides = false, bool oneSided1997 = false,
-        Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false, bool unkeyed = false, Func<string, bool>? signPart = null)
-        => ToMesh(Surfaces(model, wheels, include, origin, skipFace, paint, bothSides, oneSided1997, frameOf, selfLit, retro, unkeyed, signPart));
+        Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false, bool unkeyed = false, Func<string, bool>? signPart = null,
+        I76.Game.Sim.CockpitTrim.Style trim = I76.Game.Sim.CockpitTrim.Style.Off)
+        => ToMesh(Surfaces(model, wheels, include, origin, skipFace, paint, bothSides, oneSided1997, frameOf, selfLit, retro, unkeyed, signPart, trim));
 
     /// <summary>The surfaces <see cref="Build"/> makes its mesh of, by material.</summary>
     private Dictionary<Material, Surface> Surfaces(AssembledModel model, bool wheels, Func<ModelPart, bool>? include, System.Numerics.Vector3 origin,
         Func<ModelPart, I76.Formats.Geo.GeoFace, bool>? skipFace, I76.Formats.Imaging.CarMaterial.Paint? paint, bool bothSides = false, bool oneSided1997 = false,
-        Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false, bool unkeyed = false, Func<string, bool>? signPart = null)
+        Func<string, int>? frameOf = null, bool selfLit = false, bool retro = false, bool unkeyed = false, Func<string, bool>? signPart = null,
+        I76.Game.Sim.CockpitTrim.Style trim = I76.Game.Sim.CockpitTrim.Style.Off)
     {
         selfLit &= model.Kind == "sdf";
+        trim = model.Kind == "vcf" ? trim : I76.Game.Sim.CockpitTrim.Style.Off;
         retro &= model.Kind == "sdf";
         // a marker's triangle is never drawn (AssembledModel.Drawn)
         if (model.Markers.Count > 0) { var asked = include; include = part => model.Drawn(part) && (asked?.Invoke(part) ?? true); }
@@ -226,7 +229,10 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
                 else
                 {
                     if (f.Texture.Length > 0 && !untextured) Unresolved.Add(f.Texture);
-                    mat = materials.ForColour(f.R, f.G, f.B, prop: partPaint is null, partFamily, bothSides, oneSided: plates.Contains((partIndex, f)),
+                    // the modern look's cockpit trim (CockpitTrim): the roof and side parts' flat grey faces, by their facing
+                    var trimPart = trim != I76.Game.Sim.CockpitTrim.Style.Off && I76.Game.Sim.CockpitTrim.TrimGrey(f.R, f.G, f.B)
+                        ? I76.Game.Sim.CockpitTrim.Classify(part.NodeName, faceN) : I76.Game.Sim.CockpitTrim.Part.None;
+                    mat = trimPart != I76.Game.Sim.CockpitTrim.Part.None ? materials.ForTrim(f.R, f.G, f.B, trimPart, trim) : materials.ForColour(f.R, f.G, f.B, prop: partPaint is null, partFamily, bothSides, oneSided: plates.Contains((partIndex, f)),
                         unlit: partPaint is null && I76.Formats.Geo.FaceLight.Unlit(f), selfLit: shines, retro: sheeting);
                 }
                 if (!surfaces.TryGetValue(mat, out var s)) surfaces[mat] = s = new Surface();
