@@ -498,9 +498,12 @@ public static class LightingCalibration
     /// The drawn frame's own correction over the solve, measured on the captures: the sunlit look's exposure times this and its sun times
     /// <see cref="SunlitBoost"/> after the solve. With the solve alone, over every day mission's two views, the sunlit ground came out
     /// darker than the 1997 look's (Oklab L -0.06, its brightest tenth -0.12) and the shade lighter (+0.025): the drawn ground has less
-    /// contrast than its cells, whatever the sun.
+    /// contrast than its cells, whatever the sun. Tried on ten day missions (21 views): exposure 0.85 and sun 1.5 scored best (mean ΔE_OK
+    /// of sky, sunlit and shaded ground and car against the 1997 look 0.038, the solve alone 0.047, today's look 0.054), the brightest
+    /// tenth -0.09 L (the solve alone -0.11, today -0.07), the shade +0.03 (today +0.08); 0.8 and 1.8 lifted the shade, 0.75 and 2.2
+    /// lit T10's valley.
     /// </summary>
-    public const double SunlitExposure = 1, SunlitBoost = 1;
+    public const double SunlitExposure = 0.85, SunlitBoost = 1.5;
 
     /// <summary>The sun's factor <see cref="SolveSunlit"/> takes (1 when the contrast cells have no spread of light).</summary>
     public static double SunGainFor(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card)
