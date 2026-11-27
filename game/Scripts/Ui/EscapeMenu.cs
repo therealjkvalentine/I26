@@ -74,8 +74,8 @@ public sealed partial class EscapeMenu : Control
     public required string Mission { get; init; }
     /// <summary>The 4-item Abort pad / 5-item end menu: no shell trip to go back to, No Salv. Manag., or t01/t13/t17.</summary>
     public required bool NoReconfigure { get; init; }
-    /// <summary>A road trip's job (the play fork's): played once, so the Abort pad has no Replay (docs/remix-missions.md "Busts").</summary>
-    public bool RoadTrip { get; init; }
+    /// <summary>A roguetrip's job (the play fork's): played once, so the Abort pad has no Replay (docs/remix-missions.md "Busts").</summary>
+    public bool Roguetrip { get; init; }
     /// <summary>
     /// A generated job's reproduction label (docs/remix-missions.md "Reproducing a job"): two lines, written on the main pad's free
     /// rows 9 and 10, under Controls and above Report a Bug, so the run and the job can be read off a screenshot.
@@ -272,8 +272,8 @@ public sealed partial class EscapeMenu : Control
         // the co-op host's choices for the whole group (the fork's), on the free rows under Controls, apart from Leave Match and Exit I76
         if (Net) InsertCoopRows();
 
-        // (a road trip's job is played once: its row stays blank)
-        _abort.Items = RoadTrip ? [] : [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
+        // (a roguetrip's job is played once: its row stays blank)
+        _abort.Items = Roguetrip ? [] : [Action("Replay", 1, () => Close(MenuOutcome.Replay))];
         if (!four) _abort.Items.Add(Action("Reconfigure", 3, () => Close(MenuOutcome.Reconfigure)));
         _abort.Items.Add(Action("Abort Mission", four ? 3 : 5, () => AskExit(_abort, MenuOutcome.Abort)));
         _abort.Items.Add(Action("Exit Game", four ? 5 : 7, () => AskExit(_abort, MenuOutcome.Exit)));

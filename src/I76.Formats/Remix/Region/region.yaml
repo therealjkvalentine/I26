@@ -1,4 +1,4 @@
-# The road trip's region (docs/remix-missions.md "The choice map"): the port's own drawing of the country the trip crosses, west
+# The roguetrip's region (docs/remix-missions.md "The choice map"): the port's own drawing of the country the trip crosses, west
 # Texas and southeast New Mexico, from real geography typed by hand (latitude, longitude in degrees; approximate, a few km):
 # the state line, towns, highways as chains of towns, and where each trip map lies (the roguelike gazetteer's places). Nothing
 # here comes from the game's files.

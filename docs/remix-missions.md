@@ -299,8 +299,8 @@ outbuildings), and escort routes along roads a slow car can drive (three were cu
 Pecos bridge, round the corner east at the Bar-D, through the hairpin west of the mesa's pumps). Each table also has:
 
 ```yaml
-name: Seagraves               # the map on a road trip's choice screen
-neighbours: [t02, t07, t08, t09]   # the maps next to it (bases with tables), for a road trip's route
+name: Seagraves               # the map on a roguetrip's choice screen
+neighbours: [t02, t07, t08, t09]   # the maps next to it (bases with tables), for a roguetrip's route
 nitro: false                  # a Nitro Pack map: offered only with the Nitro install (no Nitro table yet)
 routes: [{name, points, escort: true, called: the dirt road east of town}]   # a route an escort can drive, and its end in words
 clusters: [{..., uses: [defend, raid]}]   # what a cluster serves (defend only when left out)
@@ -334,16 +334,27 @@ pick your shots, got away, we got a problem, company, bandits) and its own death
   map's title. Then it rolls that seed, builds the job as `xjob` into
   `user://remix` (its description beside it as `xjob.job.yaml`) and starts it. The game log says `remix: RANDOM JOB seed N`.
 - **Headless**: `i76 remix roll --seed N [--yaml FILE] [--build [--out DIR]] [--id STEM] [--template T] [--map BASE] [--challenge C]`,
-  then `i76 --remix-dir DIR run xjob`; `--template`, `--map` and `--challenge` narrow a roll as a road trip's offer does (also
+  then `i76 --remix-dir DIR run xjob`; `--template`, `--map` and `--challenge` narrow a roll as a roguetrip's offer does (also
   for `check` and `score`).
 - **Tests**: 200 seeds roll, build (the builder's validation included) with every car file in the install; one job of each
   template loads and runs half a minute.
 
-## Road trip
+## Roguetrip
 
 The first run of the roguelike plan: four generated jobs across neighbouring maps of the region, the challenge rising 0.8, 1.0,
 1.2, 1.4 (Back to Spanner's 1.0). `RemixRun` (`src/I76.Formats/Remix/RemixRun.cs`, no Godot, no sim) and the shell's
-`RoadTripScreen` (`game/Scripts/Shell/RoadTripScreen.cs`).
+`RoguetripScreen` (`game/Scripts/Shell/RoguetripScreen.cs`). Rounds four and five called it ROAD TRIP and listed it last on the
+SCENARIO form; it is now ROGUETRIP, an entry of its own on the main menu.
+
+- **The way in.** The main menu's **MELEE** row has ROGUETRIP after MULTI MELEE and AUTO MELEE (base game only): set in Impact
+  as the row's sprites are, as NITRO is in AUTO MELEE's row (`PortButton`; `MainMenuScreen.MeleeRowPlace`), white when lit with
+  its banner on the banner line, cut into the frame's pixels in the 1997 look. The mouse, the pad's focus and the arrow keys (the
+  main menu takes the keyboard as the pad: arrows move the focus, Enter clicks it) reach it. It opens the car pick (the scenario
+  form, its list the one ROGUETRIP row), then ENTER AREA asks the run number, then the choice map. Esc steps back: from the run
+  number to the car pick, from the car pick (or CANCEL) to the main menu with MELEE open, and from the choice of a run just begun
+  (no job taken) to the car pick, the run dropped (its number stays among the recent ones). With a run in progress ROGUETRIP goes
+  straight to it (its car is the run's), and Esc on its choice goes to the main menu with MELEE open, the run kept. RANDOM JOB
+  stays on the SCENARIO form.
 
 - **The offers.** Before each job the player picks one of two or three offers: a map (by its node table's `name`: "Seagraves",
   "the Pecos bridge"), the job (DELIVERY, SHAKE THE TAIL, CONVOY HIT, DEFENCE, ESCORT, RAID), its challenge, and a line of flavour
@@ -351,24 +362,25 @@ The first run of the roguelike plan: four generated jobs across neighbouring map
   run's home map (picked by the run's number) and its neighbours; later ones on the neighbours (`neighbours` in each table, written
   from the roguelike gazetteer's road and neighbour links) of the map the last job was on, ones not yet visited first, a different
   template each where the maps allow. Each offer carries its job's seed; the job is the director's roll for that seed on that map
-  and template at that challenge (`RemixDirector.JobAsk`), built as `xrun`, titled `ROAD TRIP k/4`, its first objective labelled
-  "Road trip N, job k:".
+  and template at that challenge (`RemixDirector.JobAsk`), built as `xrun`, titled `ROGUETRIP k/4`, its first objective labelled
+  "Roguetrip N, job k:".
 - **The number.** Everything a run offers is a function of its number and the picks made (a SplitMix64 stream of its own,
-  outside the simulation, never the wall clock): the same number and the same picks give the same offers and the same jobs. ROAD
-  TRIP asks for the run number on the job number's popup (blank: a new one; Up and Down: the last ten, `user://remix/runs.txt`;
+  outside the simulation, never the wall clock): the same number and the same picks give the same offers and the same jobs.
+  ROGUETRIP asks for the run number on the job number's popup (blank: a new one; Up and Down: the last ten, `user://remix/runs.txt`;
   `I76_RUN_NUMBER` answers for a capture).
-- **The car.** The car picked on the scenario form drives the whole run. Its damage carries from job to job (`RunCarry`: read off
+- **The car.** The car picked on ROGUETRIP's car pick drives the whole run. Its damage carries from job to job (`RunCarry`: read off
   at a job's end, put back at the next one's load before the first tick): armour and chassis on each side, engine, brakes,
   suspension, wheels, each gun's hit points and rounds. The trip's own carry (the original's) leaves armour and chassis out and
   fills the guns; a run carries all of it (docs/deviations.md). Each win grants one pick: FULL REPAIR (armour, chassis and parts as
   built; the rounds as they are), FULL AMMO (every gun loaded; the damage as it is) or PUSH ON (nothing, a bonus mark).
-- **The end.** A failed job ends the run (the escape menu's Replay leaves a road trip's job as Abort does: a job is played once);
+- **The end.** A failed job ends the run (the escape menu's Replay leaves a roguetrip's job as Abort does: a job is played once);
   four wins finish it. The summary sheet lists the jobs, the kills (the player's, counted at each job's end), the bonus marks and
   the run's number; DONE keeps the run as `run-last.yaml` and clears the way for a new one.
 - **Kept.** The run is `user://remix/run.yaml` (YAML: the number, the phase, the map, the jobs played, the car's state), written
-  before each job and after each result (to a new file, then moved over the old). Quitting the game keeps it: ROAD TRIP on the
-  scenario form takes it up at the same choice; a job the game closed during comes back as the same choice (the same offers),
-  not as a loss. Single player only, base game only.
+  before each job and after each result (to a new file, then moved over the old). Quitting the game keeps it: MELEE > ROGUETRIP
+  takes it up at the same choice; a job the game closed during comes back as the same choice (the same offers),
+  not as a loss. Single player only, base game only. The files keep the names they had under ROAD TRIP (`run.yaml`,
+  `run-last.yaml`, `runs.txt`, the job's stem `xrun`, the hook `I76_RUN_NUMBER`), so a run saved before the rename resumes.
 - **The screen.** The port's paper sheet (record 16's paper, as Control Configuration's) in the shell's fonts: the title in its
   heavy caps, the offers in the hand of the scenario list, one box each, the chosen one marked in red pencil; Up and Down (or 1-3,
   or a click) choose, Enter or TAKE THE JOB takes it, Esc or BACK goes back to the scenario form with the run kept.
@@ -421,26 +433,26 @@ box over the whole fort (the original's class-0x2000 rule): a car cannot drive b
 
 ### Busts
 
-A road trip's job ends won, busted or with the player dead (`RemixRun.Classify`): failure line 1 or a death line (the lines after
+A roguetrip's job ends won, busted or with the player dead (`RemixRun.Classify`): failure line 1 or a death line (the lines after
 the failures) or the car destroyed is a death and ends the run; any other failure (leaving the map, the job's own: the target lost,
 the convoy through, too slow, the escorted car wrecked) or walking away (Abort) is a bust: the damage carries, no salvage, and the
 next job's challenge is one step on (a bust in job 1 makes job 2 1.2). Four jobs played end the run, busts and all. A failed job
 skips the end menu and goes straight to the run's debrief page in the shell (JOB DONE, JOB BUSTED or WRECKED: the line it ended on,
 its objectives DONE / FAILED / open, the kills, the car, what follows); with the Developer setting on it has RETRY JOB (the same job,
-the car as it began: `RemixRun.Retry`). The pause pad's Abort has no Replay in a road trip.
+the car as it began: `RemixRun.Retry`). The pause pad's Abort has no Replay in a roguetrip.
 
 ### Salvage between jobs
 
 After a won job the trip's own FIELD SALVAGE and garage run on the run's inventory (`TripInventory`, kept in run.yaml): the job's
 wrecks feed a salvage pool levelled as the trip mission whose map it is (T04 and T12 as T03 and T11; the stock mission's scripted
 salvage, its .fsi, left out), the trip's thinning, its repair order (finished after the next job, as the trip's), the van. The
-road trip's own: every part left in the field when DONE is pressed is scrapped for armour plate, a tenth of the car's full armour
+roguetrip's own: every part left in the field when DONE is pressed is scrapped for armour plate, a tenth of the car's full armour
 each, the weakest side first, then the chassis (`RemixRun.Patch`); the guns are reloaded, as the trip's are. The next job's car is
 the garage's (served from memory as vehrun.vcf, its parts' state from the inventory), its armour and chassis carried.
 
 ### Reproducing a job
 
-Every generated job's launch writes one line to the game log and (a road trip's) the run file:
+Every generated job's launch writes one line to the game log and (a roguetrip's) the run file:
 `remix: RUN 004242 JOB 2/4 #637742 builder v5 map t07 (the farms on 380) template deliver challenge 1.2 car vppirna1.vcf commit
 abc1234 (i76 remix roll --run 4242 --job 2 --picks 0,1b)`; RANDOM JOB's: `remix: JOB #N builder v5 map ... commit ...`. The pause
 pad's free rows 9 and 10 show "RUN 004242 JOB 2/4 #637742" and "(t07 the farms on 380, delivery) v5" (both looks; the original's rows
@@ -458,7 +470,7 @@ the player then ("Bring them home, and hurry! (1.2 km northeast)"; the marks fil
 
 ### The choice map
 
-The road trip's choice screen is the region (`RemixRegion`, Remix/Region/region.yaml: the state line, towns, highways as chains of
+The roguetrip's choice screen is the region (`RemixRegion`, Remix/Region/region.yaml: the state line, towns, highways as chains of
 towns, the trip maps' places, all typed by hand from real geography) with the offers as numbered rings, the run's road so far in red
 pencil, and beside it the offers and the chosen one's own map (its whole-map sketch and marks) and notes. Up, Down, 1-3 or a click on
 a ring or a box choose; Enter or a second click takes the job.
@@ -471,7 +483,7 @@ route before it and 400 m after); a convoy (a lead and its escorts, the intercep
 route and rolls five seconds in, unaware: it keeps its pace (16-20 m/s) and is alerted only when the player comes within 120 m or a
 shot or a death in it gives him away, then the lead runs at its alert speed and the escorts turn on him. The first objective says
 when it passes ("in about a minute"); objective 1 the lead dead, 2 the escorts, then away to a hideout or home nearby with nobody
-behind, while the gang's backup comes in. The convoy through is failure line 3 (a road trip's bust). Measured over 150 rolls: it
+behind, while the gang's backup comes in. The convoy through is failure line 3 (a roguetrip's bust). Measured over 150 rolls: it
 passes the player 71 s in (median; 60-82 s quartiles), the away leg 46 s.
 
 ### The radio

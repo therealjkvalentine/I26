@@ -58,6 +58,13 @@ voices, cars and progress; Play Options there are the Nitro Pack's own). BACK on
 mission, brings you back to Interstate '76's main menu with MELEE > AUTO MELEE open. No restart: the window changes game as Switch Game
 does. With only one of the games, the menus are as before.
 
+**Roguetrip.** The main menu's **MELEE** row has **ROGUETRIP** after AUTO MELEE (Interstate '76 only): a run of four generated
+jobs on the trip's maps, one car, its damage carried from job to job (docs/remix-missions.md "Roguetrip"). It opens a car pick
+(the scenario form), ENTER AREA asks for a run number (blank for a new one; the same number gives the same jobs), then a map of
+the region offers the first jobs. Esc steps back one screen at a time, to MELEE. A run in progress is kept between sessions:
+ROGUETRIP goes straight back to it. One-off generated jobs stay on the SCENARIO form as RANDOM JOB. The main menu also answers
+the arrow keys and Enter (as a pad's D-pad and A).
+
 The install is looked for in this order: `--install DIR`, the `I76_INSTALL` environment variable, the executable's
 folder and its parent, `i76` and `nitro` inside the executable's folder, `i76` and `nitro` in the local user folder, then
 GOG offline installers (in the executable's folder, its parent and the local user folder). I26 remembers no install

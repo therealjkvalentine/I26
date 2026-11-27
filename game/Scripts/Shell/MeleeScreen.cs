@@ -17,6 +17,12 @@ namespace I76.Game.Shell;
 public sealed partial class MeleeScreen : ShellScreen
 {
     public required int Mode { get; init; }
+    /// <summary>
+    /// The main menu's MELEE > ROGUETRIP (the play fork's; docs/remix-missions.md "Roguetrip"): the scenario form (mode 1) as the run's car
+    /// pick, its list the one ROGUETRIP row; ENTER AREA asks the run number, then the run's choice of jobs; CANCEL and Esc go back to the
+    /// main menu with MELEE open.
+    /// </summary>
+    public bool Roguetrip { get; init; }
     /// <summary>A notice to show over the form on entry (why the last network game did not start or ended).</summary>
     public string? Notice { get; init; }
     private bool Nitro => Shell.Install.IsNitro;
@@ -120,7 +126,7 @@ public sealed partial class MeleeScreen : ShellScreen
         else if (Mode == 1)
         {
             RemixScenarios.Ensure(Shell.Install.Root);   // the generated scenarios after the stock ones (docs/remix-missions.md)
-            Area = Math.Clamp(Area, 0, MeleeData.Scenarios.Length - 1);
+            Area = Roguetrip ? 0 : Math.Clamp(Area, 0, MeleeData.Scenarios.Length - 1);
         }
         else NetEnter();
         _scroll = Mode is 7 or 8 ? 0 : Math.Clamp(Area - Rows + 1, 0, Math.Max(0, ListCount - Rows));
@@ -129,7 +135,7 @@ public sealed partial class MeleeScreen : ShellScreen
         else if (Notice is { Length: > 0 } n) Say(n);
     }
 
-    private int ListCount => Mode switch { 1 => MeleeData.Scenarios.Length, 7 or 8 => _rows.Count, _ => Arenas.Count };
+    private int ListCount => Mode switch { 1 => Roguetrip ? 1 : MeleeData.Scenarios.Length, 7 or 8 => _rows.Count, _ => Arenas.Count };
     private const int ListW = 182;
 
     /// <summary>One row of the list (<see cref="ListRowText"/>); the co-op list in one handwriting (<see cref="CoopListSmaller"/>).</summary>
@@ -166,7 +172,7 @@ public sealed partial class MeleeScreen : ShellScreen
     private int ListRowY(int k) => Nitro && Hosting && k > 0 ? 154 + Row * k : 149 + Row * k;
     private int ListRowAt(int y) => Nitro && Hosting ? (y < 169 ? 0 : 1 + (y - 169) / Row) : (y - 151) / Row;
 
-    private string ListName(int i) => Mode == 1 ? MeleeData.Scenarios[i].Name : Arenas[i].Name + (DownloadedArenas.Is(Arenas[i].Msn) ? DownloadedArenas.Mark : "");
+    private string ListName(int i) => Roguetrip ? RemixScenarios.Roguetrip : Mode == 1 ? MeleeData.Scenarios[i].Name :Arenas[i].Name + (DownloadedArenas.Is(Arenas[i].Msn) ? DownloadedArenas.Mark : "");
 
     /// <summary>
     /// A co-op list row's tooltip (the fork's; upstream #197): the mission's title and what it is about, its first objective in the mission's
@@ -256,7 +262,7 @@ public sealed partial class MeleeScreen : ShellScreen
         else if (Hosting) DrawHost();
         if (Hosting) DrawBuild();
         if (LobbyMode || GameMode) DrawApplyButton();
-        if (Mode == 1 && Victory.Lightest(MeleeData.Scenarios[Area].Msn) is { } best && best.Model >= 0 && best.Model < _data.Models.Count)
+        if (Mode == 1 && !Roguetrip && Victory.Lightest(MeleeData.Scenarios[Area].Msn) is { } best && best.Model >= 0 && best.Model < _data.Models.Count)
             Frame.Text(_font, 16, 308, _data.Models[best.Model].MakeModel);     // after the art's "Lightest car to win:"
         if (Mode == 0)
         {
@@ -378,6 +384,8 @@ public sealed partial class MeleeScreen : ShellScreen
         if (LobbyMode && Shell.Keys.Contains(Key.Escape)) { Shell.Sound(82); CancelLobby(); return; }
         // opened from the game: Esc is CANCEL too (back to the game, nothing changed)
         if (GameMode && Shell.Keys.Contains(Key.Escape)) { Shell.Sound(82); CancelGame(); return; }
+        // ROGUETRIP's car pick: Esc is CANCEL (back to the main menu, MELEE open)
+        if (Roguetrip && Shell.Keys.Contains(Key.Escape)) { Shell.Sound(82); Leave(save: false); Shell.Go(new MainMenuScreen { OpenMelee = true }); return; }
         if (Shell.Wheel != 0 && Mode == 0 && OverDrivers(Shell.Mouse)) { _dscroll = Math.Clamp(_dscroll + Shell.WheelRows, 0, DriverScrollMax); Draw(); }
         else if (Shell.Wheel != 0) { _scroll = Math.Clamp(_scroll + Shell.WheelRows, 0, Math.Max(0, ListCount - (Mode is 7 or 8 ? ListRows : Rows))); Draw(); }
         // ⊞ / ⊟ and the list arrows repeat every 100 ms while the button is held
@@ -423,7 +431,7 @@ public sealed partial class MeleeScreen : ShellScreen
             case 14: _renaming = true; break;
             case 15 when LobbyMode: CancelLobby(); break;
             case 15 when GameMode: CancelGame(); break;
-            case 15: Leave(save: false); StopGames(); Shell.Go(new MainMenuScreen()); break;
+            case 15: Leave(save: false); StopGames(); Shell.Go(new MainMenuScreen { OpenMelee = Roguetrip }); break;
         }
     }
 
@@ -492,29 +500,30 @@ public sealed partial class MeleeScreen : ShellScreen
         }
         else
         {
-            var msn = MeleeData.Scenarios[Area].Msn;
+            var msn = Roguetrip ? I76.Formats.Remix.RemixRun.Stem : MeleeData.Scenarios[Area].Msn;
             void Go() => Shell.Launch(new ShellLaunch(msn, GameKind.Scenario, car) { Driver = driver, Model = make, ModelIndex = model });
             // RANDOM JOB: its job number asked (blank: a new one; a number: that job again), then the job rolled and built before the
             // launch (docs/remix-missions.md "The director"); I76_JOB_NUMBER answers for a capture
-            // ROAD TRIP: the run in progress, else a new one by its number (blank: a new number); then its choice of jobs (RoadTripScreen)
+            // ROGUETRIP (the car pick's ENTER AREA): the run in progress, else a new one by its number (blank: a new number); then its
+            // choice of jobs (RoguetripScreen), whose Esc comes back here while no job of the new run has been taken
             if (msn == I76.Formats.Remix.RemixRun.Stem)
             {
-                if (RoadTripScreen.InProgress() is { } going) { Shell.Go(new RoadTripScreen { Run = going }); return; }
+                if (RoguetripScreen.InProgress() is { } going) { Shell.Go(new RoguetripScreen { Run = going }); return; }
                 void Begin(int? number)
                 {
                     int n = number is > 0 ? number.Value : System.Random.Shared.Next(1, 1_000_000);
                     var run = I76.Formats.Remix.RemixRun.Start(n, car, driver, make, model);
-                    RoadTripScreen.Save(run);
-                    RoadTripScreen.RememberNumber(n);
-                    GD.Print($"remix: ROAD TRIP {n} with {car}");
-                    Shell.Go(new RoadTripScreen { Run = run });
+                    RoguetripScreen.Save(run);
+                    RoguetripScreen.RememberNumber(n);
+                    GD.Print($"remix: ROGUETRIP {n} with {car}");
+                    Shell.Go(new RoguetripScreen { Run = run, FromCarPick = true });
                 }
                 if (System.Environment.GetEnvironmentVariable("I76_RUN_NUMBER") is { } given)
                 {
                     Begin(int.TryParse(given, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int g) && g > 0 ? g : null);
                     return;
                 }
-                Shell.Modal(new JobNumberPopup { Font = _font, Noun = "Run number", Recent = RoadTripScreen.Numbers(), Picked = Begin, Cancelled = Draw });
+                Shell.Modal(new JobNumberPopup { Font = _font, Noun = "Run number", Recent = RoguetripScreen.Numbers(), Picked = Begin, Cancelled = Draw });
                 return;
             }
             if (msn == I76.Formats.Remix.RemixDirector.JobStem)

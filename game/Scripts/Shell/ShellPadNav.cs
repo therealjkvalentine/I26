@@ -73,6 +73,8 @@ public partial class Shell
             _padNav.Settle();
         }
         var st = _padNav.Update(raw, dt);
+        // the main menu has no keys of its own (the original's is the mouse's): the arrow keys move the same focus, Enter clicks it
+        if (!st.Any && cur is MainMenuScreen) st = MenuKeys.Step([.. _keys]);
         var regions = cur.PadRegions;
         int at = IndexOf(regions, _focus);
         if (st.Any)
@@ -108,6 +110,18 @@ public partial class Shell
     }
 
     private static Vector2I Centre(NavRect r) => new((int)r.CenterX, (int)r.CenterY);
+}
+
+/// <summary>The main menu's keyboard (the port's): its keys as the pad's steps.</summary>
+public static class MenuKeys
+{
+    /// <summary>An arrow is that direction, Enter (or the keypad's) is A.</summary>
+    public static PadRepeater.Step Step(IReadOnlyCollection<Key> keys)
+    {
+        var dir = keys.Contains(Key.Up) ? NavDir.Up : keys.Contains(Key.Down) ? NavDir.Down : keys.Contains(Key.Left) ? NavDir.Left : keys.Contains(Key.Right) ? NavDir.Right : NavDir.None;
+        bool enter = keys.Contains(Key.Enter) || keys.Contains(Key.KpEnter);
+        return new(dir, enter ? PadRepeater.Btn.Accept : PadRepeater.Btn.None);
+    }
 }
 
 /// <summary>The pad focus' outline where a screen has no hover of its own: the pencil red of the controller screen's mark, with a light edge so it reads on dark art too.</summary>

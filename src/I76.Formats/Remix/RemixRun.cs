@@ -5,10 +5,10 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace I76.Formats.Remix;
 
 /// <summary>
-/// A road trip (docs/remix-missions.md "Road trip"): a run of four generated jobs across neighbouring maps of the region, the
+/// A roguetrip (docs/remix-missions.md "Roguetrip"): a run of four generated jobs across neighbouring maps of the region, the
 /// challenge rising 0.8, 1.0, 1.2, 1.4. Before each job the player picks one of two or three offers (a map next to the one he is
 /// on, a template, its challenge and a line naming the gang); the car's damage carries from job to job, and after each win the
-/// trip's field salvage and garage (the job's wrecks, the van, the repair order; armour patched from scrap, the road trip's
+/// trip's field salvage and garage (the job's wrecks, the van, the repair order; armour patched from scrap, the roguetrip's
 /// own). The player's death ends the run; a job failed otherwise (the target lost, the convoy through, too slow, the escort
 /// wrecked, walked away from) is a BUST: no salvage, and the next job one step harder. Everything a run offers comes
 /// from its number and the choices made (a SplitMix64 stream of its own, outside the simulation): the same number and the same
@@ -102,7 +102,7 @@ public sealed class RemixRun
             usedTemplates.Add(pick);
             int seed = 1 + rng.Next(999_999_998);
             var offer = new RunOffer { Map = t.Base, Name = t.Name.Length > 0 ? t.Name : t.Base.ToUpperInvariant(), Template = pick, Seed = seed, Challenge = NextChallenge };
-            // the flavour: the job's own first objective, without its label ("Road trip 12, job 2: ")
+            // the flavour: the job's own first objective, without its label ("Roguetrip 12, job 2: ")
             try { var first = Spec(offer, tables).Text.Objectives[0]; offer.Flavour = first.IndexOf(": ", StringComparison.Ordinal) is var k and > 0 ? first[(k + 2)..] : first; offer.Flavour = char.ToUpperInvariant(offer.Flavour[0]) + offer.Flavour[1..]; }
             catch (RemixError) { continue; }
             o.Add(offer);
@@ -115,12 +115,12 @@ public sealed class RemixRun
         RemixDirector.Roll(offer.Seed, new RemixDirector.JobAsk
         {
             Tables = tables, Id = Stem, Challenge = offer.Challenge, Map = offer.Map, Template = offer.Template, Nitro = true,
-            Label = $"Road trip {Number.ToString(CultureInfo.InvariantCulture)}, job {(Legs.Count + 1).ToString(CultureInfo.InvariantCulture)}",
+            Label = $"Roguetrip {Number.ToString(CultureInfo.InvariantCulture)}, job {(Legs.Count + 1).ToString(CultureInfo.InvariantCulture)}",
         }) is var s ? Retitle(s) : null!;
 
     private RemixSpec Retitle(RemixSpec s)
     {
-        s.Title = $"ROAD TRIP {Math.Min(Jobs, Legs.Count + 1)}/{Jobs}";
+        s.Title = $"ROGUETRIP {Math.Min(Jobs, Legs.Count + 1)}/{Jobs}";
         return s;
     }
 
@@ -141,7 +141,7 @@ public sealed class RemixRun
     public enum Outcome { Won, Bust, Dead }
 
     /// <summary>
-    /// How a road trip's job ended, from the mission's end (docs/remix-missions.md "Busts"): a win; the player's death (failure line
+    /// How a roguetrip's job ended, from the mission's end (docs/remix-missions.md "Busts"): a win; the player's death (failure line
     /// 1, or a death line: the lines after the failures, one an objective) ends the run; any other failure (leaving the map, the
     /// job's own: the target lost, the convoy through, too slow, the escorted car wrecked) or walking away from the job (Abort)
     /// is a bust. failMessage is the 0-based failure line the mission ended on (-1: none, an abort), failures the description's count.
@@ -247,7 +247,7 @@ public sealed class RemixRun
     }
 
     public string ToYaml() =>
-        "# a road trip in progress (docs/remix-missions.md \"Road trip\"): the run's number, the jobs played, the car's damage\n"
+        "# a roguetrip in progress (docs/remix-missions.md \"Roguetrip\"): the run's number, the jobs played, the car's damage\n"
         + new SerializerBuilder().WithNamingConvention(UnderscoredNamingConvention.Instance)
             .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull).DisableAliases().Build().Serialize(this);
 
@@ -276,13 +276,13 @@ public sealed class RemixRun
     }
 
     /// <summary>
-    /// The stem a road trip job's salvage pool is levelled by: the trip mission whose map it is (T12's own writes no salvage and
+    /// The stem a roguetrip job's salvage pool is levelled by: the trip mission whose map it is (T12's own writes no salvage and
     /// T04's is a dream with none, so those take the trip mission before them).
     /// </summary>
     public static string SalvageStem(string map) => map.ToLowerInvariant() switch { "t04" => "t03", "t12" => "t11", var m => m };
 
     /// <summary>
-    /// The armour and chassis the garage patches from scrap (the road trip's own: docs/deviations.md): every salvage item left in
+    /// The armour and chassis the garage patches from scrap (the roguetrip's own: docs/deviations.md): every salvage item left in
     /// the field is broken up for plate, a tenth of the car's full armour each, armour first, then the chassis with what is left.
     /// </summary>
     public static RunCar Patch(RunCar car, int[] armourMax, int[] chassisMax, int scrapped)
@@ -322,7 +322,7 @@ public sealed class RemixRun
     }
 
     /// <summary>
-    /// The line a road trip job's launch writes to the game log and the run file (docs/remix-missions.md "Reproducing a job"):
+    /// The line a roguetrip job's launch writes to the game log and the run file (docs/remix-missions.md "Reproducing a job"):
     /// enough to roll that exact job again headless (i76 remix roll --run N --job K --picks ...).
     /// </summary>
     public static string LaunchLine(RemixRun run, RunOffer offer, RemixSpec spec, string car, string commit) =>

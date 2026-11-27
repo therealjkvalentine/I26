@@ -18,7 +18,7 @@ public sealed class RemixNodes
     /// <summary>What the map is called on a run's choice screen, in the port's words (a town or a road: "Seagraves", "the Pecos bridge").</summary>
     public string Name { get; set; } = "";
     /// <summary>
-    /// The maps next to this one in the region (their bases), for a run's route (docs/remix-missions.md "Road trip"): written by hand
+    /// The maps next to this one in the region (their bases), for a run's route (docs/remix-missions.md "Roguetrip"): written by hand
     /// from the roguelike gazetteer's road and neighbour links, kept to maps that have a table.
     /// </summary>
     public List<string> Neighbours { get; set; } = [];

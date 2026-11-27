@@ -177,7 +177,7 @@ public partial class Main : Node3D
 	private static I76.Game.Shell.MissionResult _lastResult = I76.Game.Shell.MissionResult.FirstEntry;
 	private static I76.Game.Shell.TripResult? _lastTrip;
 	private static I76.Game.Shell.MeleeResult? _lastMelee;
-	/// <summary>What a road trip's job hands back to the shell: won, the kills, the car's damage (RoadTripScreen).</summary>
+	/// <summary>What a roguetrip's job hands back to the shell: won, the kills, the car's damage (RoguetripScreen).</summary>
 	private static I76.Game.Shell.RunResult? _lastRun;
 	/// <summary>What a network melee hands back to the shell: the standings, or why it did not start.</summary>
 	private static I76.Game.Shell.NetResult? _lastNet;
@@ -621,7 +621,7 @@ public partial class Main : Node3D
 		{
 			BugReport = () => WriteBugReport(_menuFrame),
 			Vfs = _builder.Vfs, Palette = pal, InstallDir = _opt.Install, Mission = mission, NoReconfigure = four, Faithful = _mode1997, End = end, Net = _net is not null,
-			RoadTrip = _launch is { RoadTrip: true }, RemixLabel = RemixLabel(),
+			Roguetrip = _launch is { Roguetrip: true }, RemixLabel = RemixLabel(),
 			Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry, Developer = DevOn,
 			PausedFrame = () => _pit?.MirrorWhilePaused(), PlayFps = () => _fpsRecorder?.Recent,
 			SelfDestructRefused = _net is null ? null : () => !I76.Net.Hud.NetMenu.CanSelfDestruct(PlayerDead || _ended, _netHud?.Decided == true),
@@ -782,7 +782,7 @@ public partial class Main : Node3D
 	}
 
 	/// <summary>
-	/// A generated job's two label lines for the pause pad (docs/remix-missions.md "Reproducing a job"): the shell's for a road trip
+	/// A generated job's two label lines for the pause pad (docs/remix-missions.md "Reproducing a job"): the shell's for a roguetrip
 	/// or a RANDOM JOB, else read off the built job's description beside it (a remix started from the command line).
 	/// </summary>
 	private string? RemixLabel()
@@ -806,8 +806,8 @@ public partial class Main : Node3D
 		var settings = I76.Game.Shell.ShellSettings.Load();
 		I76.Game.Shell.CheatMarker.Read(settings.PlayOptions);
 		if (o == MenuOutcome.Replay && (_opt.Mission ?? "").Equals("t17", System.StringComparison.OrdinalIgnoreCase)) o = MenuOutcome.Reconfigure;
-		// a road trip's job is played once: Replay leaves it as Abort does (the run counts it lost; docs/remix-missions.md "Road trip")
-		if (o == MenuOutcome.Replay && _launch is { RoadTrip: true }) o = MenuOutcome.Abort;
+		// a roguetrip's job is played once: Replay leaves it as Abort does (the run counts it lost; docs/remix-missions.md "Roguetrip")
+		if (o == MenuOutcome.Replay && _launch is { Roguetrip: true }) o = MenuOutcome.Abort;
 		// a mission given on the command line: every outcome but resume and replay ends the program
 		if (_cmdLine && _launch is null && o is MenuOutcome.Abort or MenuOutcome.Reconfigure) o = MenuOutcome.Exit;
 		switch (o)
@@ -1196,9 +1196,9 @@ public partial class Main : Node3D
 			int deaths = game?.PlayerDestroyed == true || I76.Sim.Damage.DamageModel.IsDead(mp) ? 1 : 0;
 			_lastMelee = new I76.Game.Shell.MeleeResult(ml.Driver, ml.Model, deaths, game?.Kills ?? 0, game?.Score ?? 0, won, mp.P.Mass);
 		}
-		// a road trip's job: won or not, the player's kills, the car's damage to carry into the next (docs/remix-missions.md "Road trip")
+		// a roguetrip's job: won or not, the player's kills, the car's damage to carry into the next (docs/remix-missions.md "Roguetrip")
 		_lastRun = null;
-		if (_launch is { RoadTrip: true } && _sim?.World.Player is { } rp)
+		if (_launch is { Roguetrip: true } && _sim?.World.Player is { } rp)
 		{
 			int kills = _sim.Script?.Host.Entities.Count(e => e.Vehicle is not null && e.Vehicle != rp && e.Dead && e.KilledByPlayer) ?? 0;
 			// how it ended, for the run's bust rule and the debrief page: the failure line (none: walked away), the objectives as they stood
@@ -1222,14 +1222,14 @@ public partial class Main : Node3D
 					var rng = new System.Random();
 					items = rpool.Finish(n => n.EndsWith(".fsi", System.StringComparison.OrdinalIgnoreCase) ? null : rvfs.TryRead(n), () => rng.Next(0x8000));
 				}
-				catch (System.Exception ex) { GD.PrintErr($"road trip salvage: not taken: {ex.Message}"); }
+				catch (System.Exception ex) { GD.PrintErr($"roguetrip salvage: not taken: {ex.Message}"); }
 			}
 			_lastRun = new I76.Game.Shell.RunResult(won, kills, I76.Sim.Trip.RunCarry.Capture(rp))
 			{
 				FailMessage = fm, PlayerDead = PlayerDead || I76.Sim.Damage.DamageModel.IsDead(rp), Aborted = aborted, Why = why, Objectives = obs,
 				Salvage = items, Parts = I76.Sim.Trip.CarState.Capture(rp),
 			};
-			GD.Print($"remix: road trip job ended: {(won ? "won" : aborted ? "walked away" : $"failed on line {fm + 1}")}, {kills} kills{(items is null ? "" : $", {items.Count} salvage items")}");
+			GD.Print($"remix: roguetrip job ended: {(won ? "won" : aborted ? "walked away" : $"failed on line {fm + 1}")}, {kills} kills{(items is null ? "" : $", {items.Count} salvage items")}");
 			_salvage = null;   // the trip's own salvage hand-back below is the trip's alone
 		}
 		_lastLaunch = _launch;
@@ -1383,9 +1383,9 @@ public partial class Main : Node3D
 			_salvage.Watch(setup.Damage, world.Player);
 			if (setup.Script is { } salvScript) { var pool = _salvage; salvScript.Host.Salvaged += f => pool.Add(f, -1, true); }
 		}
-		// a road trip's job: the parts' state from the run's garage (the trip's CarState), then the damage carried from the last job
+		// a roguetrip's job: the parts' state from the run's garage (the trip's CarState), then the damage carried from the last job
 		// (RunCarry: armour and chassis too, the port's); its wrecks feed a salvage pool at the level of the trip mission whose map it is
-		if (_launch is { RoadTrip: true } rtl && world.Player is { } rtp)
+		if (_launch is { Roguetrip: true } rtl && world.Player is { } rtp)
 		{
 			if (rtl.State is { } rts) rts.Apply(rtp);
 			if (rtl.Carry is { } carry) I76.Sim.Trip.RunCarry.Apply(carry, rtp);
@@ -5190,7 +5190,7 @@ public partial class Main : Node3D
 			// each key is down for one frame, so held-key checks see it too
 			foreach (var (f, u, k, m) in _keys.Where(e => e.Until == _n - 1)) Post(k, m, false);
 			foreach (var (f, u, k, m) in _keys.Where(e => e.Frame == _n)) Post(k, m, true);
-			// ({L} in a path: the run's mission load, so a road trip's jobs keep their own pictures)
+			// ({L} in a path: the run's mission load, so a roguetrip's jobs keep their own pictures)
 			foreach (var (f, p0) in _shots.Where(e => e.Frame == _n)) { var path = p0.Replace("{L}", _missionLoads.ToString(System.Globalization.CultureInfo.InvariantCulture)); GetViewport().GetTexture().GetImage().SavePng(path); GD.Print($"game shot {path} at frame {_n}"); }
 			if (!GetTree().Paused || (Owner._menu is null && Owner._picture is null && Owner._dev is null)) return;
 			var o = Owner._opt;
@@ -5388,8 +5388,8 @@ public partial class Main : Node3D
 			// a co-op game that goes on after its mission (the fork's, MainNetCoop.cs): no way back to the menus, the next mission follows
 			if (NetCoopEnded(result)) _endMenuShown = true;
 			else if (result && !I76.Game.Shell.CheatMarker.Set) EndMission(true);
-			// a road trip's job failed: no end menu (no Replay: a job is played once), straight to its debrief page in the shell
-			else if (!result && _launch is { RoadTrip: true }) { _endMenuShown = true; EndMission(false); }
+			// a roguetrip's job failed: no end menu (no Replay: a job is played once), straight to its debrief page in the shell
+			else if (!result && _launch is { Roguetrip: true }) { _endMenuShown = true; EndMission(false); }
 			else
 			{
 				if (result) GD.Print("mission won with the cheats marker set: the cheater's end menu");
