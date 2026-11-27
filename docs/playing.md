@@ -402,7 +402,7 @@ keys are each player's own, online too. The hooks for a run (`I76_*`, [docs/dev-
 
 Options > **Controls** (the original's Control Configuration's place on the Options Menu, and the in-mission Esc menu's
 Controls) is a sheet of the port's: **Force Feedback**, **Rumble Strength** and **Wheel Strength** (Play Options' until round 5),
-**Head Tracking**, **Head Track Sens.**, **Opentrack**, **Opentrack Auto** and **Opentrack Profile** (Head tracking, below; in a
+**Head Tracking**, **Head Track Sens.**, **Head Track Reach**, **Head Track Centre**, **Opentrack**, **Opentrack Auto** and **Opentrack Profile** (Head tracking, below; in a
 mission a change takes effect at once), then **Mouse Options...** and **Key Map...**, each a screen that comes back to it. The key map is the original's Control
 Configuration screen (its keys, the mouse's buttons, and Calibrate for a pad); it also opens Mouse Options. Mouse Options holds the
 mouse's settings: Mouse Camera (the F2 chase view), Mouse Sensitivity, Invert Y Axis, Cockpit Mouse Look, Camera
@@ -498,12 +498,20 @@ screen (Controls > Key Map > Calibrate).
 your head in the car. The game reads either of two opentrack outputs, whichever is sending: **freetrack 2.0 Enhanced** (opentrack's
 default profile, the one TrackIR-style games read; Windows only) or **UDP over network** (settings **127.0.0.1** port **4242**;
 any system). Press Start in opentrack; then set Options > Controls > Head Tracking (also on the Esc menu's Controls) to **Analog** (the view follows your head) or **Digital** (turning past a
-threshold glances left, right or down at the dash, as the glance keys do). Head Track Sens. multiplies the angle (3: a 25° head
-turn looks 75° round; the reach is the pad's free look, 80° each side). The glance keys and the pad's right stick win while held;
+threshold glances left, right or down at the dash, or turned right round looks out of the back, as the glance keys do). Three rows
+shape Analog: **Head Track Reach** is how far round the view goes at your full head turn (80, 120, 160 or **180**: straight out of
+the rear window; 160 is the original's own look rear); **Head Track Sens.** sets that full turn, reach ÷ sensitivity past the
+still zone (**7**: about 26° of head looks right behind you; at 180 a 19° turn looks 90° round); **Head Track Centre** is a still
+zone round straight ahead and a softer curve out of it, so small head movements leave the view dead ahead and a bigger turn
+swings it round: **Snap** (the default: 1.7°, a 1.7 power curve, as the opentrack layer for the original game had), Light (1°,
+1.4), Strong (3°, 2.2) or Off (in proportion). The zone is subtracted, so the view never jumps as you leave it. Nodding moves the
+view about 3° a degree whatever the reach, and as you look round past 90° the view lifts to the look rear's level. Off at
+reach 80 and sensitivity 3 is the head tracking of earlier versions, which a sensitivity saved by them keeps. The glance keys and the pad's right stick win while held;
 when opentrack stops the view eases back ahead. If the view turns the wrong way, invert that axis in opentrack's Options > Output.
 Analog needs the 3D dash (F1). Both outputs give the same angles: FreeTrack's shared memory (FT_SharedMem) holds radians with yaw
 and pitch the other way round and millimetres, which the game turns back into the UDP output's degrees and centimetres, so a
-profile that turns the view right over UDP does so over FreeTrack too. shell.cfg `[port]`: `head_track` (off / analog / digital), `head_track_sensitivity`,
+profile that turns the view right over UDP does so over FreeTrack too. shell.cfg `[port]`: `head_track` (off / analog / digital), `head_track_sensitivity` (7), `head_track_reach` (180), `head_track_centre`
+(snap),
 `head_track_port` (4242), `head_track_bind` (127.0.0.1; 0.0.0.0 to take a tracker on another machine) and
 `head_track_position` (true moves the eye with your head, up to 10 cm; off) and `head_track_source` (`auto`, the default: the
 output that is sending, and while both are, the one already in use; `udp` or `freetrack`: that one only).

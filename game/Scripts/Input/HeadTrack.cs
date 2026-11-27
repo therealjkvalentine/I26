@@ -85,12 +85,21 @@ public static class HeadTrackSources
 }
 
 /// <summary>
-/// The head tracker's part in the cockpit's head, apart from the engine so it can be tested. Analog: the tracked yaw and pitch
-/// times the sensitivity, held to the pad's free look reach (<see cref="I76.Formats.Input.FreeLook"/>: 80° each side, 22° above
-/// and 25° below the forward −13°, less below to the sides: <see cref="I76.Formats.Input.CockpitReach"/>), blended in over 150 ms (a smoothstep) when tracking starts or a glance lets go, and out the
-/// same way when a glance key or the look stick takes over, packets stop for 500 ms or the mode is turned off. Digital: the
-/// head past a threshold holds the glance left, right or down (to the dash), as those keys do; nodding up does nothing (the
-/// up glance is the look rear).
+/// Head Track Centre: the still zone round straight ahead and the softness of the curve out of it. Off: none, the head in proportion
+/// (the port's first head tracking); Snap: the head look of the earlier opentrack layer over the original game (a 1.7° zone
+/// subtracted, so no step leaving it, and a 1.7 power curve: small turns barely move the view, a full turn still reaches the reach).
+/// </summary>
+public enum HeadTrackCentre { Off, Light, Snap, Strong }
+
+/// <summary>
+/// The head tracker's part in the cockpit's head, apart from the engine so it can be tested. Analog: the tracked yaw through
+/// <see cref="ViewYaw"/> (the centre's still zone, its curve, up to the reach: 180° by default, straight out of the rear window) and
+/// the pitch in proportion, held to the free look's reach up and down (<see cref="I76.Formats.Input.FreeLook"/>: 22° above and 25°
+/// below the forward −13°, which rises to the rear glance's −2° as the head turns round past 90°; less below to the sides:
+/// <see cref="I76.Formats.Input.CockpitReach"/>), followed with a 16 ms lag, blended in over 150 ms (a smoothstep) when tracking
+/// starts or a glance lets go, and out the same way when a glance key or the look stick takes over, packets stop for 500 ms or the
+/// mode is turned off. Digital: the same yaw and pitch past a threshold hold the glance left, right, down (to the dash) or, turned
+/// right round, the look rear, as those keys do; nodding up does nothing (the up glance is the look rear).
 /// </summary>
 public sealed class HeadLook
 {
@@ -99,16 +108,25 @@ public sealed class HeadLook
     public const double Timeout = 0.5;
     /// <summary>Seconds of the blend in or out.</summary>
     public const double Ease = 0.15;
-    /// <summary>The sensitivity's steps (Play Options) and default: a comfortable head turn of about 25° looks 75° round.</summary>
-    public static readonly float[] Sensitivities = [1, 1.5f, 2, 2.5f, 3, 4, 5];
-    public const float DefaultSensitivity = 3;
-    /// <summary>Digital's thresholds on the scaled head (degrees): a side glance from 40° (back under 30°), the dash from 15° down (back under 10°).</summary>
-    public const float SideEnter = 40, SideLeave = 30, DownEnter = 15, DownLeave = 10;
+    /// <summary>The sensitivity's steps (the Controls sheet) and default. The full look (the reach) comes at a head turn of reach ÷ sensitivity past the still zone: 180 ÷ 7, about 26°, the earlier layer's full comfortable turn.</summary>
+    public static readonly float[] Sensitivities = [1, 1.5f, 2, 2.5f, 3, 4, 5, 6, 7, 8, 10];
+    public const float DefaultSensitivity = 7;
+    /// <summary>Head Track Reach's steps (degrees of view each side at the full head turn) and default: 80 is the pad's free look, 160 the original's rear glance, 180 straight back.</summary>
+    public static readonly int[] Reaches = [80, 120, 160, 180];
+    public const int DefaultReach = 180;
+    public const HeadTrackCentre DefaultCentre = HeadTrackCentre.Snap;
+    /// <summary>Digital's thresholds on the mapped head (degrees of view): a side glance from 40° (back under 30°), the dash from 15° down (back under 10°), the look rear from 140° round (back under 120°).</summary>
+    public const float SideEnter = 40, SideLeave = 30, DownEnter = 15, DownLeave = 10, RearEnter = 140, RearLeave = 120;
     /// <summary>The eye's reach with the position on (m, each axis).</summary>
     public const float MaxOffset = 0.1f;
+    /// <summary>The lag the head is followed with (s; the earlier layer's 0.6 a 8 ms tick), and the step under which it lands exactly (degrees).</summary>
+    public const double Lag = 0.016;
+    public const float Land = 0.05f;
 
     public HeadTrackMode Mode { get; set; }
     public float Sensitivity { get; set; } = DefaultSensitivity;
+    public float Reach { get; set; } = DefaultReach;
+    public HeadTrackCentre Centre { get; set; } = DefaultCentre;
     /// <summary>The tracked x, y, z move the eye (off: only the angles are used).</summary>
     public bool Position { get; set; }
 
@@ -117,7 +135,7 @@ public sealed class HeadLook
     private float _w;
     private (float Yaw, float Pitch, float Roll) _target = (0, I76.Formats.Input.FreeLook.Rest, 0);
     private (float X, float Y, float Z) _offset;
-    private bool _left, _right, _down;
+    private bool _left, _right, _down, _rear, _following;
 
     /// <summary>A packet arrived.</summary>
     public void Feed(HeadPose p) { _last = p; _since = 0; }
@@ -125,12 +143,47 @@ public sealed class HeadLook
     /// <summary>Packets are coming (the last one under <see cref="Timeout"/> ago) and the mode is on.</summary>
     public bool Live => Mode != HeadTrackMode.Off && _since < Timeout;
 
-    /// <summary>The head's target from a tracked yaw and pitch (degrees; the game's pitch: negative looks up), at a sensitivity.</summary>
-    public static (float Yaw, float Pitch) Scale(double yaw, double pitch, float sensitivity)
+    /// <summary>A centre's still zone (degrees of head turn, subtracted) and its curve's power (1: in proportion).</summary>
+    public static (float Zone, float Power) Shape(HeadTrackCentre c) => c switch
     {
-        const float rest = I76.Formats.Input.FreeLook.Rest;
-        float y = Math.Clamp((float)yaw * sensitivity, -I76.Formats.Input.FreeLook.MaxYaw, I76.Formats.Input.FreeLook.MaxYaw);
-        float p = Math.Clamp(rest - (float)pitch * sensitivity, rest - I76.Formats.Input.FreeLook.MaxUp, rest + I76.Formats.Input.FreeLook.MaxDown);
+        HeadTrackCentre.Light => (1f, 1.4f),
+        HeadTrackCentre.Snap => (1.7f, 1.7f),
+        HeadTrackCentre.Strong => (3f, 2.2f),
+        _ => (0f, 1f),
+    };
+
+    /// <summary>The still zone for pitch (degrees of nod): the earlier layer's 0.7°, none with the centre off.</summary>
+    public static float PitchZone(HeadTrackCentre c) => c == HeadTrackCentre.Off ? 0 : 0.7f;
+
+    /// <summary>
+    /// The view's yaw (degrees, right positive) for a tracked head yaw: the still zone subtracted (exactly 0 inside it, no step out
+    /// of it), then reach × (turn ÷ full turn)^power, the full turn being reach ÷ sensitivity; held at the reach past it. Odd in
+    /// the head's yaw. Centre Off and reach 80 is the port's first mapping, the yaw times the sensitivity held to 80°.
+    /// </summary>
+    public static float ViewYaw(double headYaw, float sensitivity, float reach, HeadTrackCentre centre)
+    {
+        var (zone, power) = Shape(centre);
+        float a = MathF.Max(0, MathF.Abs((float)headYaw) - zone);
+        float full = reach / MathF.Max(sensitivity, 0.01f);
+        float n = MathF.Min(1, a / full);
+        float v = reach * (power == 1 ? n : MathF.Pow(n, power));
+        return headYaw < 0 ? -v : v;
+    }
+
+    /// <summary>The forward pitch the head rests at for a view yaw (game degrees, down positive): −13° ahead, rising to the rear glance's −2° from 90° to 160° round (a smoothstep).</summary>
+    public static float RestPitch(float viewYaw) =>
+        I76.Formats.Input.FreeLook.Rest + 11 * Smooth((MathF.Abs(viewYaw) - 90) / 70);
+
+    /// <summary>The nod's gain: what the sensitivity gave at the free look's 80° reach, kept whatever the yaw's reach (80 × sensitivity ÷ reach).</summary>
+    public static float PitchGain(float sensitivity, float reach) => sensitivity * I76.Formats.Input.FreeLook.MaxYaw / MathF.Max(reach, 1);
+
+    /// <summary>The head's target from a tracked yaw and pitch (degrees; the game's pitch: negative looks up), at a sensitivity, reach and centre.</summary>
+    public static (float Yaw, float Pitch) Scale(double yaw, double pitch, float sensitivity, float reach = I76.Formats.Input.FreeLook.MaxYaw, HeadTrackCentre centre = HeadTrackCentre.Off)
+    {
+        float y = ViewYaw(yaw, sensitivity, reach, centre);
+        float rest = RestPitch(y), zone = PitchZone(centre);
+        float nod = MathF.Max(0, MathF.Abs((float)pitch) - zone) * MathF.Sign((float)pitch);
+        float p = Math.Clamp(rest - nod * PitchGain(sensitivity, reach), rest - I76.Formats.Input.FreeLook.MaxUp, rest + I76.Formats.Input.FreeLook.MaxDown);
         return (y, Math.Min(p, I76.Formats.Input.CockpitReach.MaxPitch(y)));   // never low enough to the side to see the arms' cut-off ends (#165)
     }
 
@@ -152,26 +205,39 @@ public sealed class HeadLook
         bool on = Mode == HeadTrackMode.Analog && Live && !overridden;
         if (on)
         {
-            var (y, p) = Scale(_last.Yaw, _last.Pitch, Sensitivity);
+            var (y, p) = Scale(_last.Yaw, _last.Pitch, Sensitivity, Reach, Centre);
+            if (_following && _w > 0)
+            {
+                // followed with a short lag (rate-free), landing exactly once within a twentieth of a degree: dead centre in the still zone
+                float k = (float)(1 - Math.Exp(-dt / Lag));
+                y = Follow(_target.Yaw, y, k);
+                p = Follow(_target.Pitch, p, k);
+            }
+            _following = true;
             _target = (y, p, Math.Clamp(y / 90f, -1f, 1f) * 2);   // a little roll into the turn, as the glances and the free look lean
             _offset = Position
                 ? (Math.Clamp((float)_last.X / 100, -MaxOffset, MaxOffset), Math.Clamp((float)_last.Y / 100, -MaxOffset, MaxOffset), Math.Clamp(-(float)_last.Z / 100, -MaxOffset, MaxOffset))
                 : (0, 0, 0);
         }
+        else _following = false;   // the next start takes the head where it is (the blend in moves the view there)
         _w = Math.Clamp(_w + (float)((on ? 1 : -1) * dt / Ease), 0, 1);
         float s = Smooth(_w);
         return (s, _target.Yaw, _target.Pitch, _target.Roll, (_offset.X * s, _offset.Y * s, _offset.Z * s));
     }
 
+    private static float Follow(float from, float to, float k) => MathF.Abs(to - from) < Land ? to : from + (to - from) * k;
+
     /// <summary>Digital, one frame: the glances the head holds (none while overridden, stopped, or in another mode).</summary>
-    public (bool Left, bool Right, bool Down) Glances(bool overridden)
+    public (bool Left, bool Right, bool Down, bool Rear) Glances(bool overridden)
     {
-        if (Mode != HeadTrackMode.Digital || !Live || overridden) { _left = _right = _down = false; return (false, false, false); }
-        float yaw = (float)_last.Yaw * Sensitivity, down = -(float)_last.Pitch * Sensitivity;
-        _right = yaw >= (_right ? SideLeave : SideEnter);
-        _left = -yaw >= (_left ? SideLeave : SideEnter);
-        _down = down >= (_down ? DownLeave : DownEnter);
-        return (_left, _right, _down);
+        if (Mode != HeadTrackMode.Digital || !Live || overridden) { _left = _right = _down = _rear = false; return (false, false, false, false); }
+        float yaw = ViewYaw(_last.Yaw, Sensitivity, Reach, Centre);
+        float down = -MathF.Max(0, MathF.Abs((float)_last.Pitch) - PitchZone(Centre)) * MathF.Sign((float)_last.Pitch) * PitchGain(Sensitivity, Reach);
+        _rear = MathF.Abs(yaw) >= (_rear ? RearLeave : RearEnter);
+        _right = !_rear && yaw >= (_right ? SideLeave : SideEnter);
+        _left = !_rear && -yaw >= (_left ? SideLeave : SideEnter);
+        _down = !_rear && down >= (_down ? DownLeave : DownEnter);
+        return (_left, _right, _down, _rear);
     }
 }
 
@@ -302,6 +368,8 @@ public static class HeadTracker
     {
         Look.Mode = s.HeadTrack;
         Look.Sensitivity = s.HeadTrackSensitivity;
+        Look.Reach = s.HeadTrackReach;
+        Look.Centre = s.HeadTrackCentre;
         Look.Position = s.HeadTrackPosition;
         _source = s.HeadTrackSource;
         bool on = s.HeadTrack != HeadTrackMode.Off && !I76.Game.Boot.QuietWindow.DevicesLeftAlone;   // a quiet run leaves the person's tracker port alone
@@ -326,10 +394,29 @@ public static class HeadTracker
     private static readonly System.Diagnostics.Stopwatch Clock = System.Diagnostics.Stopwatch.StartNew();
     private static double _lastUdp = double.NegativeInfinity, _lastFt = double.NegativeInfinity, _lastDrain;
 
+    /// <summary>
+    /// I76_HEAD_POSE=yaw,pitch[,roll] (opentrack's degrees: yaw right, pitch up): a tracker that sends that pose every frame, in place
+    /// of the UDP and FreeTrack sources (a capture of the mapping without a head; Head Tracking must still be on in shell.cfg).
+    /// </summary>
+    internal static readonly HeadPose? PoseHook = ParsePose(System.Environment.GetEnvironmentVariable("I76_HEAD_POSE"));
+
+    internal static HeadPose? ParsePose(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return null;
+        var c = System.Globalization.CultureInfo.InvariantCulture;
+        var parts = v.Split(',');
+        if (parts.Length is < 2 or > 3) return null;
+        var a = new double[3];
+        for (int i = 0; i < parts.Length; i++)
+            if (!double.TryParse(parts[i].Trim(), System.Globalization.NumberStyles.Float, c, out a[i]) || !double.IsFinite(a[i])) return null;
+        return new HeadPose(0, 0, 0, a[0], a[1], a[2]);
+    }
+
     private static void Drain()
     {
         double now = Clock.Elapsed.TotalSeconds, dt = now - _lastDrain;
         _lastDrain = now;
+        if (PoseHook is { } hook) { Active = HeadTrackSource.Udp; Look.Feed(hook); return; }
         var u = _rx?.Poll();
         var f = _ft?.Poll(dt);
         if (u is not null) _lastUdp = now;

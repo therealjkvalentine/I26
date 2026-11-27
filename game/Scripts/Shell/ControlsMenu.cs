@@ -3,7 +3,7 @@ namespace I76.Game.Shell;
 /// <summary>
 /// Controls (the port's sheet, in the Options Menu's place of the original's Control Configuration): the Options Menu's notepad
 /// (record 6) with "Controls" on its first line, then force feedback (Force Feedback, Rumble Strength, Wheel Strength, Play Options'
-/// until round 5), head tracking (Head Tracking, Head Track Sens. and the three opentrack rows, Play Options' before) and, under a blank line, Mouse Options and the key map (the original's Control Configuration screen, record 16),
+/// until round 5), head tracking (Head Tracking, Head Track Sens., Reach and Centre and the three opentrack rows, Play Options' before) and, under a blank line, Mouse Options and the key map (the original's Control Configuration screen, record 16),
 /// each a screen of its own that comes back here. Done saves, Cancel puts back the sheet's own rows (also across a visit to Mouse
 /// Options or the key map, whose own Done and Cancel decide theirs). The Esc menu opens the same sheet over the paused game.
 /// </summary>
@@ -17,7 +17,7 @@ public sealed class ControlsMenuScreen : OverlayScreen
     public static readonly string?[] Rows =
     [
         "Force Feedback", "Rumble Strength", "Wheel Strength",
-        "Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile",
+        "Head Tracking", "Head Track Sens.", "Head Track Reach", "Head Track Centre", "Opentrack", "Opentrack Auto", "Opentrack Profile",
         null, "Mouse Options...", "Key Map...",
     ];
 
@@ -40,6 +40,8 @@ public sealed class ControlsMenuScreen : OverlayScreen
         to.FfbStrength = from.FfbStrength;
         to.HeadTrack = from.HeadTrack;
         to.HeadTrackSensitivity = from.HeadTrackSensitivity;
+        to.HeadTrackReach = from.HeadTrackReach;
+        to.HeadTrackCentre = from.HeadTrackCentre;
         to.OpenTrackAuto = from.OpenTrackAuto;
     }
 
@@ -97,6 +99,18 @@ public sealed class ControlsMenuScreen : OverlayScreen
                     Add(200, y, label, null);
                     value = Add(397, y, () => s.HeadTrackSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture),
                         () => { s.HeadTrackSensitivity = NextSensitivity(s.HeadTrackSensitivity); I76.Game.HeadTracker.Apply(s); });
+                    break;
+                // how far round the view goes at the full head turn (180: out of the rear window); a click steps, live
+                case "Head Track Reach":
+                    Add(200, y, label, null);
+                    value = Add(397, y, () => s.HeadTrackReach.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        () => { s.HeadTrackReach = NextReach(s.HeadTrackReach); I76.Game.HeadTracker.Apply(s); });
+                    break;
+                // the still zone round straight ahead and the curve out of it (Off / Light / Snap / Strong); a click steps, live
+                case "Head Track Centre":
+                    Add(200, y, label, null);
+                    value = Add(397, y, () => s.HeadTrackCentre.ToString(),
+                        () => { s.HeadTrackCentre = (I76.Game.HeadTrackCentre)(((int)s.HeadTrackCentre + 1) % 4); I76.Game.HeadTracker.Apply(s); });
                     break;
                 // Opentrack: its state (Missing / Stopped / Running / Tracking: poses arriving over UDP or FreeTrack); a click when Stopped starts it
                 case "Opentrack":
@@ -171,6 +185,14 @@ public sealed class ControlsMenuScreen : OverlayScreen
     {
         var o = I76.Game.HeadLook.Sensitivities;
         int i = Array.FindIndex(o, v => v > now + 0.01f);
+        return o[i < 0 ? 0 : i];
+    }
+
+    /// <summary>Head Track Reach's next step (<see cref="I76.Game.HeadLook.Reaches"/>, past the last back to the first).</summary>
+    internal static int NextReach(int now)
+    {
+        var o = I76.Game.HeadLook.Reaches;
+        int i = Array.FindIndex(o, v => v > now);
         return o[i < 0 ? 0 : i];
     }
 

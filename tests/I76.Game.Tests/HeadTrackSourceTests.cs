@@ -132,12 +132,12 @@ public class HeadTrackSourceTests
     [Fact] public void TheDefaultsWriteNoKeys()
     {
         var f = new ShellSettings().Write(null);
-        foreach (var k in new[] { "head_track", "head_track_sensitivity", "head_track_port", "head_track_bind", "head_track_position", "opentrack_auto", "opentrack_path", "head_track_source" })
+        foreach (var k in new[] { "head_track", "head_track_sensitivity", "head_track_reach", "head_track_centre", "head_track_port", "head_track_bind", "head_track_position", "opentrack_auto", "opentrack_path", "head_track_source" })
             Assert.False(f.HasSectionKey("port", k), k);
         Assert.Equal(HeadTrackSource.Auto, ShellSettings.Read(f).HeadTrackSource);
     }
 
-    private static readonly string[] HeadRows = ["Head Tracking", "Head Track Sens.", "Opentrack", "Opentrack Auto", "Opentrack Profile"];
+    private static readonly string[] HeadRows = ["Head Tracking", "Head Track Sens.", "Head Track Reach", "Head Track Centre", "Opentrack", "Opentrack Auto", "Opentrack Profile"];
 
     [Fact] public void TheRowsAreOnTheControlsSheetAfterForceFeedbackNotInPlayOptions()
     {
@@ -158,7 +158,8 @@ public class HeadTrackSourceTests
     [Fact] public void TheSensitivityStepsAndWraps()
     {
         Assert.Equal(4f, ControlsMenuScreen.NextSensitivity(3));
-        Assert.Equal(1f, ControlsMenuScreen.NextSensitivity(5));
+        Assert.Equal(6f, ControlsMenuScreen.NextSensitivity(5));
+        Assert.Equal(1f, ControlsMenuScreen.NextSensitivity(10));
     }
 
     [Fact] public void TheProfileTipSaysTheDefaultFreeTrackProfileWorks() =>
