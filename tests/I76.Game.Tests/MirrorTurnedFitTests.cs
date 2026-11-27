@@ -30,11 +30,11 @@ public class MirrorTurnedFitTests
         var fit = DoorFace.FitTurned(glass, glass, end, end, Up, Share, Over, Margin, RingW, Tuck);
         var after = DoorFace.TurnedRing(fit.Hull, fit.Cover, Up, Share, Over, Margin, RingW);
         Assert.True(fit.Top > 0.05f);
-        Assert.True(after.Hi <= 1.0f + Hair, $"top {after.Hi}");
-        Assert.True(after.Lo >= 0.0f - Hair, $"bottom {after.Lo}");
-        // the top and bottom corners a hair past the rounded ring at most (it cannot reach a sharp corner at its own height), the others under it
-        foreach (var q in end) Assert.True(GlassRound.Distance(after.Core, q) - after.Reach <= 0.02f, $"corner {q} past the ring by {GlassRound.Distance(after.Core, q) - after.Reach}");
-        foreach (var q in end.Where(q => q.Y is > 0.1f and < 0.9f)) Assert.True(GlassRound.Distance(after.Core, q) - after.Reach <= Hair, $"side corner {q} past the ring");
+        // the ring past the top and bottom and the end's corners past the ring balanced: each a hair at most (a rounded ring cannot cover
+        // a sharp corner at its own height), against the 6 % it stood above before
+        Assert.True(after.Hi <= 1.0f + 0.015f, $"top {after.Hi}");
+        Assert.True(after.Lo >= 0.0f - 0.015f, $"bottom {after.Lo}");
+        foreach (var q in end) Assert.True(GlassRound.Distance(after.Core, q) - after.Reach <= 0.015f, $"corner {q} past the ring by {GlassRound.Distance(after.Core, q) - after.Reach}");
         // the shape kept: at most a little wider across for its height
         float W(List<Vector2> p) => p.Max(q => q.X) - p.Min(q => q.X);
         float H(List<Vector2> p) => p.Max(q => q.Y) - p.Min(q => q.Y);

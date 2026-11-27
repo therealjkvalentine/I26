@@ -244,8 +244,8 @@ public static class DoorFace
     /// housing's top as the eye sees it across the ring's width and its bottom no lower than its bottom (<paramref name="housing"/>: the head's
     /// and its painted glass's points, in each of <paramref name="views"/>, screen positions from the eye; the arm off to the side does not
     /// count), while every corner of the end's painted glass it covered (<paramref name="corners"/>) stays under it, so no
-    /// dark wedge of the end shows past it; the top and bottom come first (a rounded ring cannot cover a sharp highest corner without
-    /// standing above it, so a hair of that corner may show). The least of the shortfalls is sought (a grid of scales and shifts, then finer); of
+    /// wedge of the end shows past it; a rounded ring cannot cover a sharp highest corner without standing above it, so the two are
+    /// balanced: the least of the worst (in glass heights) of the ring past the top or bottom and a corner past the ring. The least of the shortfalls is sought (a grid of scales and shifts, then finer); of
     /// the fits within a hair of the best, the largest and the least moved. Scale 1 and no shift where the ring already fits.
     /// Top and Bottom: how far the ring stood past the end before (positive: above its top, below its bottom); Left: the worst
     /// shortfall after (0 or less: none), all in picture units (the glass's heights).
@@ -277,7 +277,10 @@ public static class DoorFace
         }
         var cov = corners.Where(q => Near(first, q)).ToList();
         if (cov.Count == 0) cov = housing.Where(q => Near(first, q)).ToList();
-        // the ring's outer edge sampled, its highest and lowest on screen past the end's (the worst view)
+        // each view's screen units per glass height (the ring as placed), so a hair past the top weighs as a hair of a corner showing
+        var unit = new float[vs.Count];
+        for (int i = 0; i < vs.Count; i++) unit[i] = MathF.Max((edge0.Max(hs[i]) - edge0.Min(hs[i])) / MathF.Max(first.Hi - first.Lo, 1e-4f), 1e-6f);
+        // the ring's outer edge sampled, its highest and lowest on screen past the housing's (the worst view), in glass heights
         (float Top, float Bottom) Past(List<Vector2> core, float reach, Vector2 t)
         {
             var edge = GlassRound.Around(core, reach, 6);
@@ -286,7 +289,7 @@ public static class DoorFace
             {
                 float hi = float.MinValue, lo = float.MaxValue;
                 foreach (var e in edge) { float y = hs[i](e + t); hi = MathF.Max(hi, y); lo = MathF.Min(lo, y); }
-                pt = MathF.Max(pt, hi - top[i]); pb = MathF.Max(pb, bottom[i] - lo);
+                pt = MathF.Max(pt, (hi - top[i]) / unit[i]); pb = MathF.Max(pb, (bottom[i] - lo) / unit[i]);
             }
             return (pt, pb);
         }
@@ -303,14 +306,14 @@ public static class DoorFace
                 rings[key] = r = TurnedRing([.. h0.Select(q => Map(q, k, w))], [.. c0.Select(q => Map(q, k, w))], up, share, over, margin, ringW);
             return r;
         }
-        // the worst shortfall: a covered corner left past the ring, or (weighed fifty times: the top and bottom come first) the ring
-        // past the end's top or bottom on screen
+        // the worst shortfall, in glass heights: the ring past the housing's top or bottom on screen, or a covered corner of the end left
+        // past the ring (a rounded ring cannot cover a sharp highest corner without standing above it: the two are balanced)
         float Short(float k, float w, float dx, float dy)
         {
             var r = Ring(k, w);
             var t = side * dx + up * dy;
             var (pt, pb) = Past(r.Core, r.Reach, t);
-            float f = 50f * MathF.Max(MathF.Max(pt, pb), 0f);
+            float f = MathF.Max(MathF.Max(pt, pb), 0f);
             foreach (var q in cov) f = MathF.Max(f, GlassRound.Distance(r.Core, q - t) - r.Reach);
             return f;
         }
