@@ -132,13 +132,17 @@ public sealed class Bwd2File
             var tag = Bin.Latin1(d.AsSpan(p, 4));
             uint size = Bin.U32(d, p + 4);
             if (size < HeaderSize || p + (long)size > d.Length)
-                throw new InvalidDataException($"bad chunk '{tag}' size {size} at offset {p}");
+                throw new InvalidDataException($"bad chunk '{Printed(tag)}' size {size} at offset {p}");
             o.Add(new Chunk(tag, p, (int)size));
             p += (int)size;
         }
         if (p != d.Length) throw new InvalidDataException($"{d.Length - p} trailing bytes");
         return o;
     }
+
+    /// <summary>A tag as text for a message: bytes outside printable ASCII as \xNN (a NUL cut the message short in the log).</summary>
+    private static string Printed(string tag) =>
+        string.Concat(tag.Select(c => c is >= ' ' and < (char)127 ? c.ToString() : $"\\x{(int)c:x2}"));
 
     public IEnumerable<Chunk> All(string tag) => Chunks.Where(c => c.Tag == tag);
     public Chunk? First(string tag) => Chunks.Where(c => c.Tag == tag).Select(c => (Chunk?)c).FirstOrDefault();
@@ -149,6 +153,30 @@ public sealed class Bwd2File
     public List<WeaponMount> WeaponMounts() =>
         All("WEPN").Select(c => new WeaponMount(Bin.U32(Data, c.PayloadOffset),
             Bin.CStr(Data, c.PayloadOffset + 4, FileField))).ToList();
+
+    /// <summary>
+    /// The file with other weapons in its WEPN chunks: each mount's 13-byte .gdf field rewritten in place, NUL-padded, for
+    /// every key of <paramref name="swaps"/> (a .gdf name without its extension, any case) to its value. The file keeps its
+    /// size and its chunks. A replacement that does not fit the field (more than 8.3) throws.
+    /// </summary>
+    public static byte[] WithWeapons(byte[] data, IReadOnlyDictionary<string, string> swaps)
+    {
+        var o = (byte[])data.Clone();
+        foreach (var c in Walk(o))
+        {
+            if (c.Tag != "WEPN" || c.PayloadSize < 4 + FileField) continue;
+            int at = c.PayloadOffset + 4;
+            var name = Bin.CStr(o, at, FileField);
+            var stem = name.EndsWith(".gdf", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name;
+            var hit = swaps.FirstOrDefault(kv => kv.Key.Equals(stem, StringComparison.OrdinalIgnoreCase));
+            if (hit.Value is null) continue;
+            var bytes = System.Text.Encoding.Latin1.GetBytes(hit.Value + ".gdf");
+            if (bytes.Length >= FileField) throw new ArgumentException($"{hit.Value}.gdf does not fit a {FileField}-byte weapon field");
+            Array.Clear(o, at, FileField);
+            bytes.CopyTo(o, at);
+        }
+        return o;
+    }
 
     public List<Location> Locations()
     {
