@@ -582,6 +582,7 @@ public partial class CarNode : Node3D
         shader_type spatial;
         render_mode unshaded, blend_add, cull_disabled, depth_draw_never;
         global uniform float i76_daylight;
+        global uniform float i76_lamp_gain;   // LampStrength.Gain: the lamps' light set on the screen, not in the scene
         uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
         uniform float day_floor = 1.0;
         instance uniform float level = 0.0;
@@ -589,7 +590,7 @@ public partial class CarNode : Node3D
             vec4 t = texture(albedo_tex, UV);
             float red = clamp((t.r - max(t.g, t.b)) * 2.0, 0.0, 1.0);
             float lum = clamp(t.r * 1.2, 0.0, 1.0);
-            ALBEDO = vec3(1.0, 0.1, 0.05) * red * (0.25 + 0.75 * lum) * level * mix(1.0, day_floor, clamp(i76_daylight, 0.0, 1.0));
+            ALBEDO = vec3(1.0, 0.1, 0.05) * red * (0.25 + 0.75 * lum) * level * mix(1.0, day_floor, clamp(i76_daylight, 0.0, 1.0)) * i76_lamp_gain;
         }
         """;
     private static Shader? _glowShader;
@@ -971,7 +972,7 @@ public partial class CarNode : Node3D
     // The player's car casts shadows from it; of the others, only the nearest few carry a real light. Its energy is
     // LampStrength's, turned down by day; its range and fall-off are [port] headlamp_throw's (HeadlampThrow), every car's alike.
     private const float HeadAngle = 42f, HeadPitch = -2.5f;
-    private float _lampDaylight = -1;
+    private float _lampDaylight = -1, _lampGain = -1;
     private int _throwApplied = -1;
     /// <summary>How many other cars' headlamps cast real light at once (the nearest to the camera); I76_HEADLIGHTS overrides it. The player's always do.</summary>
     public static readonly int MaxHeadLit = int.TryParse(System.Environment.GetEnvironmentVariable("I76_HEADLIGHTS"), out int hn) ? hn : 6;
@@ -1332,8 +1333,11 @@ public partial class CarNode : Node3D
         _headDist2 = (headLit || _tailLamp > 0f || _brakeLamp > 0f) && headCam is not null ? headCam.GlobalPosition.DistanceSquaredTo(GlobalPosition) : float.MaxValue;
         bool lampLights = headLit && (_isPlayer || (_headDist2 < HeadFar * HeadFar && HeadRank() < MaxHeadLit));
         for (int i = 0; i < _lamps.Length; i++) _lamps[i].Visible = lampLights && HeadHeld(i);
-        bool dayChanged = Daylight.Current != _lampDaylight;
+        // (the lamps' light set on the screen: LampStrength.Gain follows the calibration's exposure and the daylight; the 1997 look's 1)
+        float gain = Modern ? LampStrength.Gain : 1f;
+        bool dayChanged = Daylight.Current != _lampDaylight || gain != _lampGain;
         _lampDaylight = Daylight.Current;
+        _lampGain = gain;
         int throwNow = HeadlampThrow.Current;
         if (dayChanged || _headRamp != _headApplied || throwNow != _throwApplied)
         {
@@ -1343,7 +1347,7 @@ public partial class CarNode : Node3D
             _throwApplied = throwNow;
             // the filament's level on the energy, its colour cooling toward orange over the last of a fall (LampRamp.Warmth)
             _headApplied = _headRamp;
-            float headE = LampStrength.HeadEnergy * HeadlampThrow.EnergyScale(throwNow) * Daylight.Scale(_lampDaylight, LampStrength.HeadDayFloor) * _headRamp;
+            float headE = LampStrength.HeadEnergy * HeadlampThrow.EnergyScale(throwNow) * Daylight.Scale(_lampDaylight, LampStrength.HeadDayFloor) * _headRamp * gain;
             var (wr, wg, wb) = LampRamp.Warmth(_headRamp);
             var warm = new Color(HeadColour.R * wr, HeadColour.G * wg, HeadColour.B * wb);
             foreach (var l in _lamps) { l.LightEnergy = headE; l.LightColor = warm; }
@@ -1352,7 +1356,7 @@ public partial class CarNode : Node3D
         }
         // the rear lamps' light on the ground: the tail filament's with the lights on, the brake's brighter one over it, a night's
         // only (RearLampLight); like the headlamps', the player's always and only the nearest few other cars'
-        float rearE = rearOk ? RearLampLight.Energy(_tailLamp, _brakeLamp, Daylight.Current) : 0f;
+        float rearE = rearOk ? RearLampLight.Energy(_tailLamp, _brakeLamp, Daylight.Current) * gain : 0f;
         if (rearE != _rearGroundApplied)
         {
             _rearGroundApplied = rearE;

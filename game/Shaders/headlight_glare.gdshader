@@ -13,6 +13,7 @@ shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, depth_test_disabled, cull_disabled, shadows_disabled, fog_disabled;
 
 global uniform float i76_daylight;   // LampStrength: the preset's sun intensity, 0 at night
+global uniform float i76_lamp_gain;  // LampStrength.Gain: the lamps' light set on the screen, not in the scene (the calibration's exposure divided out)
 global uniform sampler2D i76_smoke : filter_nearest;
 #include "res://Shaders/smoke_cap.gdshaderinc"
 uniform vec3 tint : source_color = vec3(1.0, 0.93, 0.78);
@@ -72,5 +73,5 @@ void fragment() {
 	// the smoke layer (smoke_layer.gdshader) is drawn under this: dim the glare where smoke lies in front of the lamp
 	vec4 sm = texture(i76_smoke, SCREEN_UV);
 	float veil = sm.a > 0.002 && sm.r < -lamp_view.z * sm.a ? i76_smoke_alpha(sm.a) : 0.0;
-	ALBEDO = tint * warmth * (core + halo + streak) * aim * strength * day * seen * level * (1.0 - veil);
+	ALBEDO = tint * warmth * (core + halo + streak) * aim * strength * day * seen * level * (1.0 - veil) * i76_lamp_gain;
 }

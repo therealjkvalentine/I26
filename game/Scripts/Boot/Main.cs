@@ -3423,6 +3423,7 @@ public partial class Main : Node3D
 		RenderingServer.GlobalShaderParameterSet("i76_ground_tint", new Vector3((float)c.GroundTint.R, (float)c.GroundTint.G, (float)c.GroundTint.B));
 		RenderingServer.GlobalShaderParameterSet("i76_object_tint", new Vector3((float)c.ObjectTint.R, (float)c.ObjectTint.G, (float)c.ObjectTint.B));
 		RenderingServer.GlobalShaderParameterSet("i76_prelit_gain", 1f / (float)c.Exposure);
+		I76.Game.Sim.LampStrength.SetExposure((float)c.Exposure);   // the lamps' light set on the screen (LampStrength.Gain)
 		// the scenery's own night lights and its full-bright faces (StationLight): the faces as painted, through the exposure as the prelit art is
 		I76.Game.World.StationLight.Apply(night: _calibratedLight is { IsDay: false }, gain: 1f / (float)c.Exposure);
 		RenderingServer.GlobalShaderParameterSet("i76_object_sky", (float)c.Sky);
