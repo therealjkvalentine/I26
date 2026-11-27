@@ -7,6 +7,7 @@
 // trim_part, trim_style and trim_knobs are declared in object.gdshaderinc (the material library's parameters are its uniforms)
 
 const float TRIM_PI = 3.14159265;
+const float TRIM_RELIEF = 0.6;   // the relief's overall scale (the slopes below are a real vinyl's; the screen wants them softer)
 
 float trim_hash(vec3 p) {
 	// an integer hash of the lattice corner (a float sine or fract hash shows streaks this far from the origin in cells)
@@ -123,7 +124,7 @@ void trim_surface(vec3 base, float base_rough, float base_spec, vec3 p, vec3 nl,
 	spec = base_spec * ks;
 	alb = trim_tint(base, tint);
 	// E's pillars and doors in black vinyl: a little darker than the grey, the headliner's colour about the grey's luminance
-	if (trim_style == 4 && !roof) alb *= 0.82;
+	if (trim_style == 4 && !roof) alb *= 0.9;
 	float mod_mean = 1.0;   // the pattern's mean darkening, paid back below
 	float m = 1.0;
 	vec3 grad = vec3(0.0);
@@ -181,11 +182,14 @@ void trim_surface(vec3 base, float base_rough, float base_spec, vec3 p, vec3 nl,
 		vec3 gy = vec3(0.0, slope, 0.0);
 		grad += gy - n * dot(gy, n);
 	}
-	alb *= m / mod_mean * trim_knobs.w;
+	// the sheen and the relief's lit facets brighten the face as seen; the albedo pays it back (measured from the seat, 3440x1440, the
+	// region's mean displayed luma within a few percent of the flat grey's: tools of the comps' sheet)
+	float comp = trim_style == 2 ? 0.86 : trim_style == 4 ? 1.0 : 0.89;
+	alb *= m / mod_mean * comp * trim_knobs.w;
 	if (trim_knobs.y >= 0.0) rough = trim_knobs.y;
 	if (trim_knobs.z >= 0.0) spec = trim_knobs.z;
 	rough = clamp(rough, 0.2, 1.0);
-	dn = -(grad - n * dot(grad, n)) * trim_knobs.x;
+	dn = -(grad - n * dot(grad, n)) * TRIM_RELIEF * trim_knobs.x;
 }
 
 // object.gdshaderinc's fragment, at the end of the flat faces' branch: the vinyl over the face's colour, its size a pixel in the mesh's metres
