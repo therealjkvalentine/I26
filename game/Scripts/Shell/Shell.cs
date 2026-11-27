@@ -1964,6 +1964,9 @@ public sealed class ShellSettings
         if (SmokeLinger != I76.Game.Sim.SmokeLinger.Default) set("smoke_linger", SmokeLinger);
     }
 
+    /// <summary>The port's own, without a row: where the player's own damage smoke starts in the modern look's cockpit view (I76.Game.Sim.OwnSmoke; [port] own_smoke, written when engine): false, any, the engine bay whatever is damaged; true, engine, behind the car unless the engine is damaged.</summary>
+    public bool OwnSmokeEngine { get; set; }
+
     /// <summary>The port's own, without a row: Smoke Linger Long's fresh smoke (SmokeStart; [port] smoke_start_dark, smoke_start_density, smoke_start_width, smoke_fade, each written when not the default).</summary>
     public int SmokeStartDark { get; set; } = I76.Game.Sim.SmokeStart.DefaultDark;
     public int SmokeStartDensity { get; set; } = I76.Game.Sim.SmokeStart.DefaultDensity;
@@ -2412,6 +2415,7 @@ public sealed class ShellSettings
         s.ReadMuzzleReach(Pct);
         s.ReadSmokeLinger(Pct);
         s.ReadSmokeStart(Pct);
+        s.OwnSmokeEngine = I76.Game.Sim.OwnSmoke.Parse(c.GetValue("port", "own_smoke", "").ToString());
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
         s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
 
@@ -2658,6 +2662,7 @@ public sealed class ShellSettings
         WriteMuzzleReach((k, v) => c.SetValue("port", k, v));
         WriteSmokeLinger((k, v) => c.SetValue("port", k, v));
         WriteSmokeStart((k, v) => c.SetValue("port", k, v));
+        if (OwnSmokeEngine) c.SetValue("port", "own_smoke", I76.Game.Sim.OwnSmoke.Engine);
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
 
