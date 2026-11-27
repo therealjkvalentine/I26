@@ -1714,15 +1714,23 @@ public sealed class ShellSettings
     public static string ParseBushKnock(string? text) =>
         text?.Trim().ToLowerInvariant() is { } t && (t == "off" || I76.Formats.Vegetation.BrushKnock.VariantOf(t) is not null) ? t : DefaultBushKnock;
     /// <summary>
-    /// The port's own, without a row: the modern look's lighting calibrated against the 1997 look's ([port] lighting_calibration,
-    /// written only when not on; the earlier look_colour_match key is read when it is absent): each mission's sky light, exposure and
-    /// ground and object tints solved so its ground and cars show the 1997 look's light (I76.Formats.Imaging.LightingCalibration),
-    /// the frame shown through the 3D card's curve and the sky in its texture's colours.
+    /// The port's own (Graphic Detail &gt; Effects' Lighting, LightingRow): the modern look's lighting calibrated against the 1997 look's
+    /// ([port] lighting_calibration, written only when not on; the earlier look_colour_match key is read when it is absent): each
+    /// mission's sky light, exposure and ground and object tints solved so its ground and cars show the 1997 look's light
+    /// (I76.Formats.Imaging.LightingCalibration), the frame shown through the 3D card's curve and the sky in its texture's colours.
     /// </summary>
     public bool LightingCalibration { get; set; } = true;
 
     /// <summary>[port] lighting_calibration=filmic: the calibration solved under the Filmic tonemap, the sky in the modern look's own colours (as before the card's curve).</summary>
     public bool LightingFilmic { get; set; }
+
+    /// <summary>
+    /// [port] lighting_calibration=sunlit: as on, with the sun's strength also solved by day so the ground keeps the 1997 look's
+    /// contrast (sunlit ground as bright as the 1997 look's, the faces turned from the sun as dim: LightingCalibration.SolveSunlit),
+    /// and the palette grade, when on, toward the mission's 16-bit palette (the 3D card's colours: its sky's) instead of the
+    /// software renderer's 256 colours. A file of an earlier version reads the word as on.
+    /// </summary>
+    public bool LightingSunlit { get; set; }
 
     /// <summary>
     /// The port's own, without a row: the modern look's night as dialled on the Developer panel's Night sliders (I76.Game.World.NightDial):
@@ -1752,6 +1760,9 @@ public sealed class ShellSettings
 
     /// <summary>[port] lighting_calibration's word is "filmic".</summary>
     public static bool LightingFilmicOn(string? word) => string.Equals(word?.Trim(), "filmic", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>[port] lighting_calibration's word is "sunlit".</summary>
+    public static bool LightingSunlitOn(string? word) => string.Equals(word?.Trim(), "sunlit", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>[port] lighting_calibration's word, or when absent the earlier look_colour_match's: on unless "off".</summary>
     public static bool LightingCalibrationOn(string? word, string? earlier) =>
@@ -2072,12 +2083,47 @@ public sealed class ShellSettings
     // the start-up log says once that the texture rows took the packs installed since the file was saved (Load runs often)
     private static bool _newPacksSaid;
 
+    /// <summary>
+    /// I76_SETTINGS="section.key=value,...": those keys over the file's for the run, and the file never written (a capture's settings
+    /// on a shared scratch user folder: the owner's look without their file). A value reads as a bool, a whole number, a number, else text.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Section, string Key, object Value)> Overrides = ParseOverrides(System.Environment.GetEnvironmentVariable("I76_SETTINGS"));
+
+    /// <summary>I76_SETTINGS's text as keys and values (see <see cref="Overrides"/>); entries without a section, a key or a value are passed over.</summary>
+    public static List<(string Section, string Key, object Value)> ParseOverrides(string? text)
+    {
+        var list = new List<(string, string, object)>();
+        foreach (var e in (text ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (e.Split('=', 2) is not [var sk, var v] || sk.Split('.', 2) is not [var sec, var key] || sec.Length == 0 || key.Length == 0) continue;
+            v = v.Trim().Trim('"');
+            object value = bool.TryParse(v, out bool b) ? b
+                : long.TryParse(v, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long n) ? n
+                : double.TryParse(v, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double d) ? d
+                : v;
+            list.Add((sec.Trim(), key.Trim(), value));
+        }
+        return list;
+    }
+
+    private static bool _overridesSaid;
+
     public static ShellSettings Load()
     {
         // the HD textures' first-start choice (by the user folder and the adapter: HdTextures.FirstStart), a fresh block's and the rows' Reset's
         HdDefault = I76.Game.Assets.HdTextures.FirstStart;
         var cfg = new ConfigFile();
-        if (cfg.Load(Path) != Error.Ok)
+        bool found = cfg.Load(Path) == Error.Ok;
+        if (Overrides.Count > 0)
+        {
+            // over a file as this build writes it when there is none (no migration steps run on it)
+            if (!found) { cfg.SetValue("shell", "version", WrittenVersion); cfg.SetValue("port", "fork_version", ForkVersion); }
+            foreach (var (sec, key, value) in Overrides)
+                cfg.SetValue(sec, key, value switch { bool b => b, long n => n, double d => d, _ => Variant.From(value.ToString() ?? "") });
+            if (!_overridesSaid) { _overridesSaid = true; GD.Print($"settings: I76_SETTINGS over {(found ? "the file" : "no file")}: {string.Join(", ", Overrides.Select(o => $"{o.Section}.{o.Key}={o.Value}"))} (the file is not written)"); }
+            found = true;
+        }
+        if (!found)
         {
             // a first start: the fresh block's textures (4x where the 4x fits; the cars' and the dash's 8x where the dash's fits)
             var fresh = new ShellSettings { Turrets1997 = BuildRules.OldTurrets1997(BuildRules.ReadText()) ?? false };
@@ -2302,6 +2348,7 @@ public sealed class ShellSettings
         string? lighting = c.HasSectionKey("port", "lighting_calibration") ? c.GetValue("port", "lighting_calibration").ToString() : null;
         s.LightingCalibration = LightingCalibrationOn(lighting, c.HasSectionKey("port", "look_colour_match") ? c.GetValue("port", "look_colour_match").ToString() : null);
         s.LightingFilmic = s.LightingCalibration && LightingFilmicOn(lighting);
+        s.LightingSunlit = s.LightingCalibration && LightingSunlitOn(lighting);
         // the fork's cabins_behind_glass where a file of ours has it, else upstream's car_interiors (the key written)
         s.CabinsBehindGlass = (bool)c.GetValue("port", "cabins_behind_glass", c.GetValue("port", "car_interiors", true)) && System.Environment.GetEnvironmentVariable("I76_CAR_INTERIORS") != "0";
         s.CameraReturn = (bool)c.GetValue("port", "camera_return", true);
@@ -2399,6 +2446,7 @@ public sealed class ShellSettings
 
     public void Save()
     {
+        if (Overrides.Count > 0) return;   // I76_SETTINGS: a capture's keys, never the file's
         var old = new ConfigFile();
         Write(old.Load(Path) == Error.Ok ? SettingsFile.From(old) : null, I76.Game.Assets.HdTextures.PacksFound).ToConfig().Save(Path);
         I76.Game.Boot.StartupSettings.Write(LogFile, Renderer, MicNames.OpensInput(CbMic), LowLatencyAudio);
@@ -2551,6 +2599,7 @@ public sealed class ShellSettings
         if (ParseBushKnock(BushKnock) != DefaultBushKnock) c.SetValue("port", "bush_knock", ParseBushKnock(BushKnock));
         if (!LightingCalibration) c.SetValue("port", "lighting_calibration", "off");
         else if (LightingFilmic) c.SetValue("port", "lighting_calibration", "filmic");
+        else if (LightingSunlit) c.SetValue("port", "lighting_calibration", "sunlit");
         if (!CabinsBehindGlass) c.SetValue("port", "car_interiors", false);
         if (!CameraReturn) c.SetValue("port", "camera_return", false);
         if (!ZoomReset) c.SetValue("port", "zoom_reset", false);

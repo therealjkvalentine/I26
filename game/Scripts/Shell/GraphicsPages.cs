@@ -7,7 +7,7 @@ public enum GraphicsRow
     AntiAliasing, FieldOfView, VSync, MaxFps,
     Look1997, PaletteGrade, CrashBlur, WorldTextures, CarTextures, Vegetation, AmbientOcclusion, MirrorRate, HoodGloss,
     RenderScale, ShowFps, Renderer, Garage3D, MenuWidth, Haze, Glow, Reflections, SmokeLighting, HeatShimmer, TerrainShadows, MirrorHaze,
-    RadarSweep, SmokeLinger, HeatStrength, RoadDetail, MirrorAa,
+    RadarSweep, SmokeLinger, HeatStrength, RoadDetail, MirrorAa, Lighting,
     /// <summary>The preset over the costly rows (QualityPreset): nothing of its own, read back from the rows.</summary>
     Quality,
 }
@@ -42,7 +42,7 @@ public static class GraphicsPages
         [GraphicsRow.Resolution, GraphicsRow.MonitorBrightness, GraphicsRow.AntiAliasing, GraphicsRow.RenderScale, GraphicsRow.VSync, GraphicsRow.MaxFps, GraphicsRow.ShowFps, GraphicsRow.Renderer, GraphicsRow.MenuWidth],
         [GraphicsRow.VisibilityRange, GraphicsRow.TerrainDetail, GraphicsRow.ShadowDetail, GraphicsRow.TerrainShadows, GraphicsRow.RoadDetail, GraphicsRow.WorldTextures, GraphicsRow.Vegetation, GraphicsRow.AmbientOcclusion, GraphicsRow.Reflections, GraphicsRow.Haze],
         [GraphicsRow.FieldOfView, GraphicsRow.ExtInstruments, GraphicsRow.Mirrors, GraphicsRow.MirrorRate, GraphicsRow.MirrorHaze, GraphicsRow.MirrorAa, GraphicsRow.RadarSweep, GraphicsRow.CarTextures, GraphicsRow.HoodGloss, GraphicsRow.Garage3D],
-        [GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer, GraphicsRow.HeatStrength],
+        [GraphicsRow.Lighting, GraphicsRow.PaletteGrade, GraphicsRow.CrashBlur, GraphicsRow.Glow, GraphicsRow.SmokeLinger, GraphicsRow.SmokeLighting, GraphicsRow.HeatShimmer, GraphicsRow.HeatStrength],
     ];
 
     /// <summary>
@@ -190,6 +190,8 @@ public static class GraphicsPages
             // one row: off, the original's 3D card or its software renderer
             case GraphicsRow.Look1997: t.Look1997 = f.Look1997; t.SoftwareRenderer = f.SoftwareRenderer; break;
             case GraphicsRow.PaletteGrade: t.PaletteGrade = f.PaletteGrade; break;
+            // one row over [port] lighting_calibration's words (LightingRow)
+            case GraphicsRow.Lighting: t.LightingCalibration = f.LightingCalibration; t.LightingFilmic = f.LightingFilmic; t.LightingSunlit = f.LightingSunlit; break;
             case GraphicsRow.CrashBlur: t.CrashBlur = f.CrashBlur; break;
             // derived from its rows, each copied by its own page (QualityPreset.Copy copies them for the pad's row)
             case GraphicsRow.Quality: break;

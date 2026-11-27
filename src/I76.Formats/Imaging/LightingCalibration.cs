@@ -57,6 +57,14 @@ public static class LightingCalibration
     public const double ObjectSky = 4, CardObjectSky = 6;
 
     /// <summary>
+    /// The same with the sky's light reaching the scene at the energy solved (Main.ApplyLightingCalibration's sky contribution): 1.
+    /// <see cref="ObjectSky"/> and <see cref="CardObjectSky"/> were measured while the scene took the sky's whole radiance, which by
+    /// day is 3 to 10 times the light the solve takes (the ambient energy, 0.1 to 0.35, went unused); with the light as the solve
+    /// takes it, a car's faces see the sky's light the estimate gives them.
+    /// </summary>
+    public const double HonestObjectSky = 1;
+
+    /// <summary>
     /// Through the card's curve: the share of the 1997 look's flat-ground weighting in the ground's solve (each cell counts
     /// ny^<see cref="CardFlatWeight"/>: the ramp lights a slope across the sun as a flat, which the modern light cannot, so the
     /// solve fits the flats the eye sees near it rather than the map's mix; measured: 0, 8 and 16 leave the near flat ground
@@ -278,7 +286,7 @@ public static class LightingCalibration
     /// <paramref name="sun"/>: the modern sun's energy times its colour; <paramref name="sky"/>: the modern sky light on
     /// flat ground (a slope sees (1 + ny)/2 of it).
     /// </summary>
-    public static List<Cell> Cells(TerrainTiles t, int stride, System.Numerics.Vector3 light, IReadOnlyList<byte>? luma, double ambient, Rgb sun, Rgb sky, double flat = 0)
+    public static List<Cell> Cells(TerrainTiles t, int stride, System.Numerics.Vector3 light, IReadOnlyList<byte>? luma, double ambient, Rgb sun, Rgb sky, double flat = 0, bool castShadows = false)
     {
         const double k = 0.1 / 5.0;   // height units to sample units (TerrainNode)
         var groups = new Dictionary<(double, int, int, int), Cell>();
@@ -291,13 +299,37 @@ public static class LightingCalibration
                 double d = light.Y - dhdx * light.X - dhdz * light.Z;
                 double lit = d < 0 ? ambient : Math.Min(d * TypicalFade + ambient, 1);
                 double len = Math.Sqrt(1 + dhdx * dhdx + dhdz * dhdz);
-                var cell = new Cell(Ramp(luma, lit), sun * Math.Max(d / len, 0), sky * ((1 + 1 / len) / 2));
+                // the modern look's sun is cut off where the terrain casts a shadow (the original has no cast shadows: its ramp lights by the normal alone)
+                double sunShare = castShadows && d > 0 && InCastShadow(t, sx, sz, light) ? 0 : Math.Max(d / len, 0);
+                var cell = new Cell(Ramp(luma, lit), sun * sunShare, sky * ((1 + 1 / len) / 2));
                 var l = cell.Light(1);
                 var key = (cell.Ramp, (int)Math.Round(l.R * 16), (int)Math.Round(l.G * 16), (int)Math.Round(l.B * 16));
                 double wf = Math.Pow(1 / len, flat);
                 groups[key] = groups.TryGetValue(key, out var g) ? g with { Count = g.Count + wf } : cell with { Count = wf };
             }
         return groups.Values.ToList();
+    }
+
+    /// <summary>
+    /// Whether the terrain shades sample (<paramref name="sx"/>, <paramref name="sz"/>) from the light: a march toward it, sample by
+    /// sample up to 1500 samples, for ground higher than the ray from the point (heights in sample units, as <see cref="Cells"/>).
+    /// </summary>
+    public static bool InCastShadow(TerrainTiles t, int sx, int sz, System.Numerics.Vector3 light)
+    {
+        const double k = 0.1 / 5.0;
+        double hl = Math.Sqrt(light.X * light.X + light.Z * light.Z);
+        if (hl < 1e-6 || light.Y <= 0 || t.Height(sx, sz) is not { } h0) return false;
+        double dx = light.X / hl, dz = light.Z / hl, rise = light.Y / hl;
+        for (int i = 2; i <= 1500; i++)
+        {
+            int x = (int)Math.Round(sx + dx * i), z = (int)Math.Round(sz + dz * i);
+            if (t.Height(x, z) is not { } h) { if (i > 4) return false; continue; }
+            double above = (h - h0) * k - rise * i;
+            if (above > 0.05) return true;
+            // (the ray is above anything the map can hold from here)
+            if (rise * i > 2000 * k) return false;
+        }
+        return false;
     }
 
     /// <summary>
@@ -376,7 +408,7 @@ public static class LightingCalibration
     /// The solved calibration: the exposure, the objects' share of the sky light, the ground's tint and the objects'; at night
     /// through the card's curve, none of those but the moon's share (<see cref="NightMoon"/>).
     /// </summary>
-    public readonly record struct Result(double Exposure, double Sky, Rgb GroundTint, Rgb ObjectTint, double Moon = 1)
+    public readonly record struct Result(double Exposure, double Sky, Rgb GroundTint, Rgb ObjectTint, double Moon = 1, double SunGain = 1)
     {
         public static readonly Result None = new(1, 1, new(1, 1, 1), new(1, 1, 1));
     }
@@ -389,13 +421,13 @@ public static class LightingCalibration
     /// objects keep the whole sky light. The texels are the ground's, and stand for the objects' too (the mission's own colours;
     /// through the card curve, near a power, a tint acts alike on every colour). The modern look shown through <paramref name="curve"/>.
     /// </summary>
-    public static Result Solve(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, ToneCurve curve = ToneCurve.Filmic)
+    public static Result Solve(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, ToneCurve curve = ToneCurve.Filmic, double minExposure = MinExposure)
     {
         var one = new Rgb(1, 1, 1);
         if (ground.Count == 0 || texels.Length < 3) return Result.None;
         var tx = Linear(texels);
         var target = Target(texels, ground);
-        double exposure = Bisect(e => Modern(tx, ground, e, one, 1, curve).Luminance, target.Luminance, MinExposure, MaxExposure);
+        double exposure = Bisect(e => Modern(tx, ground, e, one, 1, curve).Luminance, target.Luminance, minExposure, MaxExposure);
         var groundTint = Tint(tx, target, ground, exposure, 1, curve);
         double sky = 1;
         var shade = objects.Where(c => c.Shade).ToList();
@@ -406,6 +438,114 @@ public static class LightingCalibration
         }
         var objectTint = objects.Count > 0 ? Tint(tx, Target(texels, objects), objects, exposure, sky, curve) : one;
         return new(exposure, sky, groundTint, objectTint);
+    }
+
+    /// <summary>
+    /// The most the sunlit look (<see cref="SolveSunlit"/>) raises the sun by: four times (T10's dusk, the most contrasted day light,
+    /// asks about 2.5 to 3 with the sky light honoured; the bound keeps a map with little relief from a blinding sun).
+    /// </summary>
+    public const double MaxSunGain = 4;
+
+    /// <summary>
+    /// The sunlit look's calibration ([port] lighting_calibration=sunlit): as <see cref="Solve"/>, with the sun's energy also solved
+    /// (<see cref="Result.SunGain"/>, 1 to <see cref="MaxSunGain"/>) so that the ground's contrast is the 1997 look's: the brightest
+    /// third of <paramref name="contrast"/> (cells by the 1997 look's light, each counted alike: the map's slopes as they are, not
+    /// the flats' weighting the exposure takes) over its darkest third, in luminance, as the 1997 look shows them. The exposure is
+    /// solved again for each sun, so the ground's mean stays the 1997 look's: the sunlit faces brighten, the faces turned from the
+    /// sun (the sky's light alone) darken; its lower bound goes down with the sun (<see cref="MinExposure"/> over the factor), so a dusk
+    /// keeps its mean. A sun already giving that contrast or more is left at 1.
+    /// </summary>
+    public static Result SolveSunlit(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card, double keep = SunlitKeep, double minGain = SunlitMinGain, bool floorOnTop = SunlitFloorOnTop, double exposureGain = SunlitExposure, double sunBoost = SunlitBoost)
+    {
+        if (ground.Count == 0 || texels.Length < 3) return Result.None;
+        double solved = SunGainFor(texels, ground, contrast, curve);
+        double gain = Math.Clamp(Math.Max(solved, minGain), 1, MaxSunGain);
+        // the floor over the solve's own sun on top of its exposure (the sunlit ground brighter, the shade as solved), or within the mean
+        var r = floorOnTop
+            ? Solve(texels, Scaled(ground, solved), Scaled(objects, solved), curve, MinExposure / solved) with { SunGain = gain }
+            : Solve(texels, Scaled(ground, gain), Scaled(objects, gain), curve, MinExposure / gain) with { SunGain = gain };
+        r = r with { Exposure = r.Exposure * exposureGain, SunGain = r.SunGain * sunBoost };
+        if (keep <= 0 || gain == 1) return r;
+        // the exposure part of the way back to the plain solve's (log): the sky-lit faces kept nearer its level, the sunlit ones brighter than the mean asks
+        double plain = Solve(texels, ground, objects, curve).Exposure;
+        return r with { Exposure = Math.Exp(Math.Log(r.Exposure) * (1 - keep) + Math.Log(plain) * keep) };
+    }
+
+    /// <summary>
+    /// How much of the plain solve's exposure the sunlit look keeps (log, 0..1): 0 holds the ground's mean at the 1997 look's with the
+    /// stronger sun (the shade darker than the plain solve's), 1 keeps the plain exposure (the shade as the plain solve's, the sunlit
+    /// ground brighter: the mean over the 1997 look's).
+    /// </summary>
+    public const double SunlitKeep = 0;
+
+    /// <summary>
+    /// The least sun factor the sunlit look takes, whatever the solve finds: the drawn ground has less contrast than the cells say
+    /// (the texture's own brights muted by the modern ground's filtering and blends, the sky's occlusion, the ambient occlusion), so
+    /// measured on the frames the sunlit and the shaded thirds of every day mission came out nearer each other than the 1997 look's
+    /// at a sun of 1: 2 (the captures of every day mission, docs/deviations.md "Lighting": T10's sunlit and brightest ground nearer the
+    /// 1997 look's, its shade no lighter; 3 scored alike on T10 and darkened T15's dusk valley more; the round-two comps' x2 to x2.8 by eye).
+    /// </summary>
+    public const double SunlitMinGain = 2;
+
+    /// <summary>
+    /// The floor's extra sun added over the solve's exposure (true) rather than within the ground's mean (false, shipped): on top, T10's
+    /// and T14's sunlit ground and shade came out brighter than the 1997 look's (T10 lit L 0.38 against 0.32, shade 0.27 against 0.20);
+    /// within the mean, a dusk valley in the terrain's own shadow (T15) goes darker (its exposure lowered for sunlit ground elsewhere).
+    /// </summary>
+    public const bool SunlitFloorOnTop = false;
+
+    /// <summary>
+    /// The drawn frame's own correction over the solve, measured on the captures: the sunlit look's exposure times this and its sun times
+    /// <see cref="SunlitBoost"/> after the solve. With the solve alone, over every day mission's two views, the sunlit ground came out
+    /// darker than the 1997 look's (Oklab L -0.06, its brightest tenth -0.12) and the shade lighter (+0.025): the drawn ground has less
+    /// contrast than its cells, whatever the sun. Tried on ten day missions (21 views): exposure 0.85 and sun 1.5 scored best (mean ΔE_OK
+    /// of sky, sunlit and shaded ground and car against the 1997 look 0.038, the solve alone 0.047, today's look 0.054), the brightest
+    /// tenth -0.09 L (the solve alone -0.11, today -0.07), the shade +0.03 (today +0.08); 0.8 and 1.8 lifted the shade, 0.75 and 2.2
+    /// lit T10's valley.
+    /// </summary>
+    public const double SunlitExposure = 0.85, SunlitBoost = 1.5;
+
+    /// <summary>The sun's factor <see cref="SolveSunlit"/> takes (1 when the contrast cells have no spread of light).</summary>
+    public static double SunGainFor(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card)
+    {
+        var (dim, lit) = Thirds(contrast);
+        if (dim.Count == 0 || lit.Count == 0 || ground.Count == 0 || texels.Length < 3) return 1;
+        double want = Target(texels, lit).Luminance / Math.Max(Target(texels, dim).Luminance, 1e-9);
+        var tx = Linear(texels);
+        double mean = Target(texels, ground).Luminance;
+        var one = new Rgb(1, 1, 1);
+        double Ratio(double k)
+        {
+            var gr = Scaled(ground, k);
+            double e = Bisect(x => Modern(tx, gr, x, one, 1, curve).Luminance, mean, MinExposure / k, MaxExposure);
+            return Modern(tx, Scaled(lit, k), e, one, 1, curve).Luminance / Math.Max(Modern(tx, Scaled(dim, k), e, one, 1, curve).Luminance, 1e-9);
+        }
+        if (!(want > 1.0001) || Ratio(1) >= want) return 1;
+        return Bisect(Ratio, want, 1, MaxSunGain, 14);
+    }
+
+    /// <summary>The cells with the sun's share times <paramref name="k"/>.</summary>
+    public static List<Cell> Scaled(IReadOnlyList<Cell> cells, double k) => cells.Select(c => c with { Sun = c.Sun * k }).ToList();
+
+    /// <summary>
+    /// The darkest and the brightest thirds of <paramref name="cells"/> by weight, ordered by the 1997 look's light (the ramp's entry,
+    /// then the modern sun's share among equals); a cell across a boundary goes to the side its start is on.
+    /// </summary>
+    public static (List<Cell> Dim, List<Cell> Lit) Thirds(IReadOnlyList<Cell> cells)
+    {
+        var order = cells.Where(c => c.Count > 0).OrderBy(c => c.Ramp).ThenBy(c => c.Sun.Luminance).ToList();
+        double total = order.Sum(c => c.Count), at = 0;
+        List<Cell> dim = [], lit = [];
+        foreach (var c in order)
+        {
+            if (at < total / 3) dim.Add(c);
+            else if (at >= total * 2 / 3) lit.Add(c);
+            at += c.Count;
+        }
+        // a spread too small to tell apart: one end empty, or the same light at both
+        if (dim.Count == 0 || lit.Count == 0) return ([], []);
+        if (lit.Min(c => c.Ramp) <= dim.Max(c => c.Ramp) && lit.Min(c => c.Sun.Luminance) <= dim.Max(c => c.Sun.Luminance)) return ([], []);
+        return (dim, lit);
     }
 
     private static Rgb Tint(double[] tx, Rgb target, IReadOnlyList<Cell> cells, double exposure, double sky, ToneCurve curve)
@@ -420,9 +560,9 @@ public static class LightingCalibration
     }
 
     // f increasing: the x in lo..hi where f(x) = y (an end if y is out of reach)
-    private static double Bisect(Func<double, double> f, double y, double lo, double hi)
+    private static double Bisect(Func<double, double> f, double y, double lo, double hi, int steps = 20)
     {
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < steps; i++)
         {
             double mid = Math.Sqrt(lo * hi);
             if (f(mid) < y) lo = mid; else hi = mid;

@@ -30,6 +30,7 @@ public sealed class CalibrationCacheTests : IDisposable
             Key(), Key(texels: other), Key(terrain: 43), Key(luma: [.. Luma.Take(32)]), Key(y: -0.6f), Key(intensity: 0.7), Key(ambient: 0.1),
             Key(day: false), Key(sun: new(1.2, 1.1, 0.91)), Key(curve: LightingCalibration.ToneCurve.Filmic),
             CalibrationCache.KeyOf(Texels, 42, null, new(0.3f, -0.7f, 0.6f), 0.8, 0, true, Sun, Up, Down, LightingCalibration.ToneCurve.Card),
+            CalibrationCache.KeyOf(Texels, 42, Luma, new(0.3f, -0.7f, 0.6f), 0.8, 0, true, Sun, Up, Down, LightingCalibration.ToneCurve.Card, "sunlit objects 1"),
         };
         Assert.Equal(keys.Length, keys.Distinct().Count());
     }
@@ -38,7 +39,7 @@ public sealed class CalibrationCacheTests : IDisposable
     public void ASolveIsKeptAndReadBackExactly()
     {
         var cache = new BakeCache(_dir);
-        var r = new LightingCalibration.Result(1.234567890123, 0.4321, new(1.01, 0.99, 0.97), new(1.1, 1.0, 0.9), 0.0625);
+        var r = new LightingCalibration.Result(1.234567890123, 0.4321, new(1.01, 0.99, 0.97), new(1.1, 1.0, 0.9), 0.0625, 2.718281828);
         int solves = 0;
         var first = CalibrationCache.GetOrSolve(cache, Key(), () => { solves++; return r; }, out bool hit1);
         // a new process: a new cache object over the same folder

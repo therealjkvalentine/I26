@@ -839,6 +839,10 @@ public sealed class GraphicsScreen : ScrollingOverlayScreen
                     st.Look1997 = m != 0; st.SoftwareRenderer = m == 2;
                 });
                 break;
+            // [port] lighting_calibration (LightingRow): the modern look's, live
+            case GraphicsRow.Lighting:
+                Row(r, line, LightingRow.Label, () => LightingRow.Names[LightingRow.Index(st)], () => LightingRow.Step(st));
+                break;
             case GraphicsRow.PaletteGrade:
                 Row(r, line, "1997 Palette Grade", () => st.PaletteGrade ? "On" : "Off", () => st.PaletteGrade = !st.PaletteGrade);
                 break;

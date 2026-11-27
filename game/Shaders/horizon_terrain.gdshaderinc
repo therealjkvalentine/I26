@@ -23,6 +23,7 @@ uniform float map_radius = 2000.0;
 
 // the modern sky's horizon (Main.ApplySky copies them from the sky material)
 uniform vec3 horizon_color : source_color = vec3(0.7, 0.75, 0.8);
+global uniform float i76_mood_sat;   // the mood prototypes' ground saturation (terrain_modern.gdshaderinc), 1 by default
 uniform float haze_gain = 1.0;   // the sky's gain over its colours (sky_gain), so the haze meets the sky behind it
 uniform vec3 sprite_dir = vec3(0.0, 1.0, 0.0);   // Godot frame, toward the light
 uniform float light_strength = 1.0;
@@ -207,6 +208,7 @@ void fragment() {
 #ifdef HORIZON_RING
 	if (debug_tint > 0.0) { albedo = vec3(1.0, 0.0, 1.0); f = 0.0; }
 #endif
+	if (i76_mood_sat != 1.0) albedo = max(mix(vec3(dot(albedo, vec3(0.2126, 0.7152, 0.0722))), albedo, i76_mood_sat), vec3(0.0));
 	ALBEDO = albedo * (1.0 - f);
 	EMISSION = haze_col * haze_gain * f;
 #ifndef HORIZON_RING

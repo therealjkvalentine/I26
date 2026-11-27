@@ -70,6 +70,10 @@ uniform float light_strength = 1.0;
 // the sky's light on the scene (the radiance cube map: ambient and reflections) keeps this much of its colour, the rest its
 // luminance in grey: the original's light ramp is grey whatever the sky (lighting_calibration on)
 uniform float radiance_chroma = 1.0;
+// the mood prototypes (Main.MoodApply): the sky's light on the scene scaled and tinted (the cube map only); 1 and white leave it.
+// (Godot ignores Environment.ambient_light_energy while ambient_light_sky_contribution is 1, so the sky's light is scaled here.)
+uniform float radiance_gain = 1.0;
+uniform vec3 radiance_tint = vec3(1.0);
 
 // a lattice point's random level, without a sine: sin of the large arguments the finer octaves reach (dot products in the
 // hundreds of thousands) loses its precision on the GPU and neighbouring points came out alike, which left the noise flat over
@@ -271,5 +275,6 @@ vec3 modern_sky(vec3 eyedir, float time, bool cubemap) {
 		col = I76_COL(horizon_color) * 0.8;
 	}
 	if (cubemap) col = mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, radiance_chroma);
+	if (cubemap) col *= radiance_gain * radiance_tint;
 	return col;
 }
