@@ -673,6 +673,17 @@ public partial class Main : Node3D
 		return f.LoadDynamicFont(new I76.Formats.Vfs.GameInstall(_opt.Install).FindFile("Lee_____.ttf") ?? System.IO.Path.Combine(_opt.Install, "Lee_____.ttf")) == Error.Ok ? f : null;
 	}
 
+	/// <summary>
+	/// I76_REMIX_SAY=ID (docs/dev-hooks.md): that spoken line said once a generated job has opened, for checking it by ear or by its
+	/// dump; I76_REMIX_SAY=all: every line the job's moments chose, one after another (each lettered as it plays).
+	/// </summary>
+	private IEnumerable<I76.Formats.Remix.VoiceLine> RemixSayHook()
+	{
+		if (System.Environment.GetEnvironmentVariable("I76_REMIX_SAY") is not { Length: > 0 } id) return [];
+		if (id != "all") return I76.Formats.Remix.RemixVoice.ById(id) is { } one ? [one] : [];
+		return (I76.Formats.Remix.RemixMarks.For(_opt.Mission ?? "")?.Words.Keys ?? Enumerable.Empty<string>()).Select(I76.Formats.Remix.RemixVoice.Of).OfType<I76.Formats.Remix.VoiceLine>();
+	}
+
 	/// <summary>The session a remix's opening (the notepad at the start, RemixOpening) was last decided for.</summary>
 	private object? _remixOpened;
 
@@ -714,6 +725,16 @@ public partial class Main : Node3D
 		}
 		ob.Sound += _ => SayOpen();
 		SayOpen();
+		// a spoken line on the air: its words lettered under the objective's, with who says it, whether or not its audio was built
+		void Spoken(I76.Sim.Missions.CbRadio.Line l)
+		{
+			if (I76.Formats.Remix.RemixVoice.Of(l.Name) is not { } v || !GodotObject.IsInstanceValid(line)) return;
+			GD.Print($"[voice] on the air: {v.Id} ({v.Speaker}, {l.Length:0.00} s): {v.Text}");
+			line.Radio(v.Speaker, v.Text, l.Length);
+		}
+		_script.Host.Cb.Started += Spoken;
+		if (_script.Host.Cb.Current is { } now) Spoken(now);
+		foreach (var hook in RemixSayHook()) _script.Host.CbSay(hook.Sound, hook.PlayerSpeaks ? _script.Host.Player : null, 3);
 		// a radio clip the install lacks: its words lettered instead (the description's radio.words)
 		var words = I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Words;
 		_script.Host.Cb.Missing += name =>
@@ -1399,6 +1420,14 @@ public partial class Main : Node3D
 		var ground = setup.Ground;
 		var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);
 		I76.Game.World.BrushImpacts.Audio = audio;
+		// a generated job's spoken lines (docs/remix-missions.md "Spoken lines"): rebuilt from the clips on a worker as it loads
+		if (I76.Formats.Remix.RemixMarks.IsRemix(_opt.Mission) && _net is null)
+		{
+			I76.Game.Assets.RemixVoiceBank.FindNitro = NitroVisit.FindNitro;
+			var said = (I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Words.Keys ?? Enumerable.Empty<string>()).ToList();
+			said.AddRange(RemixSayHook().Select(h => h.Sound));
+			I76.Game.Assets.RemixVoiceBank.Prepare(_builder.Vfs, said);
+		}
 		_script = setup.Script;
 		// Voice Level 0 or 1: the original queues no CB line, so scripts do not wait on silent ones (a network game keeps its radio on)
 		if (_script is not null && _net is null) _script.Host.Cb.Enabled = () => VoiceLevel >= 2;

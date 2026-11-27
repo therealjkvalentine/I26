@@ -19,6 +19,8 @@ public sealed class RemixSpec
     public string Base { get; set; } = "";
     /// <summary>Reserved for the run director's draws; nothing the build makes depends on it yet.</summary>
     public int Seed { get; set; }
+    /// <summary>The director's choice of a spoken line at each radio moment (RemixVoice.Plan), for reading; not written to the file.</summary>
+    [YamlIgnore] public List<VoiceChoice> Voice { get; set; } = [];
     /// <summary>The WRLD hour (0-23; it picks the light preset), or null to keep the stock one.</summary>
     public int? Hour { get; set; }
     /// <summary>The player's placement moved (its car is the one the scenario form gives), or null to keep it.</summary>
@@ -143,6 +145,8 @@ public sealed class ReinforceSpec
     public bool Siren { get; set; }
     /// <summary>Whom they come for: the player (null), or the escorted car ("escort": an escort's ambush).</summary>
     public string? Target { get; set; }
+    /// <summary>The clip its first car says on arrival, in place of the radio's reinforce clip (a generated job's own line for it).</summary>
+    public string? Say { get; set; }
 }
 
 public sealed class BindSpec
@@ -329,7 +333,16 @@ public sealed class RadioSpec
     public List<string> Reinforce { get; set; } = [];
     /// <summary>What a clip says, in words: lettered at the top of the screen when the install has no such clip (the radio's text fallback).</summary>
     public Dictionary<string, string> Words { get; set; } = [];
-    [YamlIgnore] public IEnumerable<string> All => Start.Concat(Trap).Concat(Wave).Concat(Win).Concat(Steps.SelectMany(s => s)).Concat(Reinforce).Distinct(StringComparer.OrdinalIgnoreCase);
+    /// <summary>The clock nearly out: a clip said <c>at</c> seconds after step <c>from</c> opens, while the open step is still <c>until</c> or before.</summary>
+    public List<HurryCue> Hurry { get; set; } = [];
+    /// <summary>A count of the template's group down ("Two down, one to go"): said as exactly <c>dead</c> of it are down.</summary>
+    public List<CountCue> Counts { get; set; } = [];
+    /// <summary>A convoy's lead, alive, within 600 m of its way out.</summary>
+    public List<string> Getaway { get; set; } = [];
+    /// <summary>A defence one structure from lost.</summary>
+    public List<string> Wiped { get; set; } = [];
+    [YamlIgnore] public IEnumerable<string> All => Start.Concat(Trap).Concat(Wave).Concat(Win).Concat(Steps.SelectMany(s => s)).Concat(Reinforce)
+        .Concat(Hurry.Select(h => h.Clip)).Concat(Counts.Select(c => c.Clip)).Concat(Getaway).Concat(Wiped).Distinct(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>
@@ -347,6 +360,23 @@ public sealed class TextSpec
     public List<string> Deaths { get; set; } = [];
     /// <summary>Notes added under the objectives on the notepad: where the places are, in words (the director writes them).</summary>
     public List<string> Notes { get; set; } = [];
+}
+
+/// <summary>A radio moment of a generated job, what was true of the job then, and the spoken line chosen (null: none fitted).</summary>
+public sealed record VoiceChoice(string Moment, IReadOnlyCollection<string> Facts, string? Line);
+
+public sealed class HurryCue
+{
+    public int From { get; set; } = 1;
+    public int Until { get; set; } = 1;
+    public int At { get; set; }
+    public string Clip { get; set; } = "";
+}
+
+public sealed class CountCue
+{
+    public int Dead { get; set; }
+    public string Clip { get; set; } = "";
 }
 
 public sealed class RemixError(string message) : Exception(message);

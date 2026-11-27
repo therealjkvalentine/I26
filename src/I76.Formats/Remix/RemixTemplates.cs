@@ -89,13 +89,13 @@ public static class RemixTemplates
     /// death line that names it, and the step's radio (the instruction, RadioSpec.Steps).
     /// </summary>
     private static IEnumerable<string> Open(Context c, int k) =>
-        [$"set(step, {k})", $"set(dl, {DeathLine(c.Spec, k)})", .. Say(k - 1 < c.Spec.Radio.Steps.Count ? c.Spec.Radio.Steps[k - 1] : [])];
+        [$"set(step, {k})", $"set(dl, {DeathLine(c.Spec, k)})", .. Say(c, k - 1 < c.Spec.Radio.Steps.Count ? c.Spec.Radio.Steps[k - 1] : [])];
 
     /// <summary>A controller's death rule: the failure line of the open objective's step.</summary>
     private const string Death = "          - when: isDead(user)\n            then: failAllObj(6, dl)\n            goto: stop\n";
 
     /// <summary>The controllers' shared fields and their bindings (the step and the death line).</summary>
-    private const string StepFields = ", step, dl", StepArgs = ", step: rx_step, dl: rx_dl";
+    private const string StepFields = ", step, dl, done", StepArgs = ", step: rx_step, dl: rx_dl, done: rx_done";
 
     /// <summary>
     /// The end of a controller from its win's rule on: the template's own successes, then (with a finish) its line revealed and a
@@ -106,7 +106,7 @@ public static class RemixTemplates
         var o = c.Spec.Objective;
         var y = new StringBuilder();
         int f = FinishObjective(c.Spec);
-        var win = Gates(c, c.Spec.Gates.Win).Concat(Say(c.Spec.Radio.Win));
+        var win = new[] { "set(done, 1)" }.Concat(Gates(c, c.Spec.Gates.Win)).Concat(Say(c, c.Spec.Radio.Win));
         if (o.Finish is { } fin)
         {
             y.Append($"          - when: {when}\n" + Then(12, successes.Concat([$"reveal({f})", "startTimer(fin)"]).Concat(Open(c, f))));
@@ -155,11 +155,19 @@ public static class RemixTemplates
             if (target != "rx_user") y.Append($"  rx_rt{j}: actor.{c.Actor(c.Spec.Objective.Escort!.Car)}\n");
             for (int i = 0; i < r.Cars.Count; i++, n++)
             {
-                y.Append($"  rx_r{n}: actor.{c.Actor(r.Cars[i])}\n  rx_rx{n}: {N(Off(i, r.Cars.Count, rad).X)}\n  rx_rz{n}: {N(Off(i, r.Cars.Count, rad).Z)}\n  rx_rf{n}: {(i == 0 ? 1 : 0)}\n");
+                // the first car of each makes the call: its reinforcement's number, the line it says
+                y.Append($"  rx_r{n}: actor.{c.Actor(r.Cars[i])}\n  rx_rx{n}: {N(Off(i, r.Cars.Count, rad).X)}\n  rx_rz{n}: {N(Off(i, r.Cars.Count, rad).Z)}\n  rx_rf{n}: {(i == 0 ? j + 1 : 0)}\n");
                 threads.Append($"  rx_reinf{n}: {{script: rx_reinf, args: {{car: rx_r{n}, user: {target}, step: rx_step, at: rx_ra{j}, delay: rx_rd{j}, entry: rx_re{j}, heading: rx_rh{j}, speed: rx_rs{j}, dx: rx_rx{n}, dz: rx_rz{n}, siren: rx_rn{j}, first: rx_rf{n}}}}}\n");
             }
         }
-        var call = string.Concat(Say(c.Spec.Radio.Reinforce.Take(1)).Select(a => $"\n              - {a}"));
+        // each reinforcement's own line (a generated job's), else the radio's reinforce clip
+        var calls = new StringBuilder();
+        for (int j = 0; j < rs.Count; j++)
+        {
+            IEnumerable<string> clip = rs[j].Say is { Length: > 0 } own ? [own] : c.Spec.Radio.Reinforce.Take(1);
+            calls.Append($"          - when: first == {j + 1}\n            then:\n              - set(first, 0)\n");
+            foreach (var a in Say(c, clip)) calls.Append($"              - {a}\n");
+        }
         var o = c.Spec.Objective;
         y.Append($$"""
             scripts:
@@ -184,10 +192,7 @@ public static class RemixTemplates
                       - setSiren(car, siren)
                     while_waiting: hide(car)
                   - wait:
-                      - when: first == 1
-                        then:
-                          - set(first, 0){{call}}
-                      - when: 'true'
+            {{calls}}          - when: 'true'
                   - wait_until: isDead(user)
                     while_waiting: attack(car, user, 1)
 
@@ -196,6 +201,25 @@ public static class RemixTemplates
     }
 
     private static string N(int v) => v.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// The count lines ("Two down, one to go"): a routine over a counter of the template's, each cue's line as the counter reaches
+    /// exactly its number (two falling at once skip the line that would be wrong), from step <paramref name="from"/> on, never after
+    /// the win. Empty without cues.
+    /// </summary>
+    private static (string Script, string Thread) CountScript(Context c, string counter, int from)
+    {
+        var cues = c.Spec.Radio.Counts.OrderBy(q => q.Dead).ToList();
+        if (cues.Count == 0) return ("", "");
+        var y = new StringBuilder("  rx_count:\n    fields: [n, step, done]\n    steps:\n");
+        foreach (var q in cues)
+        {
+            y.Append($"      - wait_until: '!(n < {q.Dead}) && !(step < {from})'\n      - wait:\n          - when: n == {q.Dead} && done == 0\n");
+            y.Append(Then(12, Say(c, [q.Clip])));
+            y.Append("          - when: 'true'\n");
+        }
+        return (y.ToString(), $"  rx_count: {{script: rx_count, args: {{n: {counter}, step: rx_step, done: rx_done}}}}\n");
+    }
 
     /// <summary>
     /// Where the i-th of n cars teleported in at an entry goes, from the entry (cm, as teleportOffset takes it): in pairs side by
@@ -220,7 +244,7 @@ public static class RemixTemplates
     private static string Common(Context c)
     {
         var y = new StringBuilder();
-        var clips = c.Spec.Radio.All.ToList();
+        var clips = c.Spec.Radio.All.Concat(c.Spec.Objective.Reinforce.Select(r => r.Say).OfType<string>()).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         // a clip is a sound file's stem, or a cut of one: STEM@START-END, in milliseconds (docs/remix-missions.md "The radio")
         foreach (var clip in clips)
         {
@@ -236,12 +260,37 @@ public static class RemixTemplates
         var gates = GateList(c);
         if (c.Spec.Gates.Settle is < 1 or > 600) throw new RemixError($"gates: settle {c.Spec.Gates.Settle}: 1-600 seconds");
         // the open objective's step (reinforcements wait for theirs) and the failure line a death shows (the step's own)
-        y.Append($"globals:\n  rx_step: 1\n  rx_dl: {N(DeathLine(c.Spec, 1))}\n");
+        y.Append($"globals:\n  rx_step: 1\n  rx_done: 0\n  rx_dl: {N(DeathLine(c.Spec, 1))}\n");
         if (c.Spec.Objective.Finish is { } fin) y.Append($"  rx_finish: path.{c.Place(fin.Place)}\n  rx_fin: 0\n");
         for (int k = 0; k < gates.Count; k++) y.Append($"  rx_g{k}: actor.{c.Actor(gates[k])}\n  rx_gw{k}: 0\n");
+        var hurry = c.Spec.Radio.Hurry;
+        for (int k = 0; k < hurry.Count; k++)
+        {
+            var h = hurry[k];
+            if (h.From < 1 || h.Until < h.From || h.At < 1) throw new RemixError($"radio hurry {k + 1}: from 1 or more, until no less, at 1 s or more");
+            y.Append($"  rx_hf{k}: {N(h.From)}\n  rx_hu{k}: {N(h.Until)}\n  rx_ha{k}: {N(h.At)}\n  rx_hl{k}: {N(k)}\n");
+        }
         var startClips = c.Spec.Radio.Start.Concat(c.Spec.Radio.Steps.Count > 0 ? c.Spec.Radio.Steps[0] : []).ToList();
         bool start = c.Spec.Gates.Start.Count > 0 || startClips.Count > 0;
-        if (gates.Count > 0 || start) y.Append("scripts:\n");
+        if (gates.Count > 0 || start || hurry.Count > 0) y.Append("scripts:\n");
+        // the clock nearly out: a cue's line once its step has been open its seconds, if that step (or one before it) is still open
+        if (hurry.Count > 0)
+        {
+            y.Append("""
+                  rx_hurry:
+                    fields: [step, done, from, until, at, line]
+                    variables: {timer: null}
+                    steps:
+                      - wait_until: '!(step < from)'
+                        then: startTimer(timer)
+                      - wait_until: timeGreater(timer, at)
+                      - wait:
+
+                """);
+            for (int k = 0; k < hurry.Count; k++)
+                y.Append($"          - when: line == {k} && step < {hurry[k].Until + 1} && done == 0\n" + Then(12, Say(c, [hurry[k].Clip])) + "            goto: stop\n");
+            y.Append("          - when: 'true'\n            goto: stop\n");
+        }
         if (gates.Count > 0)
             y.Append($$"""
                   rx_gate:
@@ -260,9 +309,11 @@ public static class RemixTemplates
         if (start)
         {
             y.Append($"  rx_start:\n    fields: [{GateFields(c, lead: false)}]\n    steps:\n      - do:\n");
-            foreach (var a in Gates(c, c.Spec.Gates.Start).Concat(Say(startClips))) y.Append($"          - {a}\n");
+            foreach (var a in Gates(c, c.Spec.Gates.Start).Concat(Say(c, startClips))) y.Append($"          - {a}\n");
         }
-        if (gates.Count > 0 || start) y.Append("threads:\n");
+        if (gates.Count > 0 || start || hurry.Count > 0) y.Append("threads:\n");
+        for (int k = 0; k < hurry.Count; k++)
+            y.Append($"  rx_hurry{k}: {{script: rx_hurry, args: {{step: rx_step, done: rx_done, from: rx_hf{k}, until: rx_hu{k}, at: rx_ha{k}, line: rx_hl{k}}}}}\n");
         for (int k = 0; k < gates.Count; k++) y.Append($"  rx_gate{k}: {{script: rx_gate, args: {{gate: rx_g{k}, want: rx_gw{k}}}}}\n");
         if (start) y.Append($"  rx_start: {{script: rx_start, args: {{{GateArgs(c, lead: false)}}}}}\n");
         return y.Append("---\n").ToString();
@@ -293,7 +344,12 @@ public static class RemixTemplates
         return gates.Select(g => $"inc(gw{all.IndexOf(g)})");
     }
 
-    private static IEnumerable<string> Say(IEnumerable<string> clips) => clips.Select(k => $"cbPrior(sound.{SoundKey(k)}, 3)");
+    /// <summary>
+    /// A moment's radio: each clip queued at priority 3; a spoken line of the player's own (Groove's, RemixVoice) from the player, so
+    /// the handset comes up as for the stock game's lines he speaks.
+    /// </summary>
+    private static IEnumerable<string> Say(Context c, IEnumerable<string> clips) =>
+        clips.Select(k => RemixVoice.Of(k) is { PlayerSpeaks: true } ? $"cbFromPrior(sound.{SoundKey(k)}, actor.{c.Player}, 3)" : $"cbPrior(sound.{SoundKey(k)}, 3)");
 
     /// <summary>Actions as a <c>then:</c> list at an indent (the rule's).</summary>
     private static string Then(int indent, IEnumerable<string> actions)
@@ -430,7 +486,7 @@ public static class RemixTemplates
         if (o.Arrive is { } a)
         {
             y.Append($"          - when: arrived == 0 && isWithinNav(zone, user, {a.Radius})\n");
-            y.Append(Then(12, new[] { "set(arrived, 1)", "success(1)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c.Spec.Radio.Trap))));
+            y.Append(Then(12, new[] { "set(arrived, 1)", "success(1)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c, c.Spec.Radio.Trap))));
             y.Append("            goto: restart\n");
             if (a.Seconds > 0) y.Append($"          - when: arrived == 0 && timeGreater(clock, {a.Seconds})\n            then: failAllObj(6, 4)\n            goto: stop\n");
         }
@@ -439,12 +495,17 @@ public static class RemixTemplates
             {
                 // a wave's call as it starts (its kill count, or the waves before it gone; one clip a wave, in turn)
                 y.Append($"          - when: wave{k} == 0 && (!(kills < {later[k].AtKills}) || arrived == 1 && !(dead < {later[k].Before}))\n");
-                y.Append(Then(12, [$"set(wave{k}, 1)", .. Say([c.Spec.Radio.Wave[k % c.Spec.Radio.Wave.Count]])]));
+                y.Append(Then(12, [$"set(wave{k}, 1)", .. Say(c, [c.Spec.Radio.Wave[k % c.Spec.Radio.Wave.Count]])]));
                 y.Append("            goto: restart\n");
             }
         y.Append(Ending(c, $"dead == {m}", ["success(1)", "success(2)", "success(3)"]));
+        bool wiped = c.Spec.Radio.Wiped.Count > 0 && mayLose >= 1;
+        if (wiped)
+            y.Append($"  rx_wiped:\n    fields: [lost, done]\n    steps:\n      - wait_until: '!(lost < {mayLose})'\n      - wait:\n          - when: lost == {mayLose} && done == 0\n"
+                + Then(12, Say(c, c.Spec.Radio.Wiped.Take(1))) + "          - when: 'true'\n");
 
         y.Append("threads:\n");
+        if (wiped) y.Append("  rx_wiped: {script: rx_wiped, args: {lost: rx_lost, done: rx_done}}\n");
         y.Append($"  rx_defend: {{script: rx_defend, args: {{user: rx_user, dead: rx_dead, kills: rx_kills, lost: rx_lost, arrived: rx_arrived, started: rx_started{(o.Arrive is null ? "" : ", zone: rx_zone")}{GateArgs(c)}{StepArgs}{FinishArg(c)}}}}}\n");
         for (int i = 0; i < n; i++) y.Append($"  rx_lost{i}: {{script: rx_lost, args: {{s: rx_s{i}, lost: rx_lost}}}}\n");
         for (int i = 0; i < m; i++)
@@ -496,7 +557,7 @@ public static class RemixTemplates
                 y.Append($"  rx_p{i}: actor.{c.Actor(pu2.Cars[i])}\n  rx_px{i}: {N(Off(i, pu2.Cars.Count, r).X)}\n  rx_pz{i}: {N(Off(i, pu2.Cars.Count, r).Z)}\n");
         }
         // the first pursuer says the wave's line as it comes in
-        var pursuitCall = string.Concat(Say(c.Spec.Radio.Wave.Take(1)).Select(a => $"\n              - {a}"));
+        var pursuitCall = string.Concat(Say(c, c.Spec.Radio.Wave.Take(1)).Select(a => $"\n              - {a}"));
         y.Append($$"""
             scripts:
               rx_sleeper:
@@ -562,7 +623,7 @@ public static class RemixTemplates
             acts.Add("set(have, 1)");
             if (!fromStart) acts.Add("startTimer(clock)");   // the return leg's clock
             acts.AddRange(Gates(c, c.Spec.Gates.Trap));
-            acts.AddRange(Say(c.Spec.Radio.Trap));
+            acts.AddRange(Say(c, c.Spec.Radio.Trap));
             y.Append($"          - when: isWithinNav(pickup, user, {p.Radius})\n" + Then(12, acts));
         }
         y.Append("      - wait:\n" + Fails());
@@ -629,7 +690,7 @@ public static class RemixTemplates
                         while_waiting: attack(car, user, 1)
 
             """;
-        var call = string.Concat(Say(c.Spec.Radio.Wave.Take(1)).Select(a => $"\n              - {a}"));
+        var call = string.Concat(Say(c, c.Spec.Radio.Wave.Take(1)).Select(a => $"\n              - {a}"));
         int quietFrom = (pu?.Delay ?? 0) + 3;   // the pursuers are in before the lost clock starts
         y.Append($$"""
             scripts:
@@ -707,7 +768,7 @@ public static class RemixTemplates
             + (o.Deadline > 0 ? $"          - when: timeGreater(clock, {o.Deadline})\n            then: failAllObj(6, 3)\n            goto: stop\n" : "")
             + $"          - when: isWithinNav(hide, user, {hide.Radius}) && isWithinEnemy(user, {clear})\n            then: failAllObj(6, {led})\n            goto: stop\n";
         y.Append(Fails());
-        y.Append("          - when: lost == 1\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c.Spec.Radio.Trap))));
+        y.Append("          - when: lost == 1\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c, c.Spec.Radio.Trap))));
         y.Append(Fails());
         y.Append(Ending(c, $"isWithinNav(hide, user, {hide.Radius})", ["success(2)"]));
 
@@ -790,16 +851,24 @@ public static class RemixTemplates
         y.Append("      - wait:\n" + Death);
         y.Append($"          - when: '!isDead(lead) && isWithinNav(exit, lead, {exit.Radius})'\n            then: failAllObj(6, 3)\n            goto: stop\n");
         if (c.Spec.Radio.Wave.Count > 0)
-            y.Append("          - when: alert == 1 && said == 0\n" + Then(12, ["set(said, 1)", .. Say(c.Spec.Radio.Wave.Take(1))]) + "            goto: restart\n");
+            y.Append("          - when: alert == 1 && said == 0\n" + Then(12, ["set(said, 1)", .. Say(c, c.Spec.Radio.Wave.Take(1))]) + "            goto: restart\n");
         if (esc)
         {
-            y.Append("          - when: isDead(lead)\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Say(c.Spec.Radio.Trap))));
+            y.Append("          - when: isDead(lead)\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Say(c, c.Spec.Radio.Trap))));
             y.Append("      - wait:\n" + Death);
             y.Append(Ending(c, $"'!(edead < {n})'", ["success(2)"]));
         }
-        else y.Append(Ending(c, "isDead(lead)", new[] { "success(1)" }.Concat(Say(c.Spec.Radio.Trap))));
+        else y.Append(Ending(c, "isDead(lead)", new[] { "success(1)" }.Concat(Say(c, c.Spec.Radio.Trap))));
+        var (countScript, countThread) = esc ? CountScript(c, "rx_edead", 2) : ("", "");
+        y.Append(countScript);
+        // the lead close to its way out, alive: the warning (once)
+        if (c.Spec.Radio.Getaway.Count > 0)
+            y.Append($"  rx_getaway:\n    fields: [lead, exit, done]\n    steps:\n      - wait_until: isDead(lead) || isWithinNav(exit, lead, {Math.Max(exit.Radius + 200, 600)})\n      - wait:\n          - when: '!isDead(lead) && done == 0'\n"
+                + Then(12, Say(c, c.Spec.Radio.Getaway.Take(1))) + "          - when: 'true'\n");
 
         y.Append("threads:\n");
+        y.Append(countThread);
+        if (c.Spec.Radio.Getaway.Count > 0) y.Append("  rx_getaway: {script: rx_getaway, args: {lead: rx_lead, exit: rx_exit, done: rx_done}}\n");
         y.Append($"  rx_intercept: {{script: rx_intercept, args: {{user: rx_user, lead: rx_lead, exit: rx_exit, alert: rx_alert, edead: rx_edead{GateArgs(c)}{StepArgs}{FinishArg(c)}}}}}\n");
         y.Append("  rx_lead: {script: rx_lead, args: {car: rx_lead, user: rx_user, route: rx_route, alert: rx_alert}}\n");
         for (int i = 0; i < n; i++)
@@ -874,7 +943,7 @@ public static class RemixTemplates
             """);
         string vanDead = "          - when: isDead(van)\n            then: failAllObj(6, 3)\n            goto: stop\n";
         y.Append("      - wait:\n" + Death + vanDead);
-        y.Append($"          - when: isWithinNav(mid, van, {mid.Radius})\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c.Spec.Radio.Trap))));
+        y.Append($"          - when: isWithinNav(mid, van, {mid.Radius})\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c, c.Spec.Radio.Trap))));
         y.Append("      - wait:\n" + Death + vanDead);
         // the goal: the escorted car there (the finish, when there is one, then wants the player there with nobody near)
         y.Append(Ending(c, $"isWithinNav(goal, van, {goal.Radius})", ["success(2)"]).Replace("      - wait:\n" + Death, "      - wait:\n" + Death + vanDead));
@@ -924,12 +993,15 @@ public static class RemixTemplates
         y.Append($"  rx_raid:\n    fields: [user, tdead, escape{(o.Arrive is null ? "" : ", zone")}{GateFields(c)}{StepFields}{FinishField(c)}]\n    variables: {{out: null}}\n    steps:\n");
         y.Append("      - wait:\n" + Death);
         string there = o.Arrive is { } a ? $"isWithinNav(zone, user, {a.Radius}) || tdead > 0" : "tdead > 0";
-        y.Append($"          - when: {there}\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c.Spec.Radio.Trap))));
+        y.Append($"          - when: {there}\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c, c.Spec.Radio.Trap))));
         y.Append("      - wait:\n" + Death);
         y.Append($"          - when: '!(tdead < {n})'\n" + Then(12, new[] { "success(2)", "reveal(3)", "startTimer(out)" }.Concat(Open(c, 3))));
         y.Append("      - wait:\n" + Death + $"          - when: timeGreater(out, {esc.Seconds})\n            then: failAllObj(6, 3)\n            goto: stop\n");
         y.Append(Ending(c, $"isWithinNav(escape, user, {esc.Radius})", ["success(3)"]));
+        var (countScript, countThread) = CountScript(c, "rx_tdead", 2);
+        y.Append(countScript);
         y.Append("threads:\n");
+        y.Append(countThread);
         y.Append($"  rx_raid: {{script: rx_raid, args: {{user: rx_user, tdead: rx_tdead, escape: rx_escape{(o.Arrive is null ? "" : ", zone: rx_zone")}{GateArgs(c)}{StepArgs}{FinishArg(c)}}}}}\n");
         for (int i = 0; i < n; i++) y.Append($"  rx_target{i}: {{script: rx_target, args: {{t: rx_t{i}, tdead: rx_tdead}}}}\n");
         for (int i = 0; i < n; i++) if (parked.Contains(o.Targets[i])) y.Append($"  rx_parked{i}: {{script: rx_parked, args: {{car: rx_t{i}}}}}\n");

@@ -499,7 +499,9 @@ public sealed partial class MissionSetup
         var lengths = new Dictionary<string, float?>(StringComparer.OrdinalIgnoreCase);
         float? Length(string name)
         {
-            if (!lengths.TryGetValue(name, out var l)) lengths[name] = l = SoundFiles.Read(vfs, name)?.Seconds;
+            // a generated job's spoken line (RemixVoice): its length from the table's numbers, never from audio built on this machine
+            if (!lengths.TryGetValue(name, out var l))
+                lengths[name] = l = I76.Formats.Remix.RemixVoice.Of(name) is { } line ? I76.Formats.Remix.RemixVoice.Seconds(line) : SoundFiles.Read(vfs, name)?.Seconds;
             return l;
         }
         // Nitro's poetry key makes the driver of the mission say a line of their own (Poetry)
