@@ -20,16 +20,17 @@ public class DoorFaceTests
         [.. new Vector2[] { new(-0.075f, 0), new(-0.035f, -0.053f), new(0.035f, -0.053f), new(0.075f, 0), new(0.035f, 0.053f), new(-0.035f, 0.053f) }.Select(p => Turn(p, 15))];
 
     [Fact]
-    public void TheFaceIsProudByDefaultAndTheKeysRead()
+    public void TheProudFaceKeysRead()
     {
         var s = new ShellSettings();
-        Assert.True(s.SideMirrorFaceProud);
+        Assert.False(s.SideMirrorFaceProud);   // the default since the turned glass (MirrorTurnedFaceTests); proud by its key
         Assert.Equal(DoorFace.DefaultOverLeft, s.SideMirrorFaceOverLeft);
         Assert.Equal(DoorFace.DefaultOverRight, s.SideMirrorFaceOverRight);
         Assert.Equal(30, MirrorAim.DefaultTiltRight);   // the right face turned toward the driver
-        Assert.True(DoorFace.Proud(null));
-        Assert.True(DoorFace.Proud(""));
+        Assert.False(DoorFace.Proud(null));
+        Assert.False(DoorFace.Proud(""));
         Assert.True(DoorFace.Proud("proud"));
+        Assert.True(DoorFace.Proud(" Proud "));
         Assert.False(DoorFace.Proud("inset"));
         Assert.False(DoorFace.Proud(" Inset "));
         Assert.Equal((6, 15), DoorFace.OverOverride("6,15"));
