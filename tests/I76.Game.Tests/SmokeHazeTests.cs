@@ -10,6 +10,7 @@ namespace I76.Game.Tests;
 /// haze whose smoke (density times area) is kept as it widens and merges, that fades to nothing at the threshold, and whose budget
 /// raises the threshold when the haze covers too much of the screen. Without the engine.
 /// </summary>
+[Collection("SmokeStatics")]
 public class SmokeHazeTests
 {
     [Fact]
@@ -184,7 +185,7 @@ public class SmokeHazeTests
             Assert.Equal(0.65f, SmokeHaze.LayerCap(0.65f, false));
             SmokeHaze.Long = true;
             Assert.Equal(0.42f * SmokeHaze.DensBoost, SmokeHaze.StartDens(0.42f), 5);
-            Assert.True(SmokeHaze.StartDens(0.84f) <= 1f);
+            Assert.True(SmokeHaze.StartDens(0.84f) <= 2f);   // past 1 the puff's soft edge fills in (SmokeStart's density)
             Assert.True(SmokeHaze.StartDark(0.08f) > 0.08f);
             Assert.Equal(1f, SmokeHaze.StartDark(1f));
             Assert.Equal(SmokeHaze.LongCap, SmokeHaze.LayerCap(0.65f, false));

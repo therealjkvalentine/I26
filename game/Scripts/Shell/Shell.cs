@@ -1927,6 +1927,39 @@ public sealed class ShellSettings
     {
         if (SmokeLinger != I76.Game.Sim.SmokeLinger.Default) set("smoke_linger", SmokeLinger);
     }
+
+    /// <summary>The port's own, without a row: Smoke Linger Long's fresh smoke (SmokeStart; [port] smoke_start_dark, smoke_start_density, smoke_start_width, smoke_fade, each written when not the default).</summary>
+    public int SmokeStartDark { get; set; } = I76.Game.Sim.SmokeStart.DefaultDark;
+    public int SmokeStartDensity { get; set; } = I76.Game.Sim.SmokeStart.DefaultDensity;
+    public int SmokeStartWidth { get; set; } = I76.Game.Sim.SmokeStart.DefaultWidth;
+    public int SmokeFade { get; set; } = I76.Game.Sim.SmokeStart.DefaultFade;
+
+    /// <summary>The four SmokeStart keys; <paramref name="value"/> gives a key's text, or null (absent: the default).</summary>
+    public void ReadSmokeStart(Func<string, string?> value)
+    {
+        SmokeStartDark = I76.Game.Sim.SmokeStart.ParseDark(value("smoke_start_dark"));
+        SmokeStartDensity = I76.Game.Sim.SmokeStart.ParseDensity(value("smoke_start_density"));
+        SmokeStartWidth = I76.Game.Sim.SmokeStart.ParseWidth(value("smoke_start_width"));
+        SmokeFade = I76.Game.Sim.SmokeStart.ParseFade(value("smoke_fade"));
+    }
+
+    /// <summary>The four SmokeStart keys, each only when not the default.</summary>
+    public void WriteSmokeStart(Action<string, int> set)
+    {
+        if (SmokeStartDark != I76.Game.Sim.SmokeStart.DefaultDark) set("smoke_start_dark", SmokeStartDark);
+        if (SmokeStartDensity != I76.Game.Sim.SmokeStart.DefaultDensity) set("smoke_start_density", SmokeStartDensity);
+        if (SmokeStartWidth != I76.Game.Sim.SmokeStart.DefaultWidth) set("smoke_start_width", SmokeStartWidth);
+        if (SmokeFade != I76.Game.Sim.SmokeStart.DefaultFade) set("smoke_fade", SmokeFade);
+    }
+
+    /// <summary>The SmokeStart keys into the drawing (OriginalBehavior.Apply and the Developer panel).</summary>
+    public void ApplySmokeStart()
+    {
+        I76.Game.Sim.SmokeStart.DarkPercent = SmokeStartDark;
+        I76.Game.Sim.SmokeStart.DensityPercent = SmokeStartDensity;
+        I76.Game.Sim.SmokeStart.WidthPercent = SmokeStartWidth;
+        I76.Game.Sim.SmokeStart.FadeSeconds = SmokeFade;
+    }
     /// <summary>The port's own, without a row: mission music, 0 Original (on through track 14, then 2 again), 1 All (on through the disc's last) ([port] music_tracks, written when not original).</summary>
     public int MusicTracks { get; set; }
     /// <summary>The port's own: Play Options' Unlim. Ordnance, live rounds per ordnance kind, 0 Original (160, 40 online for the droppers), 1 Unlimited; offline only ([port] ordnance_limit, written when not original).</summary>
@@ -2301,6 +2334,7 @@ public sealed class ShellSettings
         s.ReadHeadlampThrow(Pct);
         s.ReadMuzzleReach(Pct);
         s.ReadSmokeLinger(Pct);
+        s.ReadSmokeStart(Pct);
         s.MusicTracks = OriginalRecipe.ReadChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames) ?? 0;
         s.OrdnanceLimit = OriginalRecipe.ReadChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames) ?? 0;
 
@@ -2539,6 +2573,7 @@ public sealed class ShellSettings
         WriteHeadlampThrow((k, v) => c.SetValue("port", k, v));
         WriteMuzzleReach((k, v) => c.SetValue("port", k, v));
         WriteSmokeLinger((k, v) => c.SetValue("port", k, v));
+        WriteSmokeStart((k, v) => c.SetValue("port", k, v));
         OriginalRecipe.WriteChoice(c, "music_tracks", OriginalRecipe.MusicTrackNames, MusicTracks == 0 ? null : MusicTracks);
         OriginalRecipe.WriteChoice(c, "ordnance_limit", OriginalRecipe.OrdnanceNames, OrdnanceLimit == 0 ? null : OrdnanceLimit);
 

@@ -8,6 +8,7 @@ namespace I76.Game.Tests;
 /// [port] smoke_linger (SmokeLinger): how long the modern look's smoke hangs in the air, in percent of each smoke's own life, 150 by
 /// default, 100 to 300; the pools that hold the puffs grow with it; visual only.
 /// </summary>
+[Collection("SmokeStatics")]
 public class SmokeLingerTests
 {
     private static Dictionary<string, string> Cfg(ShellSettings s)

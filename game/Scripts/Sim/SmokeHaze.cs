@@ -27,20 +27,29 @@ public static class SmokeHaze
     /// <summary>A puff's density under which it is gone (the smoke layer's per-puff opacity is about two thirds of it at the centre).</summary>
     public const float Threshold = 0.022f;
 
-    /// <summary>Seconds a lone puff of any density takes, after its own life, to thin to <see cref="Threshold"/> (merged ones, holding more smoke, last longer).</summary>
-    public const float HazeSeconds = 150f;
+    /// <summary>Seconds a lone puff of any density takes, after its own life, to thin to <see cref="Threshold"/> (merged ones, holding more smoke, last longer): [port] smoke_fade (SmokeStart).</summary>
+    public static float HazeSeconds => SmokeStart.Fade;
 
-    /// <summary>Long's puffs start denser than Normal's (wrecks, damage smoke, trails, the explosions' haze): their density times this.</summary>
-    public const float DensBoost = 1.35f;
+    /// <summary>Long's puffs start denser than Normal's (wrecks, damage smoke, trails, the explosions' haze): their density times this ([port] smoke_start_density, SmokeStart).</summary>
+    public static float DensBoost => SmokeStart.Density;
 
     /// <summary>Long's puffs start darker: their darkness (0 steam white .. 1 oily black) moved this far toward black.</summary>
     public const float DarkShift = 0.25f;
 
-    /// <summary>Long's smoke layer caps a column's opacity here (Normal's 0.65), so the denser start shows in a thick column.</summary>
-    public const float LongCap = 0.8f;
+    /// <summary>Long's smoke layer caps a column's opacity here (Normal's 0.65), so the denser start shows in a thick column: rising with the start density (SmokeStart.Cap).</summary>
+    public static float LongCap => SmokeStart.Cap(DensBoost);
 
-    /// <summary>A puff's starting density: Normal's as it is, Long's <see cref="DensBoost"/> times it (at most 1).</summary>
-    public static float StartDens(float dens) => On ? MathF.Min(dens * DensBoost, 1f) : dens;
+    /// <summary>A fresh dark puff's extra blackness for the layer's shader (SmokeStart.Shade): Long's [port] smoke_start_dark, Normal's none.</summary>
+    public static float FreshDark => On ? SmokeStart.Dark : 0f;
+
+    /// <summary>A young puff's size (DamageSmoke's): Normal's growth from <paramref name="start"/> to <paramref name="end"/>, Long's narrower at the source ([port] smoke_start_width).</summary>
+    public static float PuffSize(float start, float end, float life) => SmokeStart.Size(start, end, life, On ? SmokeStart.Width : 1f);
+
+    /// <summary>The emitters' scatter at the source (positions and sideways drift): Long's narrowed with the start width.</summary>
+    public static float Scatter => On ? SmokeStart.Width : 1f;
+
+    /// <summary>A puff's starting density: Normal's as it is, Long's <see cref="DensBoost"/> times it (at most 2: past 1 the puff's soft edge fills in, the shader clamping its opacity at 1).</summary>
+    public static float StartDens(float dens) => On ? MathF.Min(dens * DensBoost, 2f) : dens;
 
     /// <summary>A puff's starting darkness: Normal's as it is, Long's moved <see cref="DarkShift"/> of the way to black.</summary>
     public static float StartDark(float dark) => On ? dark + (1f - dark) * DarkShift : dark;
