@@ -330,7 +330,7 @@ public static class RemixDirector
     public static string ToYaml(RemixSpec spec) =>
         $"# rolled by the remix director (docs/remix-missions.md) from seed {spec.Seed.ToString(CultureInfo.InvariantCulture)} on {spec.Base}: i76 remix roll --seed {spec.Seed.ToString(CultureInfo.InvariantCulture)}{Environment.NewLine}"
         + new SerializerBuilder().WithNamingConvention(UnderscoredNamingConvention.Instance)
-            .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull | DefaultValuesHandling.OmitEmptyCollections)
+            .ConfigureDefaultValuesHandling(DefaultValuesHandling.OmitNull | DefaultValuesHandling.OmitEmptyCollections).DisableAliases()
             .Build().Serialize(spec);
 
     // ---- words for places ----
