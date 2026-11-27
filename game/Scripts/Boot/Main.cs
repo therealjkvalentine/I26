@@ -1236,13 +1236,13 @@ public partial class Main : Node3D
 		// capture hook I76_ADDON_CARS=a.vcf,b.vcf (paths): those car files in the addon overlay under their file names (a saved variant to --drive)
 		if (System.Environment.GetEnvironmentVariable("I76_ADDON_CARS") is { Length: > 0 } addons)
 			foreach (var path in addons.Split(',', System.StringSplitOptions.RemoveEmptyEntries)) AssetVfs.Addon[System.IO.Path.GetFileName(path)] = System.IO.File.ReadAllBytes(path);
-		// capture hook I76_VCF_SWAP=car.vcf:old=new,old=new (weapon files without the .gdf): that car with other weapons
+		// capture hook I76_VCF_SWAP=car.vcf:old=new,old=new (weapon files without the .gdf): that car with other weapons, each
+		// WEPN's fixed name field rewritten (a text replace changed the file's length with a shorter name and broke its chunks)
 		if (System.Environment.GetEnvironmentVariable("I76_VCF_SWAP")?.Split(':', 2) is { Length: 2 } swap && _builder!.Vfs.TryRead(swap[0]) is { } swapped)
 		{
-			var text = System.Text.Encoding.Latin1.GetString(swapped);
-			foreach (var pair in swap[1].Split(',', System.StringSplitOptions.RemoveEmptyEntries).Select(x => x.Split('=')).Where(x => x.Length == 2))
-				text = text.Replace(pair[0] + ".gdf", pair[1] + ".gdf", System.StringComparison.OrdinalIgnoreCase);
-			AssetVfs.Addon[swap[0]] = System.Text.Encoding.Latin1.GetBytes(text);
+			var pairs = swap[1].Split(',', System.StringSplitOptions.RemoveEmptyEntries).Select(x => x.Split('=')).Where(x => x.Length == 2)
+				.GroupBy(x => x[0], System.StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.Last()[1], System.StringComparer.OrdinalIgnoreCase);
+			AssetVfs.Addon[swap[0]] = I76.Formats.Bwd2.Bwd2File.WithWeapons(swapped, pairs);
 		}
 		// a car asked for that the install does not have: a scripted run stops (it would run on with no player, no chase camera), else the mission's own car
 		if (MissingCarPolicy.FileName(requested) is { } carFile)
@@ -2178,7 +2178,37 @@ public partial class Main : Node3D
 	/// <see cref="DrawnFrame"/> must be; a Task is waited for. Run straight through (<see cref="RunSteps"/> with no budget) it is
 	/// the load as it always was; under the briefing it runs a few milliseconds a frame.
 	/// </summary>
-	private IEnumerable<object?> AttachSteps((Load Start, Node3D? World, System.Exception? Error)? built, LoadingScreen? loading)
+	// a step that throws past the world's attach (the car's files, the look, the first tick) ends the load as a failed one: an
+	// exception out of the steps faulted the load's task, and the card stayed up over a paused tree for good
+	private IEnumerable<object?> AttachSteps((Load Start, Node3D? World, System.Exception? Error)? built, LoadingScreen? loading) =>
+		GuardedSteps.Of(AttachStepsCore(built, loading), ex => FailAttach(ex, loading));
+
+	/// <summary>
+	/// A load that failed after the world was built (<see cref="AttachSteps"/>): back to the shell saying why, a network game back
+	/// through its own way out, one named on the command line ended with exit code 2 (nothing to go back to; a capture's run ends
+	/// at once rather than at its timeout).
+	/// </summary>
+	private void FailAttach(System.Exception ex, LoadingScreen? loading)
+	{
+		_attachFailed = true;
+		_status = $"failed to load: {ex.Message}";
+		GD.PrintErr(ex.ToString());
+		var why = ex is System.IO.FileNotFoundException ? ex.Message : $"{_opt.Mission} could not be loaded: {ex.Message}";
+		_holdPaused = false;
+		GetTree().Paused = false;
+		HoldGameSound(false);
+		if (loading is not null && IsInstanceValid(loading)) loading.QueueFree();
+		_loading = false;
+		if (_net is not null) BackFromNetwork([], why);
+		else if (_launch is not null) BackFromLoadFailure(why);
+		else
+		{
+			GD.PrintErr($"{why}: a command-line mission ends the program");
+			GetTree().Quit(2);
+		}
+	}
+
+	private IEnumerable<object?> AttachStepsCore((Load Start, Node3D? World, System.Exception? Error)? built, LoadingScreen? loading)
 	{
 		// the build is one long frame behind the loading card: timed as a phase, so its hitch line says what it was
 		var load = Hitch.Time(Hitch.Phase.Load);
@@ -2786,6 +2816,7 @@ public partial class Main : Node3D
 				_stepBudget = AttachAfterMovieBudgetMs;   // nothing to keep smooth now but the line's fade
 			}
 			StartAttach();
+			if (_attachFailed) break;   // (FailAttach: back to the shell or out; no briefing for a mission that is not there)
 			var was = seq.Now;
 			// the card's time is to the movie's first frame: it starts fading out that much before
 			var now = seq.Step(_cardClock.Elapsed.TotalSeconds + (cardUp ? loading.FadeSeconds : 0), job.Done, over.Task.IsCompleted, cardSkipped && !fading);
