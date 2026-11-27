@@ -172,7 +172,7 @@ public class AnetPunchTests(ITestOutputHelper log)
         }
     }
 
-    [Theory, MemberData(nameof(Servers))]
+    [LoopbackAliasTheory, MemberData(nameof(Servers))]
     public void PartyLineNatsPunchThrough(string server)
     {
         using var srv = StartServer(server, out int port);
@@ -191,7 +191,7 @@ public class AnetPunchTests(ITestOutputHelper log)
         }
     }
 
-    [Theory, MemberData(nameof(Servers))]
+    [LoopbackAliasTheory, MemberData(nameof(Servers))]
     public void SymmetricNatFailsWithTheForwardingHint(string server)
     {
         using var srv = StartServer(server, out int port);
@@ -212,7 +212,7 @@ public class AnetPunchTests(ITestOutputHelper log)
     /// A symmetric NAT that hands out ports in sequence (many home and carrier NATs): the joiner's probes to the host leave
     /// from a port or two after the one the server saw, and the host's probes to the ports around it find that one.
     /// </summary>
-    [Theory, MemberData(nameof(Servers))]
+    [LoopbackAliasTheory, MemberData(nameof(Servers))]
     public void ASequentialSymmetricNatIsReachedAroundTheSeenPort(string server)
     {
         using var srv = StartServer(server, out int port);
@@ -231,7 +231,7 @@ public class AnetPunchTests(ITestOutputHelper log)
     /// joiners one after another while the earlier ones stay connected: two behind NATs of their own, two sharing one
     /// (a household), one behind a sequential symmetric NAT, then three more at once.
     /// </summary>
-    [Fact]
+    [LoopbackAliasFact]
     public void EveryJoinerGetsInWhileTheEarlierOnesStayConnected()
     {
         using var srv = new FakeAnetServer(_net);
@@ -271,7 +271,7 @@ public class AnetPunchTests(ITestOutputHelper log)
     }
 
     /// <summary>A failed punch asks a second server where it sees the joiner: another port than the first saw is the joiner's symmetric NAT.</summary>
-    [Fact]
+    [LoopbackAliasFact]
     public void AFailedPunchBlamesTheJoinersSymmetricNat()
     {
         using var srv = new FakeAnetServer(_net);
@@ -291,7 +291,7 @@ public class AnetPunchTests(ITestOutputHelper log)
     }
 
     /// <summary>And the same port from both servers: the joiner's NAT is fine, the host's stopped it (a symmetric NAT there; open joiners would still have got in).</summary>
-    [Fact]
+    [LoopbackAliasFact]
     public void AFailedPunchBlamesTheHostsRouterWhenTheJoinersIsFine()
     {
         using var srv = new FakeAnetServer(_net);
@@ -311,7 +311,7 @@ public class AnetPunchTests(ITestOutputHelper log)
         }
     }
 
-    [Theory, MemberData(nameof(Servers))]
+    [LoopbackAliasTheory, MemberData(nameof(Servers))]
     public void SameNatJoinsAtThePrivateAddress(string server)
     {
         using var srv = StartServer(server, out int port);
@@ -330,7 +330,7 @@ public class AnetPunchTests(ITestOutputHelper log)
     /// list), and nothing of the punch gets through at home (a firewall on one of them): the failure names that, at once, rather
     /// than ask a second server and blame a router's symmetric NAT and a port to forward.
     /// </summary>
-    [Fact]
+    [LoopbackAliasFact]
     public void AHostOnTheSameNetworkThatNeverAnswersIsBlamedOnAFirewall()
     {
         using var srv = new FakeAnetServer(_net);
@@ -353,7 +353,7 @@ public class AnetPunchTests(ITestOutputHelper log)
     }
 
     /// <summary>A 0.5.0 host's listing does not say its Hidden Weapons &amp; Cars: the roster leaves it to the host, rather than refuse hidden cars itself.</summary>
-    [Fact]
+    [LoopbackAliasFact]
     public void AListingThatDoesNotSayItsHiddenRuleLeavesItToTheHost()
     {
         using var srv = new FakeAnetServer(_net);

@@ -89,6 +89,7 @@ public class TickBudgetTests
     [InlineData("t06")]
     public void EveryTicksStateHashIsTheRecordedOne(string mission)
     {
+        if (!MathPlatform.LibmAsRecorded) return;   // the hashes are of Windows x64's C library: another platform's sin and cos part from them within a few ticks
         if (Mission(mission) is not { } m) return;
         var (session, setup) = m;
         var (_, chain, every) = Recorded[mission];

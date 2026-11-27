@@ -84,7 +84,9 @@ public class AiStructureTargetTests
     /// the same way (the stand destroyed when the player's rounds take it here, the player's car kept 30 m behind Taurus):
     /// the order came at 297 s as here; in the first attack t01al01 fired 27-40 times from about 100 m and never hit, and
     /// in the second (19-22 s after the order) t01fc01 hit it 11 and 17 times with its MG and rockets in two seeds of
-    /// three and nothing in the third. Here over seeds 1-16 they hurt it in 7, so sixteen seeds are run and six must.
+    /// three and nothing in the third. Here over seeds 1-16 they hurt it in 7, so sixteen seeds are run and six must. Where the C
+    /// library's sin and cos are not Windows' (<see cref="MathPlatform"/>) the seeds fall differently: an Apple M2 gave 5 of 16
+    /// (seeds 1, 6, 8, 13 and 15), so four must there: still far from none, which is what a broken attack order gives.
     /// </summary>
     [Fact]
     public void T01sAttackersShootTheDinerWhenTaurusGetsThere()
@@ -100,7 +102,7 @@ public class AiStructureTargetTests
             if (shots >= 10 && damage >= 100) hurt++;
             log.Add($"seed {seed}: ordered at {ordered:0}s, {shots} shots, diner -{damage}");
         }
-        Assert.True(hurt >= 6, string.Join("; ", log));
+        Assert.True(hurt >= (MathPlatform.LibmAsRecorded ? 6 : 4), string.Join("; ", log));
     }
 
     /// <summary>

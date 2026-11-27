@@ -36,7 +36,7 @@ public class AnetMeleeTests(ITestOutputHelper output)
 
     public static IEnumerable<object[]> Servers() => AnetPunchTests.Servers();
 
-    [Theory, MemberData(nameof(Servers))]
+    [LoopbackAliasTheory, MemberData(nameof(Servers))]
     public void AListedServerIsJoinedThroughTheLobbyFromBehindNats(string kind)
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -86,7 +86,7 @@ public class AnetMeleeTests(ITestOutputHelper output)
     /// mapping the host and the others knew), lists the game again on the same server, and Bob finds her by the
     /// addresses the host gave him, both sides probing, with no introduction.
     /// </summary>
-    [Fact]
+    [LoopbackAliasFact]
     public void AGameListedOnAnetMigratesAcrossNats()
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -151,7 +151,7 @@ public class AnetMeleeTests(ITestOutputHelper output)
     /// her takeover's probe packets leave from new ports that Bob's NAT has never sent to). The host leaves; Ann takes over but no
     /// one finds her, and Bob's game ends as a lost connection within the give-up time, not hanging in "Migrating".
     /// </summary>
-    [Fact]
+    [LoopbackAliasFact]
     public void ASuccessorBehindASymmetricNatLeavesTheOthersToFallBack()
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -213,7 +213,7 @@ public class AnetMeleeTests(ITestOutputHelper output)
     /// did not carry the setting, so every joiner's own check refused hidden cars as if it were off. The listing says it now,
     /// and a hidden car gets in through the lobby.
     /// </summary>
-    [Fact]
+    [LoopbackAliasFact]
     public void AListedGameBehindANatSaysItAllowsHiddenCarsAndOneGetsIn()
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -245,7 +245,7 @@ public class AnetMeleeTests(ITestOutputHelper output)
     /// strangers never answered the roster's direct question, so the drivers (which only the direct answer carries) never
     /// came. The roster now asks the server to introduce it, as a join does; the host opens toward it and answers.
     /// </summary>
-    [Fact]
+    [LoopbackAliasFact]
     public void ARunningGameBehindANatShowsItsDriversInTheRoster()
     {
         if (HostTests.InstallDir is not { } install) return;

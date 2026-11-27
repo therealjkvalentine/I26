@@ -150,7 +150,7 @@ public sealed class NatBox : IDisposable
                 if (_pubs.Values.Any(x => Math.Abs(((IPEndPoint)x.Sock.Client.LocalEndPoint!).Port - p) <= 4 * AnetHost.PredictSpan)) continue;
             }
             try { return new UdpClient(new IPEndPoint(_public, p)); }
-            catch (SocketException) { }
+            catch (SocketException e) when (e.SocketErrorCode != SocketError.AddressNotAvailable) { }   // (a port taken: try another; an address the machine lacks would loop for ever: LoopbackAliases)
         }
     }
 
