@@ -3,7 +3,7 @@ using Godot;
 namespace I76.Game.Sim;
 
 /// <summary>
-/// The modern look's door mirror face ([port] side_mirror_face=proud, the default): the glass and its thin dark rim as a plate of
+/// The modern look's door mirror face ([port] side_mirror_face=proud; the default until the turned glass, side_mirror_face=turned): the glass and its thin dark rim as a plate of
 /// its own on the housing's end, as tall as the end (its top and bottom on the end's top and bottom edges as the driver sees them)
 /// and wider than it, its rounded sides standing out past the end's angled side edges so none of the end's corners shows, as a real
 /// mirror glass on a shell a little smaller than it. Where the end has a top and bottom edge (the Piranha's left hexagon, the CC
@@ -16,10 +16,14 @@ namespace I76.Game.Sim;
 public static class DoorFace
 {
     /// <summary>[port] side_mirror_face: "inset" the glass inside the housing (the look before); anything else, or none, the proud face.</summary>
-    public static bool Proud(string? word) => !string.Equals(word?.Trim(), "inset", StringComparison.OrdinalIgnoreCase) && !Turned(word);
+    public static bool Proud(string? word) => string.Equals(word?.Trim(), "proud", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>[port] side_mirror_face: "turned" the turned head's glass and its rounded ring (side_mirror_head=turned's) on the housing where the art places it.</summary>
-    public static bool Turned(string? word) => string.Equals(word?.Trim(), "turned", StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// [port] side_mirror_face: "turned", or none (the default since the playtest that preferred the turned heads' glass), the turned
+    /// head's glass and its rounded ring (side_mirror_head=turned's, exactly) on the housing where the art places it; "proud" the
+    /// proud face; "inset" the glass inside the housing's end.
+    /// </summary>
+    public static bool Turned(string? word) => !Proud(word) && !string.Equals(word?.Trim(), "inset", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// [port] side_mirror_face_over_left / _right: how far each rounded side stands past the least that covers the end's corners,
@@ -190,6 +194,34 @@ public static class DoorFace
         float near = float.MaxValue;
         foreach (var (a, b, c) in tris) if (Hit(eye, d, a, b, c) is { } t && t < near) near = t;
         return near == float.MaxValue ? float.MinValue : len - (near - clear);
+    }
+
+    /// <summary>
+    /// The turned glass (side_mirror_face=turned) in front of the art-placed housing: the share of its distance from the eye it is
+    /// scaled to about the eye (which leaves it exactly where it was on screen) so that every sampled point of it (<paramref name="glass"/>'s
+    /// triangles, a grid of 12 steps a side) stands <paramref name="clear"/> metres in front of the housing (<paramref name="housing"/>) along
+    /// the eye's ray, and every housing corner seen through it lies behind it; 1 where it already does, at least 0.2.
+    /// </summary>
+    public static float TurnedShare(Vector3 eye, IReadOnlyList<(Vector3 A, Vector3 B, Vector3 C)> glass, IReadOnlyList<(Vector3 A, Vector3 B, Vector3 C)> housing, float clear)
+    {
+        float share = 1f;
+        const int N = 12;
+        foreach (var (a, b, c) in glass)
+            for (int i = 0; i <= N; i++)
+                for (int j = 0; i + j <= N; j++)
+                {
+                    var x = a + (b - a) * (i / (float)N) + (c - a) * (j / (float)N);
+                    var d = x - eye; float len = d.Length(); if (len < 1e-5f) continue; d /= len;
+                    foreach (var (ta, tb, tc) in housing)
+                        if (Hit(eye, d, ta, tb, tc) is { } t) share = MathF.Min(share, (t - clear) / len);
+                }
+        foreach (var v in housing.SelectMany(t => new[] { t.A, t.B, t.C }).Distinct())
+        {
+            var d = v - eye; float len = d.Length(); if (len < 1e-5f) continue; d /= len;
+            foreach (var (ta, tb, tc) in glass)
+                if (Hit(eye, d, ta, tb, tc) is { } t) share = MathF.Min(share, (len - clear) / t);
+        }
+        return Math.Clamp(share, 0.2f, 1f);
     }
 
     /// <summary>The face's sample points in its own units: its rounded outline and a grid across it (where the housing may lie behind it).</summary>

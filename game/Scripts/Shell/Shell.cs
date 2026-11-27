@@ -1805,10 +1805,9 @@ public sealed class ShellSettings
     /// <summary>The port's own, without a row: with the heads where the art places them, each door mirror's glass alone turned that many degrees toward the driver inside its housing, the housing unchanged (I76.Game.Sim.MirrorAim.Tilt; shell.cfg [port] side_mirror_tilt_right, 15 by default, and side_mirror_tilt_left, 0; 0 to 45, at most the turn that faces the whole head to the driver; written only when not the default).</summary>
     public int SideMirrorTiltRight { get; set; } = I76.Game.Sim.MirrorAim.DefaultTiltRight;
     public int SideMirrorTiltLeft { get; set; } = I76.Game.Sim.MirrorAim.DefaultTiltLeft;
-    /// <summary>The port's own, without a row: the modern look's door mirrors' face, the glass and its rim a rounded plate of its own as tall as the housing's end and standing out past its sides (true, the default), or the glass inside the housing's end (I76.Game.Sim.DoorFace; shell.cfg [port] side_mirror_face = proud / inset; written only when inset). With the face proud, side_mirror_tilt_right / _left turn the face toward the driver.</summary>
-    public bool SideMirrorFaceProud { get; set; } = true;
-    /// <summary>The port's own, without a row: the turned head's glass and ring (side_mirror_head=turned's) on the housing where the art places it (I76.Game.Sim.DoorFace.Turned; shell.cfg [port] side_mirror_face = turned; written only when turned).</summary>
-    public bool SideMirrorFaceTurned { get; set; }
+    /// <summary>The port's own, without a row: the modern look's door mirrors' face (I76.Game.Sim.DoorFace; shell.cfg [port] side_mirror_face): turned, the default, the turned head's glass and rounded ring (side_mirror_head=turned's) on the housing where the art places it (SideMirrorFaceTurned); proud, the glass and its rim a rounded plate of its own as tall as the housing's end and standing out past its sides (SideMirrorFaceProud; the default of sections JK to the turned glass), side_mirror_tilt_right / _left turning it toward the driver; inset, the glass inside the housing's end (both false). Written only when not turned.</summary>
+    public bool SideMirrorFaceProud { get; set; }
+    public bool SideMirrorFaceTurned { get; set; } = true;
     /// <summary>The port's own, without a row: how far each proud face's rounded sides stand past the least that covers the housing end's corners, percent of its height (I76.Game.Sim.DoorFace.DefaultOverLeft / Right; shell.cfg [port] side_mirror_face_over_left and _right, 0 to 60; written only when not the default).</summary>
     public int SideMirrorFaceOverLeft { get; set; } = I76.Game.Sim.DoorFace.DefaultOverLeft;
     public int SideMirrorFaceOverRight { get; set; } = I76.Game.Sim.DoorFace.DefaultOverRight;
@@ -2553,8 +2552,8 @@ public sealed class ShellSettings
         if (SideMirrorHeadTurned) c.SetValue("port", "side_mirror_head", "turned");
         if (SideMirrorTiltRight != I76.Game.Sim.MirrorAim.DefaultTiltRight) c.SetValue("port", "side_mirror_tilt_right", SideMirrorTiltRight);
         if (SideMirrorTiltLeft != I76.Game.Sim.MirrorAim.DefaultTiltLeft) c.SetValue("port", "side_mirror_tilt_left", SideMirrorTiltLeft);
-        if (SideMirrorFaceTurned) c.SetValue("port", "side_mirror_face", "turned");
-        else if (!SideMirrorFaceProud) c.SetValue("port", "side_mirror_face", "inset");
+        if (SideMirrorFaceProud) c.SetValue("port", "side_mirror_face", "proud");
+        else if (!SideMirrorFaceTurned) c.SetValue("port", "side_mirror_face", "inset");
         if (SideMirrorFaceOverLeft != I76.Game.Sim.DoorFace.DefaultOverLeft) c.SetValue("port", "side_mirror_face_over_left", SideMirrorFaceOverLeft);
         if (SideMirrorFaceOverRight != I76.Game.Sim.DoorFace.DefaultOverRight) c.SetValue("port", "side_mirror_face_over_right", SideMirrorFaceOverRight);
         if (MirrorFov != (int)I76.Game.Sim.MirrorBands.DefaultFov) c.SetValue("port", "mirror_fov", MirrorFov);
