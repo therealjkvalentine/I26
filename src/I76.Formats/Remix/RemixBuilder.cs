@@ -45,6 +45,8 @@ public static class RemixBuilder
     /// <summary>The stock library's routines lead every mission's code: Interstate '76's 15, the Nitro Pack's 28 (docs/mission-scripts.md).</summary>
     public const int LibraryRoutines = 15, NitroLibraryRoutines = 28;
     public const string PathPrefix = "rx_";
+    /// <summary>The label prefix of an actor whose placement loses the named nodes before the start (I76.Sim's MissionSetup reads it).</summary>
+    public const string OpenPrefix = "rx_open__";
 
     public static RemixOutput Build(GameInstall install, RemixSpec spec)
     {
@@ -104,6 +106,18 @@ public static class RemixBuilder
             var o = Find(doc, b, $"bind {name}");
             newActors.Add(new ActorDef { Key = PathPrefix + name, Label = PathPrefix + name, Id = o.Payload[..8], Object = o.Name });
             actors[name] = PathPrefix + name;
+        }
+        // opened doors (docs/remix-missions.md "Places"): an actor bound to the placement whose label names the nodes the mission
+        // build takes away (MissionSetup.OpenPrefix: rx_open__NODE__NODE...)
+        for (int i = 0; i < spec.Open.Count; i++)
+        {
+            var op = spec.Open[i];
+            var o = Find(doc, new BindSpec { Object = op.Object, Nth = op.Nth }, $"open {op.Object}");
+            if (op.Nodes.Count == 0 || op.Nodes.Any(n => n.Length == 0 || n.Contains("__", StringComparison.Ordinal) || !n.All(ch => char.IsAsciiLetterOrDigit(ch) || ch == '_')))
+                throw new RemixError($"open {op.Object}: node names (letters, digits, single underscores)");
+            var label = OpenPrefix + string.Join("__", op.Nodes);
+            if (label.Length > FsmPaths.MaxLabel) throw new RemixError($"open {op.Object}: too many nodes for one label ({label.Length} > {FsmPaths.MaxLabel}): split them over two entries");
+            newActors.Add(new ActorDef { Key = $"{PathPrefix}open{i}", Label = label, Id = o.Payload[..8], Object = o.Name });
         }
         foreach (var (name, c) in spec.Cars)
         {

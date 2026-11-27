@@ -16,7 +16,11 @@ public static class RemixCommand
         if (argv.Count >= 2 && argv[1] == "roll") return Roll(install, argv);
         if (argv.Count >= 2 && argv[1] == "check") return Check(install, argv);
         if (argv.Count >= 2 && argv[1] == "score") return Score(install, argv);
+        if (argv.Count >= 2 && argv[1] == "pace") return Pace(install, argv);
         if (argv.Count >= 2 && argv[1] == "trip") return Trip(install, argv);
+        if (argv.Count >= 3 && argv[1] == "structures") return RemixStructures.Run(install, argv);
+        if (argv.Count >= 4 && argv[1] == "driveout") return RemixDriveOutCommand.Run(install, argv);
+        if (argv.Count >= 3 && argv[1] == "roadsurvey") return RemixRoadSurvey.Run(install, argv);
         if (argv.Count < 3 || argv[1] != "build") { Console.Error.WriteLine("usage: i76 remix build SPEC.yaml...|--builtin [--out DIR] | map BASE [--json FILE]"); return 2; }
         int oi = argv.IndexOf("--out");
         string outDir = oi >= 0 ? argv[oi + 1] : GameInstall.UserMissionDir ?? "remix";
@@ -72,7 +76,11 @@ public static class RemixCommand
                 built.WriteTo(outDir);
                 // a VFS of its own: the generated folder is listed as it is made, and this job was written after any earlier one
                 var vfs = new AssetVfs(install);
-                problems = I76.Sim.Missions.RemixCheck.Run(vfs, new I76.Formats.Assembly.ModelAssembler(vfs), spec.Id, spec, RemixMarks.Parse(built.Marks ?? ""));
+                var asmb = new I76.Formats.Assembly.ModelAssembler(vfs);
+                problems = I76.Sim.Missions.RemixCheck.Run(vfs, asmb, spec.Id, spec, RemixMarks.Parse(built.Marks ?? ""));
+                // the drives it asks for, against its pacing budget, and every place inside a structure driven out of
+                problems.AddRange(RemixPacing.Measure(install, spec).Problems);
+                problems.AddRange(I76.Sim.Missions.RemixDriveOut.Check(vfs, asmb, spec));
             }
             catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { problems = [$"build: {ex.Message}"]; }
             string what = $"{name} ({spec.Base} {spec.Objective.Template})";
@@ -102,6 +110,14 @@ public static class RemixCommand
         foreach (var t in tables)
         {
             var (problems, places) = RemixNodeCheck.Run(install, t);
+            // each place inside or under a structure: a job started there (its doors off, its wall section out, its friendly car
+            // parked) built and driven out of toward its way out
+            foreach (var n in t.Nodes.Where(n => n.IsInside))
+            {
+                var r = I76.Sim.Missions.RemixDriveOut.Node(install, t, n);
+                places.Add($"inside {n.Name} ({n.Called}): {r}");
+                if (!r.Passed) problems.Add($"inside {n.Name} ({n.Called}): the car can't drive out: {r}");
+            }
             if (argv.Contains("--verbose")) foreach (var p in places) Console.WriteLine($"{t.Base}: {p}");
             foreach (var p in problems) Console.WriteLine($"{t.Base}: PROBLEM {p}");
             Console.WriteLine($"{t.Base}: {t.Starts.Count} starts, {t.Nodes.Count} nodes, {t.Entries.Count} entries, {t.Routes.Count} routes, {t.Clusters.Count} clusters: {(problems.Count == 0 ? "ok" : $"{problems.Count} problems")}");
@@ -140,6 +156,123 @@ public static class RemixCommand
             if (argv.Contains("--cars")) foreach (var (c, st) in cars) Console.WriteLine($"    {c} {(spec.Cars.TryGetValue(c, out var cs) ? cs.Vcf : "")} {st:0.00}");
         }
         if (all.Count > 1) Console.WriteLine($"{all.Count} jobs: min {all.Min():0.0}, median {all.Order().ElementAt(all.Count / 2):0.0}, max {all.Max():0.0}");
+        return 0;
+    }
+
+    /// <summary>
+    /// i76 remix pace [--builtin] [--seeds A-B] [--trips A-B] [--stock] [--verbose]: each job's drives timed on its map's roads
+    /// (RemixPacing: the first contact, each leg, the mean) and held to its budget; --trips walks road trips (each run's first
+    /// offer, each job won) and measures their jobs; --stock times the stock trip missions' own first contact (the player's
+    /// placement to the nearest enemy car) and the drive between their enemy groups (cars within 300 m), nearest next first.
+    /// Prints the distributions (median, quartiles, the share over budget).
+    /// </summary>
+    private static int Pace(GameInstall install, List<string> argv)
+    {
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        (int A, int B) Range(string r) { var ab = r.Split('-'); int a = int.Parse(ab[0], inv); return (a, ab.Length > 1 ? int.Parse(ab[1], inv) : a); }
+        var jobs = new List<(string Name, RemixSpec Spec)>();
+        if (argv.Contains("--builtin")) foreach (var (nm, y) in RemixCatalogue.Builtin()) jobs.Add((nm, RemixSpec.Parse(y)));
+        if (Opt("--seeds") is { } sr) { var (a, b) = Range(sr); for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, Ask(argv, "xpace", 1.0)))); }
+        if (Opt("--trips") is { } tr)
+        {
+            var tables = RemixNodes.Builtin();
+            var (a, b) = Range(tr);
+            for (int n = a; n <= b; n++)
+            {
+                var run = RemixRun.Start(n, "vppirna1.vcf", "", "", 0);
+                for (int k = 0; k < RemixRun.Jobs && !run.Over; k++)
+                {
+                    if (run.Phase == "reward") run.Reward("bonus");
+                    var offers = run.Offers(tables);
+                    if (offers.Count == 0) break;
+                    foreach (var of in offers) jobs.Add(($"run {n} job {k + 1} offer {of.Map}/{of.Template}", run.Spec(of, tables)));
+                    run.Take(offers[0]);
+                    run.Finish(true, 0, null);
+                }
+            }
+        }
+        if (argv.Contains("--stock")) return PaceStock(install);
+        // the places of note a job uses (docs/remix-missions.md "Places"): its start or a zone at one, and how many are inside
+        var tablesOf = RemixNodes.Builtin().ToDictionary(t => t.Base, StringComparer.OrdinalIgnoreCase);
+        int noted = 0, inside = 0, notedStart = 0;
+        var used = new Dictionary<string, int>();
+        foreach (var (_, spec) in jobs)
+        {
+            if (!tablesOf.TryGetValue(spec.Base, out var tb)) continue;
+            var pts = spec.Places.Values.Where(p => p.Count == 1).Select(p => p[0]).Append(spec.Start?.At ?? []).Where(p => p.Length == 2).ToList();
+            var hit = tb.Nodes.Where(n => n.IsSpecial && pts.Any(p => System.Math.Abs(p[0] - n.At[0]) < 1 && System.Math.Abs(p[1] - n.At[1]) < 1)).ToList();
+            if (hit.Count > 0) noted++;
+            if (spec.Inside.Count > 0) inside++;
+            if (spec.Start?.At is [var sx, var sz] && tb.Nodes.Any(n => n.IsSpecial && System.Math.Abs(sx - n.At[0]) < 1 && System.Math.Abs(sz - n.At[1]) < 1)) notedStart++;
+            foreach (var n in hit) used[$"{spec.Base} {n.Name}"] = used.GetValueOrDefault($"{spec.Base} {n.Name}") + 1;
+        }
+        var firsts = new List<double>();
+        var means = new List<double>();
+        var legs = new Dictionary<string, List<double>>();
+        int over = 0;
+        var byTemplate = new Dictionary<string, (List<double> First, List<double> Mean, int Over, int N)>();
+        foreach (var (name, spec) in jobs)
+        {
+            var rep = RemixPacing.Measure(install, spec);
+            if (rep.Legs.Count == 0) { if (argv.Contains("--verbose")) Console.WriteLine($"{name} ({spec.Base} {spec.Objective.Template}): not measured (the stock start: the description moves no start)"); continue; }
+            firsts.Add(rep.FirstContact);
+            means.Add(rep.Mean);
+            foreach (var t in rep.Legs) { if (!legs.TryGetValue(t.Leg.Name, out var l)) legs[t.Leg.Name] = l = []; l.Add(t.Seconds); }
+            if (rep.Problems.Count > 0) over++;
+            var k = spec.Objective.Template;
+            if (!byTemplate.TryGetValue(k, out var bt)) bt = ([], [], 0, 0);
+            bt.First.Add(rep.FirstContact); bt.Mean.Add(rep.Mean);
+            byTemplate[k] = (bt.First, bt.Mean, bt.Over + (rep.Problems.Count > 0 ? 1 : 0), bt.N + 1);
+            if (argv.Contains("--verbose")) Console.WriteLine($"{name} ({spec.Base} {spec.Objective.Template}): {(rep.Legs.Count == 0 ? "not measured (the stock start: the description moves no start)" : rep.ToString())}{(rep.Problems.Count > 0 ? "  OVER: " + string.Join("; ", rep.Problems) : "")}");
+        }
+        static string Q(List<double> v) { if (v.Count == 0) return "-"; var s = v.Order().ToList(); double P(double q) => s[(int)System.Math.Min(s.Count - 1, System.Math.Round(q * (s.Count - 1)))]; return $"median {P(0.5):0} s (quartiles {P(0.25):0}-{P(0.75):0}, 90% {P(0.9):0}, max {s[^1]:0})"; }
+        Console.WriteLine($"{jobs.Count} jobs; over budget: {over} ({100.0 * over / System.Math.Max(1, jobs.Count):0} %)");
+        Console.WriteLine($"  places of note: {noted} jobs use one ({notedStart} start at one; {inside} use a place inside a structure); {used.Count} different places");
+        if (argv.Contains("--places")) foreach (var (k, v) in used.OrderBy(k => k.Key)) Console.WriteLine($"    {k}: {v}");
+        Console.WriteLine($"  first contact: {Q(firsts)}");
+        Console.WriteLine($"  mean between events: {Q(means)}");
+        foreach (var (k, v) in byTemplate.OrderBy(k => k.Key)) Console.WriteLine($"  {k,-9} n {v.N,3}: first {Q(v.First)}; mean {Q(v.Mean)}; over {v.Over}");
+        foreach (var (k, v) in legs.OrderBy(k => k.Key)) Console.WriteLine($"  leg {k,-10} {Q(v)}");
+        return 0;
+    }
+
+    /// <summary>The stock trip missions' own pacing: the player's placement to the nearest enemy car, and between their enemy groups.</summary>
+    private static int PaceStock(GameInstall install)
+    {
+        var firsts = new List<double>();
+        var gaps = new List<double>();
+        foreach (var t in RemixNodes.Builtin())
+        {
+            var path = install.FindMission(t.Base);
+            if (path is null) continue;
+            var doc = I76.Formats.Mission.Edit.MapDocument.Load(path);
+            var cars = doc.Objects.Where(o => o.ObjectType == 1).ToList();
+            var me = cars.FirstOrDefault(o => ((o.ObjectFlags >> 16) & 7) == 1 && (o.ObjectFlags & 0x10) != 0) ?? cars.FirstOrDefault(o => ((o.ObjectFlags >> 16) & 7) == 1);
+            var foes = cars.Where(o => ((o.ObjectFlags >> 16) & 7) == 2).Select(o => new[] { (double)o.Position.X, (double)o.Position.Z }).ToList();
+            if (me is null || foes.Count == 0) { Console.WriteLine($"{t.Base}: no player or no enemy cars"); continue; }
+            var roads = RemixPacing.RoadsOf(install, t.Base);
+            double[] at = [me.Position.X, me.Position.Z];
+            // enemy groups: cars within 300 m of a group's first
+            var groups = new List<double[]>();
+            foreach (var f in foes) if (!groups.Any(g => System.Math.Sqrt((g[0] - f[0]) * (g[0] - f[0]) + (g[1] - f[1]) * (g[1] - f[1])) < 300)) groups.Add(f);
+            var left = groups.ToList();
+            var chain = new List<double>();
+            var here = at;
+            while (left.Count > 0)
+            {
+                var next = left.MinBy(g => roads.Metres(here, g))!;
+                roads.Drive(here, next, out double secs);
+                chain.Add(secs);
+                left.Remove(next);
+                here = next;
+            }
+            firsts.Add(chain[0]);
+            gaps.AddRange(chain.Skip(1));
+            Console.WriteLine($"{t.Base} {t.Name}: first contact {chain[0]:0} s; {groups.Count} enemy groups; then {string.Join(", ", chain.Skip(1).Select(c => $"{c:0}"))} s");
+        }
+        static double Med(List<double> v) => v.Count == 0 ? 0 : v.Order().ElementAt(v.Count / 2);
+        Console.WriteLine($"stock: first contact median {Med(firsts):0} s (max {(firsts.Count > 0 ? firsts.Max() : 0):0}); between enemy groups median {Med(gaps):0} s, mean {(gaps.Count > 0 ? gaps.Average() : 0):0} s");
         return 0;
     }
 

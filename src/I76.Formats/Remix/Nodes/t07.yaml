@@ -20,6 +20,9 @@ nodes:
   - {name: north_farm, kinds: [pickup, hideout], at: [850, 49100], called: 'the north farm, by its barn and water tank'}
   - {name: on_380, kinds: [home], at: [2923, 48003], called: 380 west of the south loop}
   - {name: east, kinds: [home, hideout], at: [4400, 47930], called: 380 at the east end}
+  # places of note: the open barn by the farms (its door east; Skeeter's van parked inside); the livery stable in the old town was
+  # left out: its door is so tight that a car started inside it sometimes jams
+  - {name: barn, kinds: [start, hideout, home], at: [1020, 48560], heading: 90, sort: barn, inside: {object: bhbarn2, nth: 0}, out: [1055, 48560], friend: {vcf: vsvan1, at: [1013, 48561], heading: 90}, called: 'the open barn by the farms'}
 entries:
   - {name: jump1, path: jump1}
   - {name: jump2, path: jump2}

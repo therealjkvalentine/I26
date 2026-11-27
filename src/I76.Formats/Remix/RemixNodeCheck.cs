@@ -172,7 +172,7 @@ public static class RemixNodeCheck
     }
 
     /// <summary>The kinds a node may serve as.</summary>
-    public static readonly string[] Kinds = ["pickup", "home", "hideout", "yard"];
+    public static readonly string[] Kinds = ["pickup", "home", "hideout", "yard", "start"];
 
     /// <summary>Every point of a table: what it is, where, whether the player must reach it, whether it keeps clear of the exits.</summary>
     private static IEnumerable<(string What, double[] At, bool MustReach, bool Clear)> Points(RemixNodes t)

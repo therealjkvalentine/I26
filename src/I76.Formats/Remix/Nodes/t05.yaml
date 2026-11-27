@@ -27,6 +27,10 @@ nodes:
   - {name: spur_bend, kinds: [pickup, hideout], at: [9380, 42962], called: the dirt spur south of the bend}
   - {name: southwest, kinds: [pickup, hideout, home], at: [6205, 41523], called: 'the southwest road, near its end'}
   - {name: east_far, kinds: [pickup, home], at: [11133, 44880], called: the north road east of the crossroads}
+  # places of note: under the Sincere station's canopy, the canyon floor under the high bridge, the road along the rim
+  - {name: canopy, kinds: [start, pickup, home], at: [10504, 44907], heading: 180, sort: canopy, inside: {object: bfsince1, nth: 0}, out: [10504, 44884], called: 'under the Sincere station canopy at the east crossroads'}
+  - {name: canyon_floor, kinds: [hideout, pickup], at: [8985, 44040], sort: riverbed, called: 'the canyon floor under the high bridge'}
+  - {name: rim_road, kinds: [start, hideout, home], at: [8231, 44007], sort: overlook, called: 'the road along the canyon rim'}
 entries:
   - {name: north_lot, at: [[10750, 44900], [10550, 44880]]}
   - {name: north_road, at: [[10395, 45580], [10450, 45300]]}

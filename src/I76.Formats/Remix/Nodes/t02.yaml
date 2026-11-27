@@ -22,6 +22,9 @@ nodes:
   - {name: levelland, kinds: [home, hideout], at: [8150, 49350], called: Levelland}
   - {name: south, kinds: [home], at: [8735, 45370], called: the road south of the crossroads}
   - {name: welman, kinds: [hideout, pickup], at: [8985, 43300], called: the straight east of the race track}
+  # places of note: the fenced yard behind the garage (out west), the top of the hairpins
+  - {name: garage_yard, kinds: [start, pickup, hideout], at: [8640, 46034], heading: 270, sort: yard, inside: {object: bcgarag1, nth: 0}, out: [8612, 46034], called: 'the fenced yard behind the garage'}
+  - {name: hairpin_top, kinds: [start, hideout, home], at: [8241, 48236], sort: overlook, called: 'the top of the hairpins below Levelland'}
 entries:
   - {name: south, at: [[8950, 44990], [8830, 45240]]}
   - {name: west, at: [[7300, 46130], [7500, 46130]]}

@@ -329,6 +329,9 @@ public sealed partial class MissionSetup
     /// <param name="smartAi">
     /// The smarter opponents' rule (the play fork's; docs/deviations.md "Smarter opponents"): <see cref="SmartAi.None"/>, the original's AI.
     /// </param>
+    /// <summary>The label prefix of an actor that takes nodes of its placement away before the start (RemixBuilder writes it).</summary>
+    public const string OpenPrefix = I76.Formats.Remix.RemixBuilder.OpenPrefix;
+
     public static MissionSetup Build(AssetVfs vfs, MissionWorld w, ModelAssembler asm, string? requested = null,
         System.Numerics.Vector3 origin = default, bool script = true, CrtRand? rand = null, IReadOnlyList<string>? melee = null,
         MeleeRules? meleeRules = null, int seed = 1, CoopSetup? coop = null, Trip.TripPlusRules? tripPlus = null, SmartAi smartAi = SmartAi.None)
@@ -679,6 +682,13 @@ public sealed partial class MissionSetup
                 });
             };
         }
+        // a generated mission's opened doors (docs/remix-missions.md "Places"): an actor bound to the placement, labelled
+        // rx_open__NODE__NODE..., takes those nodes away before the first tick
+        if (ms?.Vm is { } ovm)
+            foreach (var (label, _, handle) in ovm.Actors)
+                if (label.StartsWith(OpenPrefix, StringComparison.OrdinalIgnoreCase) && handle is Entity { Static: { } so })
+                    foreach (var miss in so.RemoveNodes(label[OpenPrefix.Length..].Split("__", StringSplitOptions.RemoveEmptyEntries)))
+                        ms.Host.Log($"open: {so.Name} has no node {miss}");
         return new MissionSetup { Humans = seatCars.Count > 0 ? seatCars.Select(x => x.Car).ToList() : world.Player is { } hp ? [hp] : [], Melee = game, PlacementOf = staticOf.ToDictionary(kv => kv.Value, kv => kv.Key), LinksOf = linksOf, Damage = damage, Combat = combat, World = world, Statics = statics, Ground = ground, Cars = cars, Entities = entities, Script = ms, ObjectiveText = text };
     }
 

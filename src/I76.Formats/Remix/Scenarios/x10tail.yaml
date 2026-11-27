@@ -20,6 +20,9 @@ places:
 cars:
   cloak1: {vcf: vcroyal2, at: [5690, 46790]}  # Cloaker's crew, waiting south of the road where T10 sends its tanks
   cloak2: {vcf: vcgcour2, at: [5702, 46790]}
+# pacing (docs/remix-missions.md "Pacing"): a deliberately winding drive through the side roads, the hideout and the safe house
+# each a long leg (the owner's three to four minutes for a winding drive)
+pacing: {first: 120, mean: 240, leg: 150, long: 250, long_legs: [hideout, safe house]}
 objective:
   template: tail
   hideout: {place: hideout, radius: 120}

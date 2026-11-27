@@ -24,6 +24,8 @@ nodes:
   - {name: komplex_road, kinds: [home], at: [4090, 47091], called: the west road beside the Komplex}
   - {name: building_600, kinds: [pickup], at: [3596, 47311], called: Building 600 on the Komplex's north side}
   - {name: southwest_ground, kinds: [hideout], at: [3835, 45655], called: the open ground southwest of the west road}
+  # places of note: inside the Komplex's walls, the section with its sign taken down (the car drives out east)
+  - {name: komplex_yard, kinds: [start, hideout], at: [3760, 46875], heading: 90, sort: compound, inside: {object: bcaik4, nth: 0}, out: [3870, 46875], remove: [{object: bcaikwl4, nth: 0}], called: 'the yard inside the Komplex, its signed wall down'}
 entries:
   - {name: south, at: [[4090, 45434], [4090, 45559]]}
   - {name: west_mid, at: [[4090, 46439], [4090, 46316]]}

@@ -22,6 +22,8 @@ nodes:
   - {name: farmhouse, kinds: [pickup, yard], at: [2910, 47270], called: the farmhouse on the dirt road south of 380}
   - {name: mid_380, kinds: [home], at: [2707, 47702], called: 380 halfway between Plains and the east end}
   - {name: east_380, kinds: [home, hideout], at: [3461, 47661], called: 380 at the east end}
+  # places of note: under the Sincere station's canopy in Plains
+  - {name: canopy, kinds: [start, pickup, home], at: [1490, 47643], heading: 0, sort: canopy, inside: {object: bfsince1, nth: 0}, out: [1490, 47667], called: 'under the Sincere station canopy in Plains'}
 entries:
   - {name: east, at: [[4408, 47727], [4288, 47696]]}
   - {name: west, at: [[624, 47787], [753, 47793]]}
