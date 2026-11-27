@@ -261,6 +261,8 @@ public partial class Main
         return string.Join(",", new[] { at.X, h, at.Z, yaw, pitch }.Select(x => x.ToString("0.###", CultureInfo.InvariantCulture)));
     }
 
+    private string? _seqRear;
+
     private static readonly int ShotSeqStart = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SHOT_SEQ_START"), out int s0) ? s0 : 90;
     private static readonly int ShotSeqHold = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SHOT_SEQ_HOLD"), out int h0) ? h0 : 45;
 
@@ -279,7 +281,8 @@ public partial class Main
             if (cam.StartsWith("free:")) { System.Environment.SetEnvironmentVariable("I76_FREECAM", cam[5..]); System.Environment.SetEnvironmentVariable("I76_CAP_CAM", null); }
             else if (cam.StartsWith("car:")) { System.Environment.SetEnvironmentVariable("I76_CAP_CAM", cam[4..]); System.Environment.SetEnvironmentVariable("I76_FREECAM", null); }
             else if (cam.StartsWith("sun:") && SunCam(cam[4..], _lightDir) is { } sc) { System.Environment.SetEnvironmentVariable("I76_CAP_CAM", sc); System.Environment.SetEnvironmentVariable("I76_FREECAM", null); }
-            else if (cam.StartsWith("rear:") && _car is not null && RearCam(cam[5..], -_car.GlobalBasis.Z) is { } rc) { System.Environment.SetEnvironmentVariable("I76_CAP_CAM", rc); System.Environment.SetEnvironmentVariable("I76_FREECAM", null); }
+            else if (cam.StartsWith("rear:")) { _seqRear = cam[5..]; System.Environment.SetEnvironmentVariable("I76_FREECAM", null); }
+            if (cam.Length > 0 && !cam.StartsWith("rear:")) _seqRear = null;
             _mood = ParseMood(MoodBase + "&" + (parts.Length > 2 ? parts[2] : ""));
             if (_mood.TryGetValue("look", out var look) && (look == "1997") != _mode1997) SetMode1997(look == "1997");
             // the mask step's: the sky as magenta, the player's car hidden; any other step as drawn
@@ -297,7 +300,9 @@ public partial class Main
             if (!_mode1997 && _modernEnv is not null) EnvExtras.Apply(_modernEnv, _glow, _reflections, IsCard(_lighting) ? (float)I76.Formats.Imaging.LightingCalibration.Headroom : 1f);
             GD.Print($"shot seq: step {k} {name} cam {cam}");
         }
-        else if (at == ShotSeqHold - 1)
+        // a rear: camera follows the car every frame (a car still rolling, or turning, stays where it was in the frame)
+        if (_seqRear is not null && _car is not null && RearCam(_seqRear, -_car.GlobalBasis.Z) is { } rc) System.Environment.SetEnvironmentVariable("I76_CAP_CAM", rc);
+        if (at == ShotSeqHold - 1)
         {
             var path = _opt.Screenshot.Replace(".png", $"_{name}.png");
             GetViewport().GetTexture().GetImage().SavePng(path);
