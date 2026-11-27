@@ -29,17 +29,17 @@ public sealed record ShellLaunch(string Mission, GameKind Kind, string? Car = nu
     public byte[]? Resume { get; init; }
     /// <summary>Trip+'s rules for a trip launch (the play fork's; docs/deviations.md "Trip+"); null, the original's trip.</summary>
     public I76.Sim.Trip.TripPlusRules? TripPlus { get; init; }
-    /// <summary>A road trip's job (the play fork's; docs/remix-missions.md "Road trip"): the car's damage it carries in (null: as built), applied at load.</summary>
-    public bool RoadTrip { get; init; }
+    /// <summary>A roguetrip's job (the play fork's; docs/remix-missions.md "Roguetrip"): the car's damage it carries in (null: as built), applied at load.</summary>
+    public bool Roguetrip { get; init; }
     public I76.Formats.Remix.RunCar? Carry { get; init; }
-    /// <summary>A road trip's job: the stock map it is on (its salvage pool's level: the job's wrecks as that trip mission's).</summary>
+    /// <summary>A roguetrip's job: the stock map it is on (its salvage pool's level: the job's wrecks as that trip mission's).</summary>
     public string? RunBase { get; init; }
     /// <summary>A generated job's reproduction label (RemixRun.Label: "RUN 004242 JOB 2/4 #637742" and its map, template and builder), for the pause pad's rows.</summary>
     public string? RemixLabel { get; init; }
 }
 
 /// <summary>
-/// What a road trip's job hands back: won or not, the player's kills, the car's damage to carry on; how it ended (the failure line,
+/// What a roguetrip's job hands back: won or not, the player's kills, the car's damage to carry on; how it ended (the failure line,
 /// the player dead, walked away from), the line it ended on and the objectives as they stood (its debrief page); a won job's
 /// salvage and the car's parts as the trip's (CarState) for the field salvage and the garage.
 /// </summary>
@@ -243,7 +243,7 @@ public partial class Shell : CanvasLayer
     public TripResult? LastTrip { get; init; }
     /// <summary>What the last melee or scenario handed back.</summary>
     public MeleeResult? LastMelee { get; init; }
-    /// <summary>What the last road trip job handed back (RoadTripScreen).</summary>
+    /// <summary>What the last roguetrip job handed back (RoguetripScreen).</summary>
     public RunResult? LastRun { get; init; }
     /// <summary>What the last network melee handed back.</summary>
     public NetResult? LastNet { get; init; }
@@ -552,8 +552,8 @@ public partial class Shell : CanvasLayer
             return new StandingsScreen { Rows = rows, TeamPlay = a.Length > 2 && a[2] == "team", Kind = kind };
         }
         // test hook: I76_SHELL_START=melee:N opens that melee form (3 is the LAN host form)
-        // (not on the way back from a road trip's job: the run's own screens follow, as a player's would)
-        if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") is { } ms && ms.StartsWith("melee:") && LastLaunch is not { RoadTrip: true })
+        // (not on the way back from a roguetrip's job: the run's own screens follow, as a player's would)
+        if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") is { } ms && ms.StartsWith("melee:") && LastLaunch is not { Roguetrip: true })
             return new MeleeScreen { Mode = int.Parse(ms[6..]) };
         // test hook: I76_SHELL_START=garage:MODEL:VARIANT opens the melee chassis form (the 3D garage) on that model and variant (0 and 1 based)
         if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") is { } gs && gs.StartsWith("garage:") && gs.Split(':') is [_, var gm, var gv]
@@ -588,8 +588,8 @@ public partial class Shell : CanvasLayer
             int ch = NitroProgress.Data.Characters.FindIndex(c => c.Missions.Any(m => m.Stem.Equals(nl0.Mission, StringComparison.OrdinalIgnoreCase)));
             return new ScenarioScreen { Character = Math.Max(0, ch) };
         }
-        // back from a road trip's job (the play fork's): its reward, the next choice, or the run's end (docs/remix-missions.md "Road trip")
-        if (LastLaunch is { Kind: GameKind.Scenario, RoadTrip: true }) return RoadTripScreen.Back(this, LastRun, LoadError);
+        // back from a roguetrip's job (the play fork's): its reward, the next choice, or the run's end (docs/remix-missions.md "Roguetrip")
+        if (LastLaunch is { Kind: GameKind.Scenario, Roguetrip: true }) return RoguetripScreen.Back(this, LastRun, LoadError);
         // back from a melee (the original front end's main loop decides by kind, whatever the state): STANDINGS, or the scenario form
         if (LastLaunch is { Kind: GameKind.Scenario } sl)
         {

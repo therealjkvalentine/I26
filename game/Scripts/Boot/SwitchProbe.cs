@@ -173,7 +173,7 @@ public partial class SwitchProbe : Node
                 if (_nitroDir is null && Ch is null && GameSwitch.Count == 0)
                 {
                     // the base game alone: AUTO MELEE's row as today, no NITRO
-                    Check(Menu!.PortShown.Count == 0 && Menu.PortBox(MainMenuScreen.NitroEntry) is null, "base only: AUTO MELEE as today, no NITRO");
+                    Check(!Menu!.PortShown.Contains(MainMenuScreen.NitroEntry) && Menu.PortBox(MainMenuScreen.NitroEntry) is null, "base only: AUTO MELEE as today, no NITRO");
                     _step = VisitBaseOnly; _wait = 0; return;
                 }
                 Check(_nitroDir is not null && Menu!.PortShown.Contains(MainMenuScreen.NitroEntry), "AUTO MELEE shows NITRO (a Nitro install found)");

@@ -79,7 +79,7 @@ public static class RemixDirector
         public string? Template { get; init; }
         /// <summary>Whether the Nitro Pack's maps may be used (its install is the game's).</summary>
         public bool Nitro { get; init; }
-        /// <summary>What the first objective line and the notes call the job ("Job 637742"; a run's "Road trip 12, job 2").</summary>
+        /// <summary>What the first objective line and the notes call the job ("Job 637742"; a run's "Roguetrip 12, job 2").</summary>
         public string? Label { get; init; }
     }
 

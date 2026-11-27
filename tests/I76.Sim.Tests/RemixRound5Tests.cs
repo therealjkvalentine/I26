@@ -9,7 +9,7 @@ namespace I76.Sim.Tests;
 
 /// <summary>
 /// Round five of the remix missions (docs/remix-missions.md): the pacing budget every rolled job keeps, the places inside structures
-/// a car can be driven out of (Fort Davis's yard with its gate's doors off), a road trip's busts (the run goes on, a step harder)
+/// a car can be driven out of (Fort Davis's yard with its gate's doors off), a roguetrip's busts (the run goes on, a step harder)
 /// against the player's death (the run over), RETRY JOB, the armour patched from scrap, and a job reproduced from its log line.
 /// </summary>
 [Collection("remix")]
@@ -131,7 +131,7 @@ public class RemixRound5Tests
         Assert.Equal(car.Armour, RemixRun.Patch(car, car.ArmourMax, car.ChassisMax, 0).Armour);
     }
 
-    /// <summary>A road trip job's reproduction line rolls that exact job again headless (i76 remix roll --run N --job K --picks ...).</summary>
+    /// <summary>A roguetrip job's reproduction line rolls that exact job again headless (i76 remix roll --run N --job K --picks ...).</summary>
     [Fact]
     public void ALaunchLineReproducesItsJob()
     {
@@ -160,7 +160,7 @@ public class RemixRound5Tests
     }
 
     /// <summary>
-    /// Pacing (the owner: one to two minutes of driving between events on average): 300 rolled jobs and the jobs of 20 road trips
+    /// Pacing (the owner: one to two minutes of driving between events on average): 300 rolled jobs and the jobs of 20 roguetrips
     /// all keep their budget on their maps' roads, and the places of note (inside structures, overlooks, spurs) come up often.
     /// </summary>
     [Fact]
@@ -192,7 +192,7 @@ public class RemixRound5Tests
             means.Add(rep.Mean);
             over.AddRange(rep.Problems.Select(p => $"{spec.Title} {spec.Base} {spec.Objective.Template} seed {spec.Seed}: {p}"));
         }
-        // a road trip's offers may draw a rare job a little over (none of the 300 rolls is): at most one in a hundred
+        // a roguetrip's offers may draw a rare job a little over (none of the 300 rolls is): at most one in a hundred
         Assert.True(over.Count * 100 <= jobs.Count, string.Join("\n", over));
         Assert.InRange(means.Order().ElementAt(means.Count / 2), 30, 90);
         var noted = jobs.Take(300).Count(s => s.Inside.Count > 0 || tables.First(t => t.Base == s.Base).Nodes.Any(n => n.IsSpecial

@@ -13,7 +13,7 @@ namespace I76.Sim.Tests;
 
 /// <summary>
 /// Round four of the remix missions (docs/remix-missions.md): the node tables held to their maps, the escort and raid templates
-/// and defence on the new maps played headless on every win and fail path, and a road trip's offers reproduced by its number.
+/// and defence on the new maps played headless on every win and fail path, and a roguetrip's offers reproduced by its number.
 /// </summary>
 [Collection("remix")]
 public class RemixRound4Tests
@@ -340,12 +340,12 @@ public class RemixRound4Tests
     }
 
     /// <summary>
-    /// A road trip: the same number and the same picks give the same offers and the same jobs; offers are on the map's neighbours (the
+    /// A roguetrip: the same number and the same picks give the same offers and the same jobs; offers are on the map's neighbours (the
     /// first on the home map or next to it), two or three, the challenge rising 0.8, 1.0, 1.2, 1.4; a win carries the car and asks for a
     /// pick; a loss ends the run; the run survives its file.
     /// </summary>
     [Fact]
-    public void ARoadTripsNumberReproducesItsOffersAndItsJobs()
+    public void ARoguetripsNumberReproducesItsOffersAndItsJobs()
     {
         var tables = RemixNodes.Builtin();
         string Walk(int number)
@@ -364,7 +364,7 @@ public class RemixRound4Tests
                 var spec = run.Spec(pick, tables);
                 Assert.Equal(pick.Map, spec.Base);
                 Assert.Equal(pick.Template, spec.Objective.Template);
-                Assert.StartsWith($"Road trip {number}, job {job + 1}:", spec.Text.Objectives[0]);
+                Assert.StartsWith($"Roguetrip {number}, job {job + 1}:", spec.Text.Objectives[0]);
                 log.Append(RemixDirector.ToYaml(spec).GetHashCode(StringComparison.Ordinal)).Append('\n');
                 run.Take(pick);
                 // the run kept in its file and read back between jobs
@@ -400,7 +400,7 @@ public class RemixRound4Tests
 
     /// <summary>The car's damage read off at a job's end goes back on at the next job's load, armour, parts and rounds alike.</summary>
     [Fact]
-    public void ARoadTripCarriesTheCarsDamageFromJobToJob()
+    public void ARoguetripCarriesTheCarsDamageFromJobToJob()
     {
         if (Dir() is null) return;
         Job("xcar", "deliver", "t01");

@@ -6,19 +6,22 @@ using I76.Formats.Vfs;
 namespace I76.Game.Shell;
 
 /// <summary>
-/// ROAD TRIP (the port's; docs/remix-missions.md "Road trip"): a run of four generated jobs across neighbouring maps of the region.
+/// ROGUETRIP (the port's; docs/remix-missions.md "Roguetrip"): a run of four generated jobs across neighbouring maps of the region.
 /// One screen in three moods, on the port's paper sheet (PaperSheet, record 16's paper) in the shell's fonts: the choice of the next job
 /// (two or three offers: the map, the job, its challenge, a line naming the gang), a job's debrief page (how it ended, the line it
 /// ended on, its objectives, what follows: the salvage, a bust's penalty, the run's end; RETRY JOB with the Developer setting), and
 /// the run's end (the jobs won and busted, the kills, the run's number). A won job goes on to the trip's own FIELD SALVAGE and
-/// garage with the run's inventory. The run lives in user://remix/run.yaml between jobs, so quitting the game keeps it; ROAD TRIP
-/// on the scenario form takes it up again. Single player.
+/// garage with the run's inventory. The run lives in user://remix/run.yaml between jobs (the file name of rounds four and five, when
+/// the mode was called ROAD TRIP: a run saved then resumes), so quitting the game keeps it; the main menu's MELEE > ROGUETRIP takes
+/// it up again. Single player.
 /// </summary>
-public sealed class RoadTripScreen : ShellScreen
+public sealed class RoguetripScreen : ShellScreen
 {
     public required RemixRun Run { get; set; }
     /// <summary>Said over the sheet on entry (a job that could not be built or loaded).</summary>
     public string? Notice { get; init; }
+    /// <summary>A new run just begun on the car pick: Esc (or BACK) before its first job drops it and goes back to the car pick.</summary>
+    public bool FromCarPick { get; init; }
     public override bool EscapeOpensOptions => false;
 
     private List<RunOffer> _offers = [];
@@ -49,7 +52,7 @@ public sealed class RoadTripScreen : ShellScreen
     public static void Save(RemixRun r)
     {
         try { r.Save(Dir); }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { GD.PrintErr($"road trip: not saved: {ex.Message}"); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { GD.PrintErr($"roguetrip: not saved: {ex.Message}"); }
     }
 
     /// <summary>A run over: its file kept as run-last.yaml (the summary's), the way clear for a new one.</summary>
@@ -60,7 +63,7 @@ public sealed class RoadTripScreen : ShellScreen
             File.WriteAllText(Path.Combine(Dir, "run-last.yaml"), r.ToYaml());
             File.Delete(Path.Combine(Dir, RemixRun.FileName));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { GD.PrintErr($"road trip: {ex.Message}"); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { GD.PrintErr($"roguetrip: {ex.Message}"); }
     }
 
     private static string NumbersFile => Path.Combine(Dir, "runs.txt");
@@ -82,7 +85,7 @@ public sealed class RoadTripScreen : ShellScreen
             Directory.CreateDirectory(Dir);
             File.WriteAllLines(NumbersFile, new[] { n }.Concat(Numbers().Where(x => x != n)).Take(10).Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { GD.PrintErr($"road trip: {ex.Message}"); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { GD.PrintErr($"roguetrip: {ex.Message}"); }
     }
 
     /// <summary>
@@ -93,7 +96,7 @@ public sealed class RoadTripScreen : ShellScreen
     public static ShellScreen Back(Shell shell, RunResult? result, string? loadError)
     {
         var run = RemixRun.Load(Dir);
-        if (run is null) return new MeleeScreen { Mode = 1 };
+        if (run is null) return new MeleeScreen { Mode = 1, Roguetrip = true };
         if (run.Phase == "playing")
         {
             if (result is null)
@@ -101,7 +104,7 @@ public sealed class RoadTripScreen : ShellScreen
                 // the job never ran (it could not be built or loaded): the same choice again, saying why
                 run.Resume();
                 Save(run);
-                return new RoadTripScreen { Run = run, Notice = loadError ?? "The job could not be started." };
+                return new RoguetripScreen { Run = run, Notice = loadError ?? "The job could not be started." };
             }
             int failures = 0;
             try { if (run.Current is { } cur) failures = run.Spec(cur).Text.Failures.Count; } catch (RemixError) { }
@@ -118,12 +121,12 @@ public sealed class RoadTripScreen : ShellScreen
                     inv.MissionWon(result.Parts, result.Salvage, shell.Parts, shell.Rand);
                     run.Inventory = inv.Save();
                 }
-                catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException) { GD.PrintErr($"road trip: salvage not taken: {ex.Message}"); }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException) { GD.PrintErr($"roguetrip: salvage not taken: {ex.Message}"); }
             }
-            GD.Print($"remix: ROAD TRIP {run.Number:000000}: job {run.Legs.Count} {outcome.ToString().ToLowerInvariant()} ({(why.Length > 0 ? why : "done")}), {result.Kills} kills; busts {run.Busts}; next challenge {run.NextChallenge:0.0}");
+            GD.Print($"remix: ROGUETRIP {run.Number:000000}: job {run.Legs.Count} {outcome.ToString().ToLowerInvariant()} ({(why.Length > 0 ? why : "done")}), {result.Kills} kills; busts {run.Busts}; next challenge {run.NextChallenge:0.0}");
             Save(run);
         }
-        return new RoadTripScreen { Run = run };
+        return new RoguetripScreen { Run = run };
     }
 
     /// <summary>The objectives of the job just ended as they stood (the debrief page's; not kept across a restart of the game).</summary>
@@ -297,7 +300,7 @@ public sealed class RoadTripScreen : ShellScreen
                     }
                 }
             }
-            catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { GD.PrintErr($"road trip: the job's map: {ex.Message}"); }
+            catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { GD.PrintErr($"roguetrip: the job's map: {ex.Message}"); }
             _jobMaps[offer.Seed] = made;
         }
         if (made is not { } m) return;
@@ -346,7 +349,7 @@ public sealed class RoadTripScreen : ShellScreen
         switch (Mood)
         {
             case "choose":
-                Title("ROAD TRIP");
+                Title("ROGUETRIP");
                 Centre(_small, 44, $"Run {num}: job {Run.Legs.Count + 1} of {RemixRun.Jobs}{(Run.Busts > 0 ? $" ({Run.Busts} busted)" : "")}. {Run.Model}: {condition}.");
                 Centre(_small, 58, Run.Map.Length == 0 ? "Pick where the run starts." : $"Leaving {MapName(Run.Map)}. Pick the next job down the road.");
                 // the region with the offers on it (left), the offers and the chosen one's own map and notes (right)
@@ -419,7 +422,7 @@ public sealed class RoadTripScreen : ShellScreen
             default:
             {
                 bool done = Run.Phase == "done";
-                Title(done ? "ROAD TRIP DONE" : "ROAD TRIP OVER");
+                Title(done ? "ROGUETRIP DONE" : "ROGUETRIP OVER");
                 Centre(_hand, 70, done ? (Run.Busts == 0 ? "Four jobs, four wins. The road's yours." : $"Four jobs done, {Run.Busts} of them busts.") : "The run ends here.");
                 Centre(_small, 104, $"Run {num}: {Run.Won} of {RemixRun.Jobs} jobs won, {Run.Busts} busted, {Run.Kills} kills.");
                 int y = 136;
@@ -429,7 +432,7 @@ public sealed class RoadTripScreen : ShellScreen
                     Centre(_small, y, $"{MapName(l.Map)}: {RemixRun.JobWord(l.Template).ToLowerInvariant()} at {l.Challenge:0.0}, {res}, {l.Kills} kills");
                     y += 20;
                 }
-                Centre(_small, 390, $"Run number {num} offers the same jobs again: type it on ROAD TRIP.");
+                Centre(_small, 390, $"Run number {num} offers the same jobs again: type it on ROGUETRIP.");
                 Button(Later, "DONE");
                 break;
             }
@@ -528,7 +531,25 @@ public sealed class RoadTripScreen : ShellScreen
         // the debrief page has no way out but on: Esc is CONTINUE
         if (Mood == "debrief") { Continue(); return; }
         if (Mood == "end") Close(Run);
-        Shell.Go(new MeleeScreen { Mode = 1 });
+        // one step back: a run begun on the car pick and no job taken yet is dropped (its number is kept with the recent ones), and the
+        // car pick comes back; a run under way stays saved and the main menu comes back with MELEE open
+        if (BackToCarPick(FromCarPick, Run))
+        {
+            Drop();
+            Shell.Go(new MeleeScreen { Mode = 1, Roguetrip = true });
+            return;
+        }
+        Shell.Go(new MainMenuScreen { OpenMelee = true });
+    }
+
+    /// <summary>Where Esc on the choice goes: back to the car pick only for a run just begun there with no job taken.</summary>
+    public static bool BackToCarPick(bool fromCarPick, RemixRun run) => fromCarPick && run.Phase == "choose" && run.Legs.Count == 0 && run.Log.Count == 0;
+
+    /// <summary>The run's file removed (a run dropped before its first job).</summary>
+    private static void Drop()
+    {
+        try { File.Delete(Path.Combine(Dir, RemixRun.FileName)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { GD.PrintErr($"roguetrip: {ex.Message}"); }
     }
 
     /// <summary>Past the debrief page: a won job's salvage, the next choice, or the run's end.</summary>
@@ -537,12 +558,12 @@ public sealed class RoadTripScreen : ShellScreen
         Run.Debriefed();
         Save(Run);
         if (Run.Phase == "salvage") { Salvage(); return; }
-        Shell.Go(new RoadTripScreen { Run = Run });
+        Shell.Go(new RoguetripScreen { Run = Run });
     }
 
     /// <summary>
     /// A won job's FIELD SALVAGE and garage: the trip's own screens on the run's inventory (its field holds the job's wrecks);
-    /// DONE comes back here: the parts left in the field are scrapped for armour (RemixRun.Patch, the road trip's own), and the
+    /// DONE comes back here: the parts left in the field are scrapped for armour (RemixRun.Patch, the roguetrip's own), and the
     /// inventory kept for the next job.
     /// </summary>
     private void Salvage()
@@ -551,10 +572,10 @@ public sealed class RoadTripScreen : ShellScreen
         try { inv = Inventory(Run, Shell); }
         catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException)
         {
-            GD.PrintErr($"road trip: no inventory: {ex.Message}");
+            GD.PrintErr($"roguetrip: no inventory: {ex.Message}");
             Run.Salvaged(Run.Inventory, Run.State);
             Save(Run);
-            Shell.Go(new RoadTripScreen { Run = Run });
+            Shell.Go(new RoguetripScreen { Run = Run });
             return;
         }
         var run = Run;
@@ -569,9 +590,9 @@ public sealed class RoadTripScreen : ShellScreen
                 // the parts are the inventory's from here on (its state at the launch); the guns are reloaded, as the trip's are
                 if (car is not null) car = new RunCar { Armour = car.Armour, Chassis = car.Chassis, ArmourMax = car.ArmourMax, ChassisMax = car.ChassisMax, ArmourLeft = car.ArmourLeft, ChassisLeft = car.ChassisLeft, AmmoLeft = 100 };
                 run.Salvaged(done.Save(), car);
-                GD.Print($"remix: ROAD TRIP {run.Number:000000}: salvage done, {scrapped} parts scrapped for plate; armour {car?.ArmourLeft ?? 100}%, chassis {car?.ChassisLeft ?? 100}%");
+                GD.Print($"remix: ROGUETRIP {run.Number:000000}: salvage done, {scrapped} parts scrapped for plate; armour {car?.ArmourLeft ?? 100}%, chassis {car?.ChassisLeft ?? 100}%");
                 Save(run);
-                Shell.Go(new RoadTripScreen { Run = run });
+                Shell.Go(new RoguetripScreen { Run = run });
             },
         });
     }
@@ -582,7 +603,7 @@ public sealed class RoadTripScreen : ShellScreen
         Shell.Sound(82);
         if (Run.Retry() is not { } offer) return;
         Save(Run);
-        GD.Print($"remix: ROAD TRIP {Run.Number:000000}: RETRY JOB {Run.JobIndex} (developer)");
+        GD.Print($"remix: ROGUETRIP {Run.Number:000000}: RETRY JOB {Run.JobIndex} (developer)");
         Launch(offer);
     }
 
@@ -597,7 +618,7 @@ public sealed class RoadTripScreen : ShellScreen
             case "reward":
                 Run.Reward(Picks[_sel]);
                 Save(Run);
-                Shell.Go(new RoadTripScreen { Run = Run });
+                Shell.Go(new RoguetripScreen { Run = Run });
                 return;
             case "end":
                 Leave();
@@ -622,7 +643,7 @@ public sealed class RoadTripScreen : ShellScreen
         }
         catch (Exception ex) when (ex is RemixError or IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            GD.PrintErr($"remix: ROAD TRIP {Run.Number}: {ex.Message}");
+            GD.PrintErr($"remix: ROGUETRIP {Run.Number}: {ex.Message}");
             Run.Resume();
             Save(Run);
             Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = "That job could not be built.", Closed = Repaint });
@@ -644,10 +665,10 @@ public sealed class RoadTripScreen : ShellScreen
                 car = RunCarFile;
                 parts = inv.State();
             }
-            catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException) { GD.PrintErr($"road trip: the garage's car not used: {ex.Message}"); }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or KeyNotFoundException) { GD.PrintErr($"roguetrip: the garage's car not used: {ex.Message}"); }
         Shell.Launch(new ShellLaunch(RemixRun.Stem, GameKind.Scenario, car)
         {
-            Driver = Run.Driver, Model = Run.Model, ModelIndex = Run.ModelIndex, RoadTrip = true, Carry = Run.State, State = parts, RunBase = offer.Map,
+            Driver = Run.Driver, Model = Run.Model, ModelIndex = Run.ModelIndex, Roguetrip = true, Carry = Run.State, State = parts, RunBase = offer.Map,
             RemixLabel = RemixRun.Label(Run, offer, spec) is var lab ? lab.Top + "\n" + lab.Bottom : null,
         });
     }

@@ -17,7 +17,7 @@ public static class RemixCommand
         if (argv.Count >= 2 && argv[1] == "check") return Check(install, argv);
         if (argv.Count >= 2 && argv[1] == "score") return Score(install, argv);
         if (argv.Count >= 2 && argv[1] == "pace") return Pace(install, argv);
-        if (argv.Count >= 2 && argv[1] == "trip") return Trip(install, argv);
+        if (argv.Count >= 2 && argv[1] is "trip" or "roguetrip") return Trip(install, argv);
         if (argv.Count >= 3 && argv[1] == "structures") return RemixStructures.Run(install, argv);
         if (argv.Count >= 4 && argv[1] == "driveout") return RemixDriveOutCommand.Run(install, argv);
         if (argv.Count >= 3 && argv[1] == "roadsurvey") return RemixRoadSurvey.Run(install, argv);
@@ -162,7 +162,7 @@ public static class RemixCommand
 
     /// <summary>
     /// i76 remix pace [--builtin] [--seeds A-B] [--trips A-B] [--stock] [--verbose]: each job's drives timed on its map's roads
-    /// (RemixPacing: the first contact, each leg, the mean) and held to its budget; --trips walks road trips (each run's first
+    /// (RemixPacing: the first contact, each leg, the mean) and held to its budget; --trips walks roguetrips (each run's first
     /// offer, each job won) and measures their jobs; --stock times the stock trip missions' own first contact (the player's
     /// placement to the nearest enemy car) and the drive between their enemy groups (cars within 300 m), nearest next first.
     /// Prints the distributions (median, quartiles, the share over budget).
@@ -289,7 +289,7 @@ public static class RemixCommand
         string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
         RemixSpec spec;
         int seed = 0;
-        // a road trip's job (docs/remix-missions.md "Reproducing a job"): the run's number and the picks the game log's line gives
+        // a roguetrip's job (docs/remix-missions.md "Reproducing a job"): the run's number and the picks the game log's line gives
         if (Opt("--run") is { } runArg)
         {
             int number = int.Parse(runArg, System.Globalization.CultureInfo.InvariantCulture);
@@ -329,7 +329,7 @@ public static class RemixCommand
     }
 
     /// <summary>
-    /// i76 remix trip --number N [--picks A,B,...] [--rewards repair,rearm,...] [--lose K] [--damage F] [--write DIR]: a road trip walked
+    /// i76 remix trip (or roguetrip) --number N [--picks A,B,...] [--rewards repair,rearm,...] [--lose K] [--damage F] [--write DIR]: a roguetrip walked
     /// by its number (RemixRun): the offers at each step, the pick taken (offer A, then B...; each job won, but the K-th lost), the reward
     /// after each win; --damage F (0..1) has each won job leave the car with that share of its armour, chassis, engine and rounds gone
     /// (the run's carry read off the built job's player car, as the game does); --write leaves the run's file in DIR as the game keeps it.

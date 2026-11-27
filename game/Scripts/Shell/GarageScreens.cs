@@ -21,13 +21,13 @@ public abstract class GarageBase : TripScreen
     private readonly int[] _stroke = new int[3];
     protected TripInventory Inv = null!;
     /// <summary>
-    /// A road trip's salvage and garage (the play fork's; docs/remix-missions.md "Salvage"): the run's own inventory, not the trip's,
+    /// A roguetrip's salvage and garage (the play fork's; docs/remix-missions.md "Salvage"): the run's own inventory, not the trip's,
     /// and what DONE does with it (the items left in the field are scrapped for armour) in place of launching the trip's next mission.
     /// The trip's voices, notices and bookmarks are left out.
     /// </summary>
     public TripInventory? Own { get; init; }
     public Action<TripInventory, int>? Finished { get; init; }
-    protected bool RoadTrip => Own is not null;
+    protected bool Roguetrip => Own is not null;
 
     protected void Setup(TripInventory? inv = null)
     {
@@ -129,7 +129,7 @@ public sealed class FieldSalvageScreen : GarageBase
         Setup();
         Build();
         Repaint();
-        if (RoadTrip) return;
+        if (Roguetrip) return;
         bool first = !Shell.Trip.SalvageVisited;
         Shell.Trip.SalvageVisited = true;
         if (first && Shell.Trip.Mission == 2 && !Shell.Trip.FromBookmark) Shell.Voice(0x49);       // the intro, after T01
@@ -138,7 +138,7 @@ public sealed class FieldSalvageScreen : GarageBase
 
     public override void Repaint()
     {
-        Frame.LoadBackground(Shell.Db, !RoadTrip && Shell.Trip.Mission == 5 ? 30 : 3);
+        Frame.LoadBackground(Shell.Db, !Roguetrip && Shell.Trip.Mission == 5 ? 30 : 3);
         for (int i = 0; i < 12; i++) Draw(i);
     }
 
@@ -281,7 +281,7 @@ public sealed class FieldSalvageScreen : GarageBase
         if (!Shell.Clicked) return;
         var m = Shell.Mouse;
         if (In(m, Accept)) { Shell.Sound(82); AcceptSalvage(); return; }
-        if (In(m, Bookmark)) { if (!RoadTrip) { Shell.Sound(82); SaveBookmark(); } return; }
+        if (In(m, Bookmark)) { if (!Roguetrip) { Shell.Sound(82); SaveBookmark(); } return; }
         for (int id = 0; id < 12; id++)
         {
             var r = Regions[id];
@@ -330,7 +330,7 @@ public sealed class FieldSalvageScreen : GarageBase
     private void AcceptSalvage()
     {
         Shell.StopVoice();
-        bool firstAfterT01 = !RoadTrip && Shell.Trip.Mission == 2 && !Shell.Trip.FromBookmark && !Shell.Trip.GarageVisited;
+        bool firstAfterT01 = !Roguetrip && Shell.Trip.Mission == 2 && !Shell.Trip.FromBookmark && !Shell.Trip.GarageVisited;
         if (firstAfterT01 && !_moved)
         {
             Shell.Voice(0x4a);
@@ -351,7 +351,7 @@ public sealed class FieldSalvageScreen : GarageBase
 
     private void ToGarage()
     {
-        if (RoadTrip) { Shell.Go(new GarageScreen { Own = Inv, Finished = Finished }); return; }
+        if (Roguetrip) { Shell.Go(new GarageScreen { Own = Inv, Finished = Finished }); return; }
         if (Shell.Trip.Mission == 3 && !Shell.Trip.GarageVisited) Notice(32, () => Shell.Go(new GarageScreen()));     // REMEMBER, USE THE "SAVE BOOKMARK" BUTTON…
         else Shell.Go(new GarageScreen());
     }
@@ -406,7 +406,7 @@ public sealed class GarageScreen : GarageBase, IChassisForm
         }
         Setup();
         BuildLists();
-        if (RoadTrip) { Repaint(); return; }
+        if (Roguetrip) { Repaint(); return; }
         bool first = !Shell.Trip.GarageVisited;
         Shell.Trip.GarageVisited = true;
         if (first && Shell.Trip.Mission == 2 && !Shell.Trip.FromBookmark) Shell.Voice(0x4e);        // the garage intro, after T01
@@ -632,7 +632,7 @@ public sealed class GarageScreen : GarageBase, IChassisForm
         else if (In(m, DefenseR)) { Click(); if (Defense(m)) { _hold.Begin(0); _repeatAtMouse = m; } }
         else if (In(m, SalvageR)) { Click(); Shell.StopVoice(); Shell.Go(new FieldSalvageScreen()); }
         else if (In(m, DoneR)) { Click(); Done(); }
-        else if (In(m, BookmarkR)) { if (!RoadTrip) { Click(); SaveBookmark(); } }
+        else if (In(m, BookmarkR)) { if (!Roguetrip) { Click(); SaveBookmark(); } }
     }
 
     private void Click() => Shell.Sound(82);
@@ -1038,14 +1038,14 @@ public sealed class GarageScreen : GarageBase, IChassisForm
         {
             Shell.StopVoice();
             Shell.Sound(0x50);
-            // a road trip: what is left in the field is scrapped (for armour, the run's rule), then back to the run
+            // a roguetrip: what is left in the field is scrapped (for armour, the run's rule), then back to the run
             int scrapped = Inv.Nodes.Count(n => n.State == PartState.Field);
             Inv.LeaveField();
             if (Finished is { } done) { done(Inv, scrapped); return; }
             Shell.Trip.Save();
             Shell.LaunchTrip(Inv);
         }
-        if (RoadTrip)
+        if (Roguetrip)
         {
             int left = Inv.Nodes.Count(n => n.State == PartState.Field);
             if (left == 0) { Go(); return; }

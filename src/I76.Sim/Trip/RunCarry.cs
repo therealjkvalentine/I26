@@ -5,7 +5,7 @@ using I76.Sim.Vehicles;
 namespace I76.Sim.Trip;
 
 /// <summary>
-/// A road trip's car between jobs (docs/remix-missions.md "Road trip"): its damage read off the player's car at a job's end and put
+/// A roguetrip's car between jobs (docs/remix-missions.md "Roguetrip"): its damage read off the player's car at a job's end and put
 /// back at the next job's load, before the first tick (as the trip's carried state is, <see cref="CarState"/>), in the car's own
 /// units after the player's rescale. Armour and chassis carry too (the trip's do not: the original's rule; the run is the port's).
 /// -1 leaves a part as built. Nothing here runs during a mission: the state it sets is the vehicle's own, saved as it is.

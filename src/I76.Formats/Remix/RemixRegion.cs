@@ -4,9 +4,9 @@ using YamlDotNet.Serialization.NamingConventions;
 namespace I76.Formats.Remix;
 
 /// <summary>
-/// The road trip's region (docs/remix-missions.md "The choice map"): the port's own drawing of west Texas and southeast New Mexico,
+/// The roguetrip's region (docs/remix-missions.md "The choice map"): the port's own drawing of west Texas and southeast New Mexico,
 /// typed by hand from real geography (Remix/Region/region.yaml, embedded): the state line, towns, highways as chains of towns, and
-/// where each trip map lies. The road trip's choice screen draws it with the offered jobs as points of interest. No game data.
+/// where each trip map lies. The roguetrip's choice screen draws it with the offered jobs as points of interest. No game data.
 /// </summary>
 public sealed class RemixRegion
 {

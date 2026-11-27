@@ -26,7 +26,7 @@ public sealed partial class MeleeScreen
     public Action<LobbySetup?>? SetupDone { get; init; }
 
     private bool LobbyMode => FromLobby is not null;
-    public override bool EscapeOpensOptions => !LobbyMode && !GameMode;
+    public override bool EscapeOpensOptions => !LobbyMode && !GameMode && !Roguetrip;
 
     /// <summary>
     /// The form's hotspots a lobby's setup leaves alone: the car (3 MAKE / MODEL, 4 VARIANT, 5 CONFIGURE CHASSIS), LOCAL DRIVER's RENAME 14, the

@@ -16,7 +16,7 @@ public sealed class JobNumberPopup : ShellScreen
     public required Action<int?> Picked { get; init; }
     public required Action Cancelled { get; init; }
     public IReadOnlyList<int> Recent { get; init; } = [];
-    /// <summary>What the number is called ("Job number"; a road trip's "Run number").</summary>
+    /// <summary>What the number is called ("Job number"; a roguetrip's "Run number").</summary>
     public string Noun { get; init; } = "Job number";
     public override bool EscapeOpensOptions => false;
     public override bool TextEditing => true;

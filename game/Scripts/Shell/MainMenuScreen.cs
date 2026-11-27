@@ -55,7 +55,7 @@ public sealed class MainMenuScreen : ShellScreen
     // The port's own entries (docs/deviations.md "Nitro Pack under AUTO MELEE"): with a Nitro Pack install beside the base one, NITRO in
     // AUTO MELEE's row between SCENARIO and INSTANT MELEE (the Nitro Pack's campaign, handed over in this window: Boot/NitroVisit.cs). On
     // the Nitro side of such a visit, the main menu is the character choice: SCENARIOS' row open, no MELEE, and BACK where EXIT stands.
-    public const int NitroEntry = 101, BackEntry = 102;
+    public const int NitroEntry = 101, BackEntry = 102, RoguetripEntry = 103;
     /// <summary>AUTO MELEE's row: its top, SCENARIO's and INSTANT MELEE's left in the original's table, and the frame's right edge it keeps clear of.</summary>
     public const int AutoRowY = 368, ScenarioX = 399, InstantX = 478, RowRightEdge = 636;
 
@@ -80,6 +80,30 @@ public sealed class MainMenuScreen : ShellScreen
     private string? _nitroDir;
     /// <summary>The Nitro side of a visit from the base menu (Boot/NitroVisit.cs).</summary>
     private bool Visit => Nitro && I76.Game.Boot.NitroVisit.Active;
+    /// <summary>
+    /// MELEE's row with ROGUETRIP after AUTO MELEE (the play fork's; docs/remix-missions.md "Roguetrip"): MULTI MELEE and AUTO MELEE where
+    /// the original has them, their boxes abutting as the original's do, ROGUETRIP's box (its lettering's margins included) abutting
+    /// AUTO MELEE's; all three move left together only if ROGUETRIP would pass the frame's right edge. Returns the three left edges.
+    /// </summary>
+    public static (int Multi, int Auto, int Roguetrip) MeleeRowPlace(int multiWidth, int autoWidth, int roguetripBoxWidth)
+    {
+        int gap = Math.Max(0, AutoX - (MultiX + multiWidth));
+        int total = multiWidth + gap + autoWidth + roguetripBoxWidth;
+        int mx = Math.Min(MultiX, RowRightEdge - total);
+        int ax = mx + multiWidth + gap;
+        return (mx, ax, ax + autoWidth);
+    }
+    /// <summary>MELEE's row: its top, MULTI MELEE's and AUTO MELEE's left in the original's table.</summary>
+    public const int MeleeRowY = 340, MultiX = 345, AutoX = 445;
+    /// <summary>ROGUETRIP's hover banner, on the banner line as the others'.</summary>
+    public const string RoguetripBanner = "FOUR JOBS DOWN THE ROAD, ONE CAR, NO SECOND CHANCES";
+    /// <summary>ROGUETRIP's place on the menu: the base game only (its jobs are built on Interstate '76's maps).</summary>
+    public static bool ShowsRoguetrip(bool nitro) => !nitro;
+    /// <summary>MELEE's row is open (ROGUETRIP in it).</summary>
+    public bool MeleeOpen => !Nitro && _w.TryGetValue(2, out var m) && m.Selected;
+    /// <summary>Comes up with MELEE's row open (the way back from ROGUETRIP's screens).</summary>
+    public bool OpenMelee { get; init; }
+
     /// <summary>MELEE's AUTO MELEE row is open (the switch guard checks that the hand-back opens it).</summary>
     public bool AutoOpen => !Nitro && _w.TryGetValue(1, out var a) && a.Selected && _w[2].Selected;
     /// <summary>The TRIP row is open (on a visit's Nitro menu: SCENARIOS, the character choice).</summary>
@@ -129,6 +153,7 @@ public sealed class MainMenuScreen : ShellScreen
         BuildPortEntries();
         Repaint();
         if (!Nitro && I76.Game.Boot.NitroVisit.TakeReturnToRow()) OpenAuto();
+        else if (!Nitro && OpenMelee) Click(2);
         // I76_LOAD_PROFILE: the shell's start-up, the engine's start to the main menu's first frame (docs/perf/loadtime.md)
         if (I76.Game.Boot.LoadProfiler.On)
             RenderingServer.Singleton.Connect(RenderingServer.SignalName.FramePostDraw, Callable.From(() => GD.Print($"load-profile: main menu's first frame at {Time.GetTicksMsec()} ms from the engine's start")), (uint)GodotObject.ConnectFlags.OneShot);
@@ -150,6 +175,17 @@ public sealed class MainMenuScreen : ShellScreen
         var grey = Color.Color8(109, 109, 109);
         if (!Nitro)
         {
+            // MELEE's row: ROGUETRIP after AUTO MELEE, lettered as NITRO is (the row's sprites' size and fit), in the row's grey
+            if (ShowsRoguetrip(Nitro))
+            {
+                var rogue = RowLabel(RemixScenarios.Roguetrip);
+                int rw = PortButton.WidthFor(rogue, RoguetripMargin);
+                var (mx, ax, rx) = MeleeRowPlace(_bank[29]?.Width ?? 100, _bank[3]?.Width ?? 90, rw);
+                if (mx != MultiX) _w[15] = new SpriteWidget(15, mx, MeleeRowY, _bank, 29, new SpriteWidget(-1, BannerX(41), 460, _bank, 41)) { Hot = 28 };
+                if (ax != AutoX) _w[1] = new SpriteWidget(1, ax, MeleeRowY, _bank, 3, new SpriteWidget(-1, BannerX(38), 460, _bank, 38)) { Hot = 2 };
+                var rogueBanner = new Rect2I(BannerX(41), 460, _bank[41]?.Width ?? 400, _bank[41]?.Height ?? 18);
+                _p[RoguetripEntry] = new PortButton(RoguetripEntry, new Rect2I(rx, MeleeRowY, rw, _bank[3]?.Height ?? 22), rogue, rogueBanner, RoguetripBanner, grey);
+            }
             _nitroDir = I76.Game.Boot.NitroVisit.FindNitro(Shell.Install.Root);
             if (_nitroDir is null) return;
             // the row's fourth button, after LOAD BOOKMARK with the gap the row keeps between NEW TRIP and LOAD BOOKMARK
@@ -174,6 +210,9 @@ public sealed class MainMenuScreen : ShellScreen
         _p[BackEntry] = new PortButton(BackEntry, box, back, nb, "BACK TO INTERSTATE '76", Color.Color8(0x77, 0x73, 0x70));
     }
 
+    /// <summary>ROGUETRIP's box margin each side of its lettering: about the row's sprites' own (MULTI MELEE's 10, AUTO MELEE's 8).</summary>
+    public const int RoguetripMargin = 8;
+
     /// <summary>A trip-row label: the size, baseline and word spacing of the row's sprites (NEW TRIP's fit), centred in its box.</summary>
     private static ImpactLabels.Spec RowLabel(string text) => new(text, 15f, 0f, 0f, 17.122f, 0.125f, Centre: true);
 
@@ -184,11 +223,15 @@ public sealed class MainMenuScreen : ShellScreen
         b.Draw(Frame, Imp, Shell.Db.Font(0x45));
     }
 
-    private void HidePort()
+    /// <summary>The port's entries hidden: those given, or every one shown.</summary>
+    private void HidePort(params int[] ids)
     {
-        foreach (var b in _pShown) { b.Lit = false; b.Selected = false; b.Erase(Frame, Imp); }
-        _pShown.Clear();
-        _pHot = null;
+        foreach (var b in _pShown.Where(b => ids.Length == 0 || ids.Contains(b.Id)).ToList())
+        {
+            b.Lit = false; b.Selected = false; b.Erase(Frame, Imp);
+            _pShown.Remove(b);
+            if (_pHot == b) _pHot = null;
+        }
     }
 
     /// <summary>MELEE, then AUTO MELEE with NITRO in its row: the hand-back's way in (the menu comes up with the row that holds NITRO open).</summary>
@@ -223,6 +266,7 @@ public sealed class MainMenuScreen : ShellScreen
         foreach (int id in keepTop) _w[id].Selected = true;
         foreach (int id in top) Show(id);
         foreach (var (id, sel) in keep) { _w[id].Selected = sel; Show(id); }
+        if (!Nitro && _w[2].Selected) ShowPort(RoguetripEntry);   // MELEE's row kept open: ROGUETRIP with it
         if (!Nitro && _w[1].Selected) ShowPort(NitroEntry);   // AUTO MELEE's row kept open: NITRO with it
         DrawEditorEntry();
     }
@@ -343,6 +387,12 @@ public sealed class MainMenuScreen : ShellScreen
                 I76.Game.Boot.GameSwitch.ToNitro(Shell.GetTree(), Shell.Install.Root, dir);
                 break;
             case BackEntry: I76.Game.Boot.GameSwitch.BackFromNitro(Shell.GetTree()); break;
+            case RoguetripEntry:
+                // a run in progress goes straight back to its screens (its car is the run's); else the car pick
+                RemixScenarios.Ensure(Shell.Install.Root);
+                if (RoguetripScreen.InProgress() is { } going) Shell.Go(new RoguetripScreen { Run = going });
+                else Shell.Go(new MeleeScreen { Mode = 1, Roguetrip = true });
+                break;
         }
     }
 
@@ -360,6 +410,7 @@ public sealed class MainMenuScreen : ShellScreen
             case 2:
                 Hide([.. TripRow]); Deselect(13);
                 Select(2); foreach (int r in MeleeRow) Show(r);
+                ShowPort(RoguetripEntry);
                 break;
             case 1:
                 Hide([.. MultiRow, .. NetRow]); Deselect(15);
@@ -367,7 +418,7 @@ public sealed class MainMenuScreen : ShellScreen
                 ShowPort(NitroEntry);
                 break;
             case 15:                                                                  // MULTI MELEE: HOST, JOIN
-                Hide([.. AutoRow]); HidePort(); Deselect(1);
+                Hide([.. AutoRow]); HidePort(NitroEntry); Deselect(1);
                 Select(15); foreach (int r in MultiRow) Show(r);
                 break;
             case 3 or 5:                                                              // HOST / JOIN: the connections
