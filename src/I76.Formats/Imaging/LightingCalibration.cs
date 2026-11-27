@@ -455,10 +455,10 @@ public static class LightingCalibration
     /// sun (the sky's light alone) darken; its lower bound goes down with the sun (<see cref="MinExposure"/> over the factor), so a dusk
     /// keeps its mean. A sun already giving that contrast or more is left at 1.
     /// </summary>
-    public static Result SolveSunlit(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card, double keep = SunlitKeep)
+    public static Result SolveSunlit(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> objects, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card, double keep = SunlitKeep, double minGain = SunlitMinGain)
     {
         if (ground.Count == 0 || texels.Length < 3) return Result.None;
-        double gain = SunGainFor(texels, ground, contrast, curve);
+        double gain = Math.Clamp(Math.Max(SunGainFor(texels, ground, contrast, curve), minGain), 1, MaxSunGain);
         var r = Solve(texels, Scaled(ground, gain), Scaled(objects, gain), curve, MinExposure / gain) with { SunGain = gain };
         if (keep <= 0 || gain == 1) return r;
         // the exposure part of the way back to the plain solve's (log): the sky-lit faces kept nearer its level, the sunlit ones brighter than the mean asks
@@ -472,6 +472,14 @@ public static class LightingCalibration
     /// ground brighter: the mean over the 1997 look's).
     /// </summary>
     public const double SunlitKeep = 0;
+
+    /// <summary>
+    /// The least sun factor the sunlit look takes, whatever the solve finds: the drawn ground has less contrast than the cells say
+    /// (the texture's own brights muted by the modern ground's filtering and blends, the sky's occlusion, the ambient occlusion), so
+    /// measured on the frames the sunlit and the shaded thirds of every day mission came out nearer each other than the 1997 look's
+    /// at a sun of 1 (set from the captures: docs/deviations.md "Lighting").
+    /// </summary>
+    public const double SunlitMinGain = 1;
 
     /// <summary>The sun's factor <see cref="SolveSunlit"/> takes (1 when the contrast cells have no spread of light).</summary>
     public static double SunGainFor(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card)
