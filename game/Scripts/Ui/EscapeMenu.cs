@@ -630,6 +630,8 @@ public sealed partial class EscapeMenu : Control
                     (s, v) => { if (I76.Sim.Views.PaintFinish.NearestStep(s.HoodGloss) != v) s.HoodGloss = I76.Sim.Views.PaintFinish.Steps[v]; }, apply: live);
             // the 1997 look: off, the original's 3D card or its software renderer, applied on resume (as F2)
             case GraphicsRow.Look1997: return Setting(Cycle, "1997 Mode", 0, 3, ["Off" + mark, "3D Card", "Software"], s => !s.Look1997 ? 0 : s.SoftwareRenderer ? 2 : 1, (s, v) => { s.Look1997 = v != 0; s.SoftwareRenderer = v == 2; }, live: false);
+            // [port] lighting_calibration (LightingRow): the modern look's, live (the calibration solved again)
+            case GraphicsRow.Lighting: return Setting(Cycle, LightingRow.Label, 0, LightingRow.Names.Length, LightingRow.Names, LightingRow.Index, LightingRow.Put, apply: live);
             // the modern look's palette grade (SoftwareLook), live
             case GraphicsRow.PaletteGrade: return Setting(Cycle, "1997 Palette Grade", 0, 2, offOn, s => s.PaletteGrade ? 1 : 0, (s, v) => s.PaletteGrade = v != 0, apply: live);
             // the software renderer's double image on a big cockpit hit (the original's in the 1997 look, smooth in the modern look), live

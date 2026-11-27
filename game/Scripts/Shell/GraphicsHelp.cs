@@ -54,9 +54,12 @@ public static class GraphicsHelp
         GraphicsRow.VSync => "VSync (vertical sync): waits for the screen's refresh, so the picture never tears. Off can feel quicker on a fast machine. Applies at once.",
         GraphicsRow.MaxFps => "Max FPS (frame rate limit, frame cap): a cap on the frames drawn a second; the game's own rate is unchanged. A cap saves power and heat. Applies at once.",
         GraphicsRow.Look1997 => "1997 mode: draw the game as the original did, with a 3D card of the day or in its software renderer. Off is the modern look. From the next mission (on resume in one).",
+        GraphicsRow.Lighting => look1997
+            ? "Lighting (light and colour, tone mapping): how the modern look's light follows the original's. The 1997 look is the original's light."
+            : "Lighting (light and colour, tone mapping): 1997 (the default) lights each mission's ground and cars to the 1997 look's levels, the sky in its own painted colours. 1997 Sunlit is the same with a stronger sun by day, matched to the original's contrast: sunlit ground and hills stay bright while the shade stays dim, cool and grey; with Palette Grade on it grades toward the mission's own 16-bit colours, which keep a sunset's lilac sky. Filmic is a brighter film-like curve with the modern sky; Off the modern look's own light. No frame cost. Applies at once.",
         GraphicsRow.PaletteGrade => look1997
             ? "1997 palette grade: the modern look's colours moved toward the mission's 256-colour palette. The 1997 look has them already."
-            : "1997 palette grade: the modern look in the original's colours, each moved toward the mission's 256-colour palette. Little cost. Applies at once.",
+            : "1997 palette grade: the modern look in the original's colours, each moved toward the mission's 256-colour palette (with Lighting at 1997 Sunlit, toward the mission's 16-bit colours, as the 3D card showed them). Little cost. Applies at once.",
         GraphicsRow.CrashBlur => "Crash blur: the double image a big hit leaves in the cockpit, as the original's software renderer drew it. Off for none. Applies at once.",
         GraphicsRow.WorldTextures => look1997
             ? "World textures: the ground, buildings and props from the texture pack, for the modern look. The 1997 look always draws the install's own."

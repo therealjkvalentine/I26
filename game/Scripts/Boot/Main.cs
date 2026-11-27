@@ -984,7 +984,7 @@ public partial class Main : Node3D
 		else GetViewport().Msaa3D = RenderScale.Msaa(_antialias, RenderBackend.Compatibility);
 		World.VegShaders.SetCoverage(World.VegShaders.CoverageFor(_antialias));   // the plants' alpha-to-coverage at 4x and 8x
 		RenderTweaks.ApplyModern(_modernEnv, _sun, GetViewport());
-		EnvExtras.Apply(_modernEnv, _glow, _reflections, _lighting == Lighting.Card ? (float)I76.Formats.Imaging.LightingCalibration.Headroom : 1f);
+		EnvExtras.Apply(_modernEnv, _glow, _reflections, IsCard(_lighting) ? (float)I76.Formats.Imaging.LightingCalibration.Headroom : 1f);
 		if (EnvExtras.HazeLevel(_haze) > 0 && _aerialHaze is null) { AddChild(_aerialHaze = AerialHaze.Create()); ApplyDrawDistance(); }
 		if (_aerialHaze is not null) _aerialHaze.Level = _haze;
 		MissionBuilder.Trace("quality: msaa, tweaks");
@@ -3179,10 +3179,17 @@ public partial class Main : Node3D
 		_env1997.ReflectedLightSource = Environment.ReflectionSource.Disabled;
 	}
 
-	/// <summary>[port] lighting_calibration: off, the calibration under Filmic, or (on) under the card's curve with the sky in the texture's colours.</summary>
-	private enum Lighting { Off, Filmic, Card }
+	/// <summary>
+	/// [port] lighting_calibration: off, the calibration under Filmic, (on) under the card's curve with the sky in the texture's colours,
+	/// or (sunlit) as on with the sun's energy solved too by day, for the 1997 look's contrast (LightingCalibration.SolveSunlit), and the
+	/// palette grade toward the mission's 16-bit palette.
+	/// </summary>
+	private enum Lighting { Off, Filmic, Card, Sunlit }
 
-	private static Lighting LightingOf(I76.Game.Shell.ShellSettings s) => _moodCal ?? (!s.LightingCalibration ? Lighting.Off : s.LightingFilmic ? Lighting.Filmic : Lighting.Card);
+	/// <summary>Through the card's curve, the sky in the texture's colours: on and sunlit.</summary>
+	private static bool IsCard(Lighting l) => l is Lighting.Card or Lighting.Sunlit;
+
+	private static Lighting LightingOf(I76.Game.Shell.ShellSettings s) => _moodCal ?? (!s.LightingCalibration ? Lighting.Off : s.LightingFilmic ? Lighting.Filmic : s.LightingSunlit ? Lighting.Sunlit : Lighting.Card);
 
 	private Lighting _lighting = Lighting.Card;
 	private I76.Formats.Imaging.LightingCalibration.Result _calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
@@ -3202,7 +3209,7 @@ public partial class Main : Node3D
 	/// <summary>The modern look's own sky colours (lighting_calibration off or filmic) and the original's (on).</summary>
 	private SkyColours _skyModern, _skyOriginal;
 
-	private SkyColours SkyFor(Lighting l) => l == Lighting.Card ? _skyOriginal : _skyModern;
+	private SkyColours SkyFor(Lighting l) => IsCard(l) ? _skyOriginal : _skyModern;
 
 	/// <summary>
 	/// The modern look's lighting calibration (LightingCalibration, [port] lighting_calibration): the exposure, the ground's
@@ -3216,7 +3223,7 @@ public partial class Main : Node3D
 	{
 		_calibration = I76.Formats.Imaging.LightingCalibration.Result.None;
 		_calibrationJob = null;
-		if (_lighting == Lighting.Off || _calibratedSky is null || _calibratedLight is not { } light || (!light.IsDay && _lighting != Lighting.Card) || _builder?.World is not { } world
+		if (_lighting == Lighting.Off || _calibratedSky is null || _calibratedLight is not { } light || (!light.IsDay && !IsCard(_lighting)) || _builder?.World is not { } world
 			|| _builder.TerrainMaterial?.GetShaderParameter("ground_tex").As<Texture2D>()?.GetImage() is not { } img) { ApplyLightingCalibration(); return; }
 		var sw = System.Diagnostics.Stopwatch.StartNew();
 		if (img.IsCompressed()) img.Decompress();
@@ -3231,8 +3238,12 @@ public partial class Main : Node3D
 		var skyUp = Grey(Lin(sc.Zenith, gain) + Lin(sc.Horizon, gain) + Lin(sc.Cloud, gain), chroma);
 		var skyDown = Grey(Lin(HorizonFoot() ?? sc.Horizon * 0.8f, _horizonFootFound ? _ambientEnergy : sc.AmbientGain * _ambientEnergy), chroma);
 		var sun = Lin(_sun.LightColor, _sunEnergy);
-		var curve = _lighting == Lighting.Card ? I76.Formats.Imaging.LightingCalibration.ToneCurve.Card : I76.Formats.Imaging.LightingCalibration.ToneCurve.Filmic;
+		var curve = IsCard(_lighting) ? I76.Formats.Imaging.LightingCalibration.ToneCurve.Card : I76.Formats.Imaging.LightingCalibration.ToneCurve.Filmic;
 		bool card = curve == I76.Formats.Imaging.LightingCalibration.ToneCurve.Card;
+		bool sunlit = _lighting == Lighting.Sunlit && light.IsDay;
+		// the objects' sky light as the solve takes it: with the sky's light at its energy (SkyLightFixed) the estimate itself; else as measured before
+		double objectSky = SkyLightFixed ? I76.Formats.Imaging.LightingCalibration.HonestObjectSky
+			: card ? I76.Formats.Imaging.LightingCalibration.CardObjectSky : I76.Formats.Imaging.LightingCalibration.ObjectSky;
 		var luma = LumaBytes();
 		var pixels = img.GetData();
 		// the cells and the solve are the Formats library's arithmetic: at a mission's load on a worker while the rest of the load
@@ -3242,7 +3253,7 @@ public partial class Main : Node3D
 		long solveMs = 0;
 		I76.Formats.Imaging.LightingCalibration.Result Solve(out int kinds)
 		{
-			string key = I76.Formats.Imaging.CalibrationCache.KeyOf(pixels, world.Terrain.ContentHash(), luma, light.Direction, light.Intensity, light.Ambient, light.IsDay, sun, skyUp, skyDown, curve);
+			string key = I76.Formats.Imaging.CalibrationCache.KeyOf(pixels, world.Terrain.ContentHash(), luma, light.Direction, light.Intensity, light.Ambient, light.IsDay, sun, skyUp, skyDown, curve, $"{(sunlit ? "sunlit " : "")}objects {objectSky}");
 			int n = 0;
 			var r = I76.Formats.Imaging.CalibrationCache.GetOrSolve(cache, key, () => Solved(out n), out bool hit);
 			kinds = hit ? -1 : n;
@@ -3255,16 +3266,21 @@ public partial class Main : Node3D
 			kinds = ground.Count;
 			// a night through the card's curve: the moon's share alone (NightLight)
 			if (!light.IsDay) return I76.Formats.Imaging.LightingCalibration.Result.None with { Moon = I76.Formats.Imaging.LightingCalibration.NightMoon(pixels, ground, sun * I76.Formats.Imaging.LightingCalibration.GroundGlint) };
-			var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, luma, light.Intensity, light.Ambient, sun, skyUp, skyDown,
-				card ? I76.Formats.Imaging.LightingCalibration.CardObjectSky : I76.Formats.Imaging.LightingCalibration.ObjectSky);
+			var objects = I76.Formats.Imaging.LightingCalibration.ObjectCells(light.Direction, luma, light.Intensity, light.Ambient, sun, skyUp, skyDown, objectSky);
 			kinds = ground.Count;
+			if (sunlit)
+			{
+				// the sun's share too, for the 1997 look's contrast over the map's slopes as they are (each cell alike)
+				var contrast = I76.Formats.Imaging.LightingCalibration.Cells(world.Terrain, 8, light.Direction, luma, light.Ambient, sun, skyUp);
+				return I76.Formats.Imaging.LightingCalibration.SolveSunlit(pixels, ground, objects, contrast, curve);
+			}
 			return I76.Formats.Imaging.LightingCalibration.Solve(pixels, ground, objects, curve);
 		}
 		void Done(I76.Formats.Imaging.LightingCalibration.Result c, int kinds)
 		{
 			_calibration = c;
 			GD.Print($"lighting calibration ({curve}): {(kinds < 0 ? "kept" : $"{kinds} kinds of cell")}, exposure {c.Exposure:0.000}, sky light {c.Sky:0.000}, ground tint {c.GroundTint.R:0.000} {c.GroundTint.G:0.000} {c.GroundTint.B:0.000}, "
-				+ $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, moon {c.Moon:0.000}, {solveMs} ms{(background ? $" (beside the load, applied at {sw.ElapsedMilliseconds} ms)" : "")}");
+				+ $"object tint {c.ObjectTint.R:0.000} {c.ObjectTint.G:0.000} {c.ObjectTint.B:0.000}, moon {c.Moon:0.000}, sun x{c.SunGain:0.000}, {solveMs} ms{(background ? $" (beside the load, applied at {sw.ElapsedMilliseconds} ms)" : "")}");
 			ApplyLightingCalibration();
 		}
 		if (background)
@@ -3336,14 +3352,15 @@ public partial class Main : Node3D
 	private void ApplyLightingCalibration()
 	{
 		var c = _lighting != Lighting.Off ? _calibration : I76.Formats.Imaging.LightingCalibration.Result.None;
-		bool card = _lighting == Lighting.Card;
+		bool card = IsCard(_lighting);
 		var sc = SkyFor(_lighting);
 		float back = card ? 1f / (float)c.Exposure : 1f / Mathf.Sqrt((float)c.Exposure);
 		// at night, whatever the calibration: the moon the ground's light, the roads at the original's share of it, the sky darkened
 		// over it (NightLight); by day nothing
 		var night = _calibratedLight is { IsDay: false } n ? NightLight(n, c.Moon) : I76.Game.World.NightDial.Levels.Neutral;
 		float moon = night.Moon;
-		if (_sun is not null) _sun.LightEnergy = _sunEnergy * moon;
+		// (sunlit, by day: the sun's energy times its solved factor; 1 otherwise)
+		if (_sun is not null) _sun.LightEnergy = _sunEnergy * moon * (float)c.SunGain;
 		foreach (var (name, value) in I76.Game.World.NightDial.Globals(night)) RenderingServer.GlobalShaderParameterSet(name, value);
 		back *= night.Sky;
 		if (_modernEnv is not null)
@@ -3353,7 +3370,17 @@ public partial class Main : Node3D
 			_modernEnv.TonemapExposure = (float)(card ? c.Exposure / I76.Formats.Imaging.LightingCalibration.Headroom : c.Exposure);
 			_modernEnv.AdjustmentColorCorrection = card ? CardTone(_brightnessLevel) : null;
 			_modernEnv.AdjustmentBrightness = card ? 1f : ModernBrightness(_brightnessLevel);
-			if (_calibratedSky is not null) _modernEnv.AmbientLightEnergy = _ambientEnergy * moon * sc.AmbientGain / (sc.Gain * back);
+			if (_calibratedSky is not null)
+			{
+				float ambient = _ambientEnergy * moon * sc.AmbientGain / (sc.Gain * back);
+				_modernEnv.AmbientLightEnergy = ambient;
+				// the sky's light at that energy: Godot ignores ambient_light_energy while the sky's contribution is 1 (the whole
+				// radiance reached the scene, about ten times the light the calibration solved for by day: the shadows filled in),
+				// and mixes the radiance by the contribution with the ambient colour (black) by the rest; the reflections keep the
+				// whole radiance. Over 1 (a night's dark sky) the contribution stays 1, the radiance as before. I76_MOOD skyfix=0: the old way.
+				_modernEnv.AmbientLightColor = Colors.Black;
+				_modernEnv.AmbientLightSkyContribution = SkyLightFixed ? SkyContribution(ambient) : 1f;
+			}
 		}
 		if (_calibratedSky is not null)
 		{
@@ -3377,7 +3404,8 @@ public partial class Main : Node3D
 		// the scenery's own night lights and its full-bright faces (StationLight): the faces as painted, through the exposure as the prelit art is
 		I76.Game.World.StationLight.Apply(night: _calibratedLight is { IsDay: false }, gain: 1f / (float)c.Exposure);
 		RenderingServer.GlobalShaderParameterSet("i76_object_sky", (float)c.Sky);
-		RenderingServer.GlobalShaderParameterSet("i76_glass_pane", card && _calibratedSky is not null ? (float)I76.Formats.Imaging.LightingCalibration.CardGlassPane : 0.3f);		MoodApply();   // the mood prototypes (MainMood.cs; nothing unless I76_MOOD or I76_SHOT_SEQ asks)
+		RenderingServer.GlobalShaderParameterSet("i76_glass_pane", card && _calibratedSky is not null ? (float)I76.Formats.Imaging.LightingCalibration.CardGlassPane : 0.3f);
+		MoodApply();   // the mood prototypes (MainMood.cs; nothing unless I76_MOOD or I76_SHOT_SEQ asks)
 	}
 
 	/// <summary>
@@ -3398,7 +3426,7 @@ public partial class Main : Node3D
 	{
 		var c = (_sun?.LightColor ?? Colors.White).SrgbToLinear();
 		double lum = 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B;
-		bool card = _lighting == Lighting.Card;
+		bool card = IsCard(_lighting);
 		var curve = card ? I76.Formats.Imaging.LightingCalibration.ToneCurve.Card : I76.Formats.Imaging.LightingCalibration.ToneCurve.Filmic;
 		var luma = LumaBytes();
 		return I76.Game.World.NightDial.Night(card, solved,
@@ -3413,7 +3441,13 @@ public partial class Main : Node3D
 	private double _nightSkyNorm = 1;
 
 	/// <summary>How much of the sky's colour its light on the scene keeps (sky_modern.gdshaderinc radiance_chroma).</summary>
-	private static double RadianceChroma(Lighting l) => l == Lighting.Card ? I76.Formats.Imaging.LightingCalibration.CardRadianceChroma : 1;
+	/// <summary>The sky's light at the energy asked for (always, but for I76_MOOD skyfix=0, the comparisons' old way).</summary>
+	private bool SkyLightFixed => !_mood.TryGetValue("skyfix", out var sf) || sf != "0";
+
+	/// <summary>The sky's contribution that gives the scene <paramref name="energy"/> times the sky's radiance (0..1).</summary>
+	public static float SkyContribution(float energy) => float.IsFinite(energy) ? Mathf.Clamp(energy, 0f, 1f) : 1f;
+
+	private static double RadianceChroma(Lighting l) => IsCard(l) ? I76.Formats.Imaging.LightingCalibration.CardRadianceChroma : 1;
 
 	private readonly Dictionary<int, ImageTexture> _cardTones = [];
 

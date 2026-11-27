@@ -26,13 +26,25 @@ public partial class SoftwareLook : Node
     private Palette? _palette;
     private byte[]? _lum;
     private float[]? _ramp;
-    private ImageTexture? _lut, _softLut, _ground, _band;
+    private ImageTexture? _ground, _band;
     private Texture2D? _sky;
     private CanvasLayer? _layer;
     private ShaderMaterial? _grade;
-    private System.Threading.Tasks.Task<byte[]>? _lutJob, _softJob;
-    private int _lutSide, _softSide;
     private bool _software, _grading;
+
+    /// <summary>A palette's lookups for the grade (built on a worker): the nearest colour, and the soft one the modern grade takes.</summary>
+    private sealed class Luts
+    {
+        public System.Threading.Tasks.Task<byte[]>? LutJob, SoftJob;
+        public int LutSide, SoftSide;
+        public ImageTexture? Lut, SoftLut;
+    }
+
+    /// <summary>[0] the miss8 copy's palette (the Software renderer's, and the modern grade's), [1] the 16-bit mission's (the modern grade's under Lighting's 1997 Sunlit).</summary>
+    private readonly Luts?[] _luts = new Luts?[2];
+    private Palette? _palette16;
+    /// <summary>Which lookups the grade draws with (an index into <see cref="_luts"/>), and which it has been given.</summary>
+    private int _use, _bound = -1;
     /// <summary>A Nitro Pack install: its exe is the GOG build, whose software path draws the horizon panels; the CD's band is the base game's.</summary>
     private bool _gogHorizon;
 
@@ -67,18 +79,12 @@ public partial class SoftwareLook : Node
         var textures = new I76.Game.Assets.TextureFactory(resolver, _palette) { Hd = false };
         if (ws?.Sky is { Length: > 0 } sky && resolver.FindByStem(sky) is { } sm && textures.Get(sm) is { } st) { _sky = st.Texture; SkyName = sky; }
         if (ws?.Ground is { Length: >= 8 } g && resolver.FindByStem(g[..4] + '2' + g[5..]) is { } gm && textures.Get(gm) is { } gt) { _ground = gt.Texture; GroundName = gm; }
+        // the 16-bit mission's own palette, which the modern grade takes under Lighting's 1997 Sunlit: the miss8 copy's lacks the
+        // 16-bit sky's colours (T10's lilac sky went grey-blue toward it); the same palette (an 8-bit mission's) is the first's
+        if (fallbackPalette is not null && !string.Equals(fallbackPalette, pal, StringComparison.OrdinalIgnoreCase) && vfs.TryRead(fallbackPalette) is { Length: Palette.Size } p16)
+            _palette16 = new Palette(p16);
         // the lookup off the main thread (64³ nearest searches, ~70 M distance sums)
-        var palette = _palette;
-        // the mood prototypes: I76_PALETTE_GRADE_PAL=16 grades the modern look toward the 16-bit mission's own palette instead of
-        // the miss8 copy's (whose palette lacks the 16-bit sky's colours: T10's lilac sky goes grey-blue); a capture switch, the
-        // Software renderer is then graded by it too
-        if (System.Environment.GetEnvironmentVariable("I76_PALETTE_GRADE_PAL") == "16" && fallbackPalette is not null && vfs.TryRead(fallbackPalette) is { Length: Palette.Size } p16)
-        {
-            palette = new Palette(p16);
-            GD.Print($"software look: the modern grade toward {fallbackPalette} (I76_PALETTE_GRADE_PAL=16)");
-        }
-        _lutJob = System.Threading.Tasks.Task.Run(() => SoftwarePalette.BuildLut(palette, 64, out _lutSide));
-        if (GradeSoftness > 0) _softJob = System.Threading.Tasks.Task.Run(() => SoftwarePalette.BuildSoftLut(palette, 64, GradeSoftness, out _softSide));
+        _luts[0] = Build(_palette, true);
         if (_lum is not null)
         {
             var ramp = SoftwarePalette.Ramp(_palette, _lum);
@@ -90,8 +96,20 @@ public partial class SoftwareLook : Node
             for (int j = 0; j < 32; j++) band.SetPixel(j, 0, Color.Color8(rows[j].R, rows[j].G, rows[j].B));
             _band = ImageTexture.CreateFromImage(band);
         }
-        GD.Print($"software look: palette {PaletteName}, sky {SkyName ?? "-"}, ground {GroundName ?? "-"}");
+        GD.Print($"software look: palette {PaletteName}, sky {SkyName ?? "-"}, ground {GroundName ?? "-"}{(_palette16 is not null ? $", the 16-bit grade's {fallbackPalette}" : "")}");
     }
+
+    /// <summary>A palette's lookups started on workers (<paramref name="nearest"/>: the nearest colour's too, which the Software renderer and a grade without softness take).</summary>
+    private static Luts Build(Palette palette, bool nearest)
+    {
+        var l = new Luts();
+        if (nearest || GradeSoftness <= 0) l.LutJob = System.Threading.Tasks.Task.Run(() => SoftwarePalette.BuildLut(palette, 64, out l.LutSide));
+        if (GradeSoftness > 0) l.SoftJob = System.Threading.Tasks.Task.Run(() => SoftwarePalette.BuildSoftLut(palette, 64, GradeSoftness, out l.SoftSide));
+        return l;
+    }
+
+    /// <summary>I76_PALETTE_GRADE_PAL=16: the modern grade toward the 16-bit mission's palette whatever the Lighting row (a capture switch).</summary>
+    private static readonly bool Force16 = System.Environment.GetEnvironmentVariable("I76_PALETTE_GRADE_PAL") == "16";
 
     /// <summary>A ramp value as the 8-bit texture it used to be held in kept it (the look's pixels stay as they were).</summary>
     private static float Byte8(float v) => (byte)Math.Clamp(v * 255.0, 0.0, 255.0) / 255f;
@@ -104,11 +122,14 @@ public partial class SoftwareLook : Node
     /// (<paramref name="cardRamp"/>, <paramref name="cardSky"/>, <paramref name="cardCurve"/>) are what it puts back. <paramref name="brightness"/>: Monitor Brightness, 1..10 (3 the shipped default).
     /// </summary>
     public void Apply(bool look1997, bool software, bool grade, float[] cardRamp, ShaderMaterial? dome, Texture2D? cardSky,
-        Godot.Environment env1997, Texture? cardCurve, int brightness)
+        Godot.Environment env1997, Texture? cardCurve, int brightness, bool grade16 = false)
     {
         _software = Ready && look1997 && software;
         Active = _software;
         _grading = Ready && ((_software && !NoFinalPass) || (!look1997 && grade));
+        // the modern grade toward the 16-bit palette (grade16: Lighting's 1997 Sunlit), its lookups built the first time it is asked for
+        _use = !_software && (grade16 || Force16) && _palette16 is not null ? 1 : 0;
+        if (_use == 1 && _luts[1] is null && _grading) _luts[1] = Build(_palette16!, false);
         RenderingServer.GlobalShaderParameterSet("i76_software", _software);
         I76.Game.World.ObjectLight.SetRamp(_software && _ramp is not null ? _ramp : cardRamp);
         if (_ground is not null) RenderingServer.GlobalShaderParameterSet("i76_sw_ground", _ground);
@@ -187,19 +208,34 @@ public partial class SoftwareLook : Node
     public override void _Process(double delta)
     {
         using var __fs = I76.Game.Boot.FrameSections.Time(I76.Game.Boot.FrameSections.Sec.SoftwareLook);
-        if (_lut is null && _lutJob is { IsCompleted: true } job && _grade is not null)
+        foreach (var l in _luts)
         {
-            var img = Image.CreateFromData(_lutSide, _lutSide, false, Image.Format.Rgb8, job.Result);
-            _lut = ImageTexture.CreateFromImage(img);
-            _grade.SetShaderParameter("lut", _lut);
-            _lutJob = null;
+            if (l is null) continue;
+            if (l.Lut is null && l.LutJob is { IsCompleted: true } job)
+            {
+                l.Lut = ImageTexture.CreateFromImage(Image.CreateFromData(l.LutSide, l.LutSide, false, Image.Format.Rgb8, job.Result));
+                l.LutJob = null;
+                _bound = -1;
+            }
+            if (l.SoftLut is null && l.SoftJob is { IsCompleted: true } sj)
+            {
+                l.SoftLut = ImageTexture.CreateFromImage(Image.CreateFromData(l.SoftSide, l.SoftSide, false, Image.Format.Rgb8, sj.Result));
+                l.SoftJob = null;
+                _bound = -1;
+            }
         }
-        if (_softLut is null && _softJob is { IsCompleted: true } sj && _grade is not null)
+        // the lookups in use given to the grade: the 16-bit palette's once built (meanwhile the first's); the Software renderer the nearest
+        bool nearest = _software || GradeSoftness <= 0;
+        static bool Has(Luts? l, bool nearest) => l is not null && (nearest ? l.Lut is not null : l.SoftLut is not null);
+        int use = Has(_luts[_use], nearest) ? _use : 0;
+        var cur = _luts[use];
+        if (_grade is not null && cur is not null && use != _bound && Has(cur, nearest))
         {
-            _softLut = ImageTexture.CreateFromImage(Image.CreateFromData(_softSide, _softSide, false, Image.Format.Rgb8, sj.Result));
-            _grade.SetShaderParameter("soft_lut", _softLut);
-            _softJob = null;
+            if (cur.Lut is not null) _grade.SetShaderParameter("lut", cur.Lut);
+            if (cur.SoftLut is not null) _grade.SetShaderParameter("soft_lut", cur.SoftLut);
+            _bound = use;
+            if (use == 1) GD.Print("software look: the modern grade toward the 16-bit palette");
         }
-        if (_layer is not null) _layer.Visible = _grading && _lut is not null && (_software || GradeSoftness <= 0 || _softLut is not null);
+        if (_layer is not null) _layer.Visible = _grading && Has(cur, nearest) && _bound == use;
     }
 }

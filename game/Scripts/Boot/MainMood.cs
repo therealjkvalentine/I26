@@ -1,20 +1,23 @@
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using Godot;
 
 namespace I76.Game.Boot;
 
 /// <summary>
-/// The modern look's mood prototypes (a comps lane, not a setting): switchable changes to its sky, light, shadow colour, ground
+/// The modern look's mood comparisons (capture hooks, not settings): switchable changes to its sky, light, shadow colour, ground
 /// saturation and grade, to compare against the 1997 look. Nothing changes unless I76_MOOD (or an I76_SHOT_SEQ step) asks.
 ///
 /// I76_MOOD="key=value&amp;key=value":
-///   cal=off|card|filmic   the lighting calibration for the run (as [port] lighting_calibration), solved again live
+///   cal=off|card|filmic|sunlit   the lighting calibration for the run (as [port] lighting_calibration: card is on), solved again live
+///   skyfix=0              the sky's light on the scene as before the fix (its whole radiance, the ambient energy ignored: Main.ApplyLightingCalibration)
+///   look=1997|modern      (an I76_SHOT_SEQ step) the look switched for the step, as F12 would, without saving it
 ///   sky=tex|model         the sky in the texture's own colours (the calibrated sky's mapping) or the modern model's (its default under off/filmic)
 ///   skytex=PATH           the sky's cloud texture replaced by that image (an upscale of the original made outside the game), its colours measured again
 ///   amb=R,G,B|zenith|grey the ambient light's colour (sRGB) instead of the sky's radiance (ambsky= how much of the radiance stays, 0 by default with amb)
-///   ambe=X                the ambient energy times X (no effect while the sky's contribution is 1: Godot ignores it then)
-///   ambfix=X              the sky's light (radiance) scaled by X times the ambient energy the code asks for; ambr=X by X
+///   ambe=X                the ambient energy times X (the sky's contribution follows it)
+///   ambr=X                the sky's radiance on the scene (ambient and reflections) times X
 ///   ambtint=zenith|R,G,B  the sky's light tinted toward that colour at its own luminance (ambtintk= how far, 1)
 ///   sun=R,G,B|cloud|white the sun's colour (sRGB); cloud: the sky texture's lit-cloud colour at the default's luminance; sune=X its energy times X
 ///   sat=X                 the map's ground and the distant ring at X times their saturation (about their luminance)
@@ -22,9 +25,11 @@ namespace I76.Game.Boot;
 ///   lut=PATH              a 3D colour LUT (PNG strip N²×N: x = r + b·N, y = g) as the colour correction (display values in, display values out)
 ///   radchroma=X           how much colour the sky's light on the scene keeps (sky_modern radiance_chroma)
 ///
-/// I76_SHOT_SEQ="name|cam|mood;name|cam|mood;...", with --screenshot OUT.png: from frame I76_SHOT_SEQ_START (90) each step holds
-/// I76_SHOT_SEQ_HOLD (45) frames and its last is saved as OUT_name.png; then the game quits. cam: free:x,y,z,yaw,pitch[,fov]
-/// (I76_FREECAM), car:dx,dy,dz,yaw,pitch (I76_CAP_CAM), or empty (as the step before). mood: as I76_MOOD, on top of it.
+/// I76_SHOT_SEQ="name|cam|mood;name|cam|mood;..." (steps also apart by ~, for a launcher that splits on ;), with --screenshot OUT.png:
+/// from frame I76_SHOT_SEQ_START (90) each step holds I76_SHOT_SEQ_HOLD (45) frames and its last is saved as OUT_name.png; then the
+/// game quits. cam: free:x,y,z,yaw,pitch[,fov] (I76_FREECAM), car:dx,dy,dz,yaw,pitch (I76_CAP_CAM), sun:dyaw,height,back,pitch (behind
+/// and over the player's car looking dyaw degrees from the sun's bearing: 0 into the sun, 180 away), or empty (as the step before; the
+/// cockpit at the start). mood: as I76_MOOD, on top of it.
 /// </summary>
 public partial class Main
 {
@@ -32,13 +37,11 @@ public partial class Main
     private Dictionary<string, string> _mood = ParseMood(MoodBase);
     private bool _moodSaved;
     private Color _moodSun0;
-    private Color _moodAmbColour0;
-    private float _moodAmbSky0 = 1f;
     private Variant _moodClouds0, _moodSkyLum0, _moodCloudLum0;
     /// <summary>The mood's cal= (I76_MOOD, then each I76_SHOT_SEQ step) over [port] lighting_calibration, in LightingOf.</summary>
     private static Lighting? _moodCal = CalOf(ParseMood(MoodBase));
 
-    private static Lighting? CalOf(Dictionary<string, string> m) => m.TryGetValue("cal", out var c) ? c switch { "off" => Lighting.Off, "card" => Lighting.Card, "filmic" => Lighting.Filmic, _ => null } : null;
+    private static Lighting? CalOf(Dictionary<string, string> m) => m.TryGetValue("cal", out var c) ? c switch { "off" => Lighting.Off, "card" or "on" => Lighting.Card, "filmic" => Lighting.Filmic, "sunlit" => Lighting.Sunlit, _ => null } : null;
 
     public static Dictionary<string, string> ParseMood(string s)
     {
@@ -68,8 +71,10 @@ public partial class Main
     private void MoodLightingChoice()
     {
         _moodCal = CalOf(_mood);
-        var want = LightingOf(I76.Game.Shell.ShellSettings.Load());
-        if (want != _lighting) { _lighting = want; SolveLightingCalibration(); }
+        // solved again each step (skyfix changes the objects' solve; the cache keeps it cheap), the grade's palette with it
+        _lighting = LightingOf(I76.Game.Shell.ShellSettings.Load());
+        SolveLightingCalibration();
+        ApplySoftware();
     }
 
     private readonly Dictionary<string, ImageTexture> _moodSkyTex = [];
@@ -78,13 +83,12 @@ public partial class Main
     /// <summary>The mood on top of ApplyLightingCalibration (called at its end): each key from the defaults it saved the first time.</summary>
     private void MoodApply()
     {
+        if (MoodBase.Length == 0 && ShotSeq is null) return;   // (a normal run: nothing of it)
         if (_mode1997 || _modernEnv is null || _calibratedSky is null || _sun is null) return;
         if (!_moodSaved)
         {
             _moodSaved = true;
             _moodSun0 = _sun.LightColor;
-            _moodAmbColour0 = _modernEnv.AmbientLightColor;
-            _moodAmbSky0 = _modernEnv.AmbientLightSkyContribution;
             _moodClouds0 = _calibratedSky.GetShaderParameter("clouds");
             _moodSkyLum0 = _calibratedSky.GetShaderParameter("sky_lum");
             _moodCloudLum0 = _calibratedSky.GetShaderParameter("cloud_lum");
@@ -103,7 +107,7 @@ public partial class Main
             one.Resize(1, 1, Image.Interpolation.Lanczos);
             average = one.GetPixel(0, 0);
         }
-        bool skyTex = _mood.TryGetValue("sky", out var skyWord) ? skyWord == "tex" : _lighting == Lighting.Card;
+        bool skyTex = _mood.TryGetValue("sky", out var skyWord) ? skyWord == "tex" : IsCard(_lighting);
         bool day = _calibratedLight is { IsDay: true };
         if (pal is not null && (_mood.ContainsKey("skytex") || _mood.ContainsKey("sky")))
         {
@@ -130,7 +134,7 @@ public partial class Main
             m.SetShaderParameter("cloud_lum", pal is not null && _mood.ContainsKey("skytex") ? pal.CloudLum : _moodCloudLum0);
             if (_mood.TryGetValue("radchroma", out var rc)) m.SetShaderParameter("radiance_chroma", MoodF(rc));
         }
-        // the ambient: a colour in place of (or beside) the sky's radiance
+        // the ambient: a colour in place of (or beside) the sky's radiance (ApplyLightingCalibration sets both again each time)
         if (_mood.TryGetValue("amb", out var amb))
         {
             var p = pal ?? _builder?.Palette;
@@ -143,12 +147,13 @@ public partial class Main
             _modernEnv.AmbientLightColor = c;
             _modernEnv.AmbientLightSkyContribution = MoodNum("ambsky", 0f);
         }
-        else { _modernEnv.AmbientLightColor = _moodAmbColour0; _modernEnv.AmbientLightSkyContribution = _moodAmbSky0; }
-        _modernEnv.AmbientLightEnergy *= MoodNum("ambe", 1f);
-        // the sky's light on the scene: Godot ignores AmbientLightEnergy while the sky's contribution is 1 (Environment docs), so
-        // the energy the calibration asks for never reached the scene; ambfix=X scales the radiance itself by X times that energy,
-        // ambr=X by X; ambtint=zenith tints it toward the texture's open sky (luminance kept)
-        float rg = _mood.TryGetValue("ambfix", out var af) ? MoodF(af) * _modernEnv.AmbientLightEnergy : MoodNum("ambr", 1f);
+        if (_mood.TryGetValue("ambe", out var ae))
+        {
+            _modernEnv.AmbientLightEnergy *= MoodF(ae);
+            if (SkyLightFixed && !_mood.ContainsKey("amb")) _modernEnv.AmbientLightSkyContribution = SkyContribution(_modernEnv.AmbientLightEnergy);
+        }
+        // the sky's radiance itself (ambient and reflections) times ambr; ambtint=zenith tints it toward the texture's open sky (luminance kept)
+        float rg = MoodNum("ambr", 1f);
         var tint = new Vector3(1, 1, 1);
         if (_mood.TryGetValue("ambtint", out var at) && (at == "zenith" ? (pal ?? _builder?.Palette)?.Sky : MoodRgb(at)) is { } tc)
         {
@@ -217,7 +222,21 @@ public partial class Main
     }
 
     // ---- the capture sequence ----
-    private static readonly string[]? ShotSeq = System.Environment.GetEnvironmentVariable("I76_SHOT_SEQ")?.Split(';', System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries);
+    private static readonly string[]? ShotSeq = System.Environment.GetEnvironmentVariable("I76_SHOT_SEQ")?.Split([';', '~'], System.StringSplitOptions.RemoveEmptyEntries | System.StringSplitOptions.TrimEntries);
+
+    /// <summary>
+    /// A sequence step's sun: camera ("dyaw,height,back,pitch") as I76_CAP_CAM's text: <paramref name="back"/> behind and height over the
+    /// player's car, looking dyaw degrees from the bearing toward the light (Godot frame, <paramref name="light"/> toward it), so the car is in the foot of the view.
+    /// </summary>
+    public static string? SunCam(string args, Vector3 light)
+    {
+        var v = args.Split(',');
+        if (v.Length != 4) return null;
+        float dyaw = MoodF(v[0]), h = MoodF(v[1]), back = MoodF(v[2]), pitch = MoodF(v[3]);
+        float yaw = Mathf.RadToDeg(Mathf.Atan2(-light.X, -light.Z)) + dyaw, r = Mathf.DegToRad(yaw);
+        // SetYawPitch(yaw): the view along (-sin yaw, -cos yaw) on the ground, so behind it is (+sin, +cos)
+        return string.Join(",", new[] { back * Mathf.Sin(r), h, back * Mathf.Cos(r), yaw, pitch }.Select(x => x.ToString("0.###", CultureInfo.InvariantCulture)));
+    }
     private static readonly int ShotSeqStart = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SHOT_SEQ_START"), out int s0) ? s0 : 90;
     private static readonly int ShotSeqHold = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SHOT_SEQ_HOLD"), out int h0) ? h0 : 45;
 
@@ -235,7 +254,9 @@ public partial class Main
             string cam = parts.Length > 1 ? parts[1] : "";
             if (cam.StartsWith("free:")) { System.Environment.SetEnvironmentVariable("I76_FREECAM", cam[5..]); System.Environment.SetEnvironmentVariable("I76_CAP_CAM", null); }
             else if (cam.StartsWith("car:")) { System.Environment.SetEnvironmentVariable("I76_CAP_CAM", cam[4..]); System.Environment.SetEnvironmentVariable("I76_FREECAM", null); }
+            else if (cam.StartsWith("sun:") && SunCam(cam[4..], _lightDir) is { } sc) { System.Environment.SetEnvironmentVariable("I76_CAP_CAM", sc); System.Environment.SetEnvironmentVariable("I76_FREECAM", null); }
             _mood = ParseMood(MoodBase + "&" + (parts.Length > 2 ? parts[2] : ""));
+            if (_mood.TryGetValue("look", out var look) && (look == "1997") != _mode1997) SetMode1997(look == "1997");
             MoodLightingChoice();
             ApplyLightingCalibration();
             GD.Print($"shot seq: step {k} {name} cam {cam}");

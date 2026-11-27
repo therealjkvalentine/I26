@@ -54,7 +54,8 @@ public partial class Main
         if (_software is null || _cardRamp is null) { SetMsaa(Msaa1997(_mode1997)); return; }
         bool sw = EnvSwitch("I76_SOFTWARE") ?? s.SoftwareRenderer, grade = EnvSwitch("I76_PALETTE_GRADE") ?? s.PaletteGrade;
         int level = s.Graphics[0xc];
-        _software.Apply(_mode1997, sw, grade, _cardRamp, _sky1997, _builder?.SkyTexture, _env1997, CardCurve(level), level);
+        // Lighting's 1997 Sunlit grades toward the 16-bit mission's palette
+        _software.Apply(_mode1997, sw, grade, _cardRamp, _sky1997, _builder?.SkyTexture, _env1997, CardCurve(level), level, grade16: _lighting == Lighting.Sunlit);
         SetMsaa(Msaa1997(_mode1997));   // after Apply: the Software renderer draws none
         ApplyFade1997();   // the Software renderer has no fade
     }

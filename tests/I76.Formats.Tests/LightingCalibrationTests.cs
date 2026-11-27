@@ -186,6 +186,59 @@ public class LightingCalibrationTests
         Assert.InRange(r.GroundTint.B / r.GroundTint.R, 0.8, 1.6);
     }
 
+    // hills under a low sun (15 degrees up, T10's dusk) with the sky's light at the share the calibration solves (dim against the sun)
+    private static TerrainTiles Hills() => Tile((x, z) => 1000 + (int)(120 * Math.Sin(x / 9.0) + 90 * Math.Cos(z / 7.0)));
+    private static readonly M.Rgb DimSky = new(0.05, 0.06, 0.08);
+    // a steeper ramp, as a dusk mission's: from a low floor nearly straight to its top
+    private static readonly byte[] Steep = Enumerable.Range(0, 32).Select(k => (byte)Math.Round(255 * (0.08 + 0.92 * k / 31.0))).ToArray();
+
+    [Fact]
+    public void TheSunlitSolveRaisesTheSunUntilTheGroundHasThe1997LooksContrastAndKeepsItsMean()
+    {
+        var sun = Sun(1.309);
+        // the sky's light as strong as a low sun's on the flats: the modern ground flatter than the ramp's
+        var ground = M.Cells(Hills(), 2, sun, Steep, 0, SunLight, SkyLight, M.CardFlatWeight);
+        var contrast = M.Cells(Hills(), 2, sun, Steep, 0, SunLight, SkyLight);
+        var plain = M.Solve(Sand, ground, Car(1.309), M.ToneCurve.Card);
+        var r = M.SolveSunlit(Sand, ground, Car(1.309), contrast, M.ToneCurve.Card);
+        Assert.Equal(1, plain.SunGain);
+        Assert.InRange(r.SunGain, 1.05, M.MaxSunGain);
+        var (dim, lit) = M.Thirds(contrast);
+        double Ratio(IReadOnlyList<M.Cell> d, IReadOnlyList<M.Cell> l, double e) => M.Modern(Sand, l, e, new(1, 1, 1), 1, M.ToneCurve.Card).Luminance / M.Modern(Sand, d, e, new(1, 1, 1), 1, M.ToneCurve.Card).Luminance;
+        double want = M.Target(Sand, lit).Luminance / M.Target(Sand, dim).Luminance;
+        // the plain solve's ground is flatter than the 1997 look's (the reason for the look); the sunlit one has its contrast, its mean the same
+        Assert.True(Ratio(dim, lit, plain.Exposure) < want * 0.95);
+        if (r.SunGain < M.MaxSunGain - 1e-3) Assert.Equal(want, Ratio(M.Scaled(dim, r.SunGain), M.Scaled(lit, r.SunGain), r.Exposure), 1);
+        var target = M.Target(Sand, ground);
+        var shown = M.Modern(Sand, M.Scaled(ground, r.SunGain), r.Exposure, r.GroundTint, 1, M.ToneCurve.Card);
+        for (int c = 0; c < 3; c++) Assert.Equal(target[c], shown[c], 3);
+        // the stronger sun takes a lower exposure: the faces turned from it (the sky's light alone) darker than the plain solve's
+        Assert.True(r.Exposure < plain.Exposure);
+    }
+
+    [Fact]
+    public void FlatGroundHasNoContrastToMatchAndKeepsTheSunAsItIs()
+    {
+        var flat = M.Cells(Tile((_, _) => 1000), 4, Sun(0.785), Luma, 0, SunLight, DimSky);
+        Assert.Equal((0, 0), (M.Thirds(flat).Dim.Count, M.Thirds(flat).Lit.Count));
+        var r = M.SolveSunlit(Sand, flat, Car(0.785), flat, M.ToneCurve.Card);
+        Assert.Equal(1, r.SunGain);
+        Assert.Equal(M.Solve(Sand, flat, Car(0.785), M.ToneCurve.Card), r);
+    }
+
+    [Fact]
+    public void TheThirdsSplitTheCellsByThe1997LooksLightByWeight()
+    {
+        var cells = new List<M.Cell>
+        {
+            new(0.9, new(1, 1, 1), DimSky, 1), new(0.2, new(0, 0, 0), DimSky, 1), new(0.5, new(0.5, 0.5, 0.5), DimSky, 1),
+            new(0.3, new(0.1, 0.1, 0.1), DimSky, 2), new(0.8, new(0.9, 0.9, 0.9), DimSky, 1),
+        };
+        var (dim, lit) = M.Thirds(cells);
+        Assert.Equal([0.2, 0.3], dim.Select(c => c.Ramp));
+        Assert.Equal([0.8, 0.9], lit.Select(c => c.Ramp));
+    }
+
     [Fact]
     public void NoCellsLeaveTheModernLookAsItIs()
     {
