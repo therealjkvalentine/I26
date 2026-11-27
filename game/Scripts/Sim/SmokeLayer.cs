@@ -266,6 +266,9 @@ public partial class SmokeLayer : Node3D
     {
         GetTree().NodeAdded -= OnNodeAdded;
         GetTree().NodeRemoved -= OnNodeRemoved;
+        // the mirrors' quads are this layer's children, freed with it: the views (kept for the process) make new ones in the next
+        // mission (a second mission in one run, a road trip's next job, used the freed ones: ObjectDisposedException every frame)
+        foreach (var v in Views) { v.Quad = null; v.Mat = null; v.Seen = 0; }
     }
 
     public override void _Process(double delta)

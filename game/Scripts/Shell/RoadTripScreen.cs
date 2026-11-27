@@ -160,7 +160,7 @@ public sealed class RoadTripScreen : ShellScreen
     private int Count => Mood switch { "choose" => _offers.Count, "reward" => Picks.Length, _ => 0 };
 
     /// <summary>The debrief page's second button: RETRY JOB with the Developer setting on.</summary>
-    private static readonly Rect2I Retry = new(170, 450, 140, 19);
+    private static readonly Rect2I Retry = new(330, 450, 140, 19);   // (the sheet's middle button box: TAKE THE JOB's)
 
     private Rect2I Box(int i) => Mood == "choose" ? new(OfferX, 80 + i * 58, Right - OfferX, 52) : new(Left, Top + i * (BoxH + BoxGap), Right - Left, BoxH);
 
