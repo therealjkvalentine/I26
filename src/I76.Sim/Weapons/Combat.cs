@@ -697,7 +697,9 @@ public sealed partial class Combat(SimWorld world, Func<string, EffectDef?> effe
             }
             if (miss >= tol || !CanSee(shooter, target)) return false;
             // the friendly scan: cars of the shooter's team field (team 0 included) within 100 on the ground of the
-            // shooter; the round's closest approach to the car's position, t clamped to 0 and only below 4 s, no jitter
+            // shooter; the round's closest approach to the car's position, t clamped to 0 and only below 4 s, no jitter.
+            // The original (0x418920..0x418c3b) tests the position point alone, not the body: a round that passes a long
+            // friend (S07's semi) more than 2 from its position goes on and strikes it, the sweep skipping only the shooter
             var sp = shooter.Pos.ToVector3();
             foreach (var o in World.Vehicles)
             {
