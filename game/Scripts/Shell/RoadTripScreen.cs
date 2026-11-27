@@ -153,7 +153,7 @@ public sealed class RoadTripScreen : ShellScreen
         Repaint();
         // a run made by another version of the generator rolls other jobs from the same number: say so
         if (Notice is null && Run.Builder != RemixBuilder.Version && Mood == "choose")
-            Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = $"This run was made by builder v{Run.Builder}; this game's is v{RemixBuilder.Version}, so its jobs differ.", Closed = Repaint });
+            Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Closed = Repaint, Text = $"This run was made by builder v{Run.Builder}; this game's is v{RemixBuilder.Version}, so its jobs differ." });
         if (Notice is { Length: > 0 } n) Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = n, Closed = Repaint });
     }
 
