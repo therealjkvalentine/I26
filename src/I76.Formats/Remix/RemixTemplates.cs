@@ -19,11 +19,11 @@ public static class RemixTemplates
         "defend" => Defend(c),
         "deliver" => Deliver(c),
         "tail" => Tail(c),
-        "intercept" => Intercept(c),
+        "intercept" or "ambush" => Intercept(c),
         "escort" => Escort(c),
         "raid" => Raid(c),
         var t => throw new RemixError($"objective template '{t}': defend, deliver, tail, intercept, escort or raid"),
-    }) + (c.Spec.Objective.Template is "intercept" or "defend" or "escort" or "raid" ? Sleepers(c) : "") + Reinforcements(c)).Replace("\r\n", "\n");
+    }) + (c.Spec.Objective.Template is "intercept" or "ambush" or "defend" or "escort" or "raid" ? Sleepers(c) : "") + Reinforcements(c)).Replace("\r\n", "\n");
 
     /// <summary>
     /// Sleepers for the templates without their own (intercept, defend): each waits parked where it is until the player comes within
@@ -71,7 +71,7 @@ public static class RemixTemplates
             "defend" => 3,
             "deliver" => (o.Pickup is not null ? 2 : 1) + (o.Clear > 0 ? 1 : 0),
             "tail" => 2,
-            "intercept" => o.Convoy is { KillEscorts: true, Escorts.Count: > 0 } ? 2 : 1,
+            "intercept" or "ambush" => o.Convoy is { KillEscorts: true, Escorts.Count: > 0 } ? 2 : 1,
             "escort" => 2,
             "raid" => 3,
             _ => 0,

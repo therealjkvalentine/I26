@@ -370,4 +370,83 @@ public class RemixRound5Tests
                 Assert.InRange(u.Y, -0.01f, 1.01f);
             }
     }
+
+    /// <summary>
+    /// The ambush (the owner: "opportunities for us to be the ones ambushing"): the player waits at a place by a route; the convoy
+    /// comes along it unaware (no alarm, its own pace) until he is close or fires, then runs at its alert speed; it passes him in
+    /// one to two minutes; killing it and getting away wins; letting it through is failure line 3, a bust; his death ends the run.
+    /// </summary>
+    [Fact]
+    public void AnAmbushWaitsForTheConvoyAndItsEndsAreClassified()
+    {
+        var specs = Enumerable.Range(1, 300).Select(seed => RemixDirector.Roll(seed)).ToList();
+        Assert.Contains(specs, x => x.Objective.Template == "ambush");
+        Assert.Equal("AMBUSH", RemixRun.JobWord("ambush"));
+        if (Dir() is not { } dir) return;
+        var install = new GameInstall(SnapshotRig.Install!);
+        RemixSpec? spec = null;
+        for (int seed = 1; seed < 200 && spec is null; seed++)
+        {
+            var c = RemixDirector.Roll(seed, new RemixDirector.JobAsk { Id = "xamb", Template = "ambush", Map = "t16" });
+            if (c.Objective.Convoy!.Escorts.Count >= 1) spec = c;
+        }
+        var rep = RemixPacing.Measure(install, spec!);
+        Assert.Empty(rep.Problems);
+        Assert.InRange(rep.FirstContact, 20, 120);
+        RemixBuilder.Build(install, spec!).WriteTo(dir);
+        var cv = spec!.Objective.Convoy!;
+        Entity Of(SimSession s, string name)
+        {
+            var vm = s.Script!.Vm!;
+            var keys = I76.Formats.Fsm.MissionScriptDecompiler.Keys(vm.Actors.Select(a => a.Label));
+            return (Entity)vm.Actors[Array.IndexOf(keys, RemixBuilder.PathPrefix + name)].Handle!;
+        }
+        // unaware: rolling on the route at its pace, the player untouched, while he waits where he is
+        var (s1, set1) = Make("xamb");
+        var lead = Of(s1, cv.Lead).Vehicle!;
+        var me = set1.World.Player!;
+        double hp0 = me.Health!.Armour.Sum() + me.Health.Chassis.Sum(), top = 0;
+        double x0 = lead.Pos.X, z0 = lead.Pos.Z;
+        for (int t = 0; t < 20 * 25; t++) { s1.Tick([new CarInput()]); SnapshotRig.TakeEvents(s1); if (t > 20 * 12) top = System.Math.Max(top, lead.Speed); }
+        Assert.True(System.Math.Sqrt((lead.Pos.X - x0) * (lead.Pos.X - x0) + (lead.Pos.Z - z0) * (lead.Pos.Z - z0)) > 100, "the convoy rolled");
+        Assert.True(top < cv.AlertSpeed - 3, $"unaware: {top:0.0} m/s, its pace {cv.Speed}, alert {cv.AlertSpeed}");
+        Assert.Equal(hp0, me.Health.Armour.Sum() + me.Health.Chassis.Sum());
+        // seen close: the player put beside the lead, it runs
+        me.Pos = new Double3(lead.Pos.X + 40, lead.Pos.Y, lead.Pos.Z);
+        me.Vel = default;
+        double fast = 0;
+        for (int t = 0; t < 20 * 12; t++) { s1.Tick([new CarInput()]); SnapshotRig.TakeEvents(s1); fast = System.Math.Max(fast, lead.Speed); }
+        Assert.True(fast > top + 2, $"alerted: {fast:0.0} m/s against {top:0.0}");
+        // let through: line 3, a bust
+        var (s2, _) = Make("xamb");
+        Step(s2, 20 * 600);
+        Assert.False(s2.Script!.Result);
+        Assert.Equal(RemixRun.Outcome.Bust, RemixRun.Classify(false, s2.Script.Host.End!.Value.FailMessage, spec.Text.Failures.Count, false));
+        Assert.Contains("got through", spec.Text.Failures[s2.Script.Host.End!.Value.FailMessage]);
+        // killed: the run over
+        var (s3, set3) = Make("xamb");
+        Step(s3, 20 * 3);
+        s3.Script!.Host.Destroy(s3.Script.Host.Of(set3.World.Player!)!);
+        Step(s3, 20 * 10);
+        Assert.Equal(RemixRun.Outcome.Dead, RemixRun.Classify(false, s3.Script.Host.End!.Value.FailMessage, spec.Text.Failures.Count, true));
+        // won: the convoy and the backup killed as they come, then away to the finish with nobody near
+        var (s4, set4) = Make("xamb");
+        var fin = spec.Places[spec.Objective.Finish!.Place][0];
+        for (int t = 0; t < 20 * 300 && s4.Script!.Result is null; t += 20)
+        {
+            Step(s4, 20);
+            foreach (var r in RemixRoles.Hostiles(spec))
+            {
+                var e = Of(s4, r.Car);
+                if (!e.Dead && e.Vehicle is { } v && Weapons.Combat.IsLive(v) && e.Order is { } ord && ord != Fsm.AiOrder.Hide) { e.KilledByPlayer = true; s4.Script.Host.Destroy(e); }
+            }
+            if ((s4.Script.Host.Objectives.Flags[0] & Objectives.Succeeded) != 0 && (s4.Script.Host.Objectives.Flags[1] & Objectives.Succeeded) != 0)
+            {
+                var p = set4.World.Player!;
+                p.Pos = new Double3(fin[0], set4.Ground.BareHeight((float)fin[0], (float)fin[1]) + 0.5, fin[1]);
+                p.Vel = default;
+            }
+        }
+        Assert.True(s4.Script!.Result, string.Join(", ", s4.Script.Host.Objectives.Flags.Select(Objectives.Describe)));
+    }
 }

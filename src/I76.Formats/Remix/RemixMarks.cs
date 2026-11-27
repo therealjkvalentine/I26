@@ -55,7 +55,7 @@ public sealed class RemixMarks
             case "tail":
                 Zone(o.Hideout, "HIDEOUT");
                 break;
-            case "intercept" when o.Convoy is { } cv:
+            case "intercept" or "ambush" when o.Convoy is { } cv:
                 if (place(cv.Route) is { Count: > 1 } route) m.Lines.Add(("ROUTE", [.. route]));
                 if (car(cv.Lead) is { } lead) m.Add("CONVOY", lead);
                 Zone(cv.Exit, "EXIT");
@@ -85,7 +85,7 @@ public sealed class RemixMarks
                 else Step(1, P(o.Home));
                 break;
             case "tail": Step(2, P(o.Hideout)); break;
-            case "intercept": if (o.Convoy is { } c2 && car(c2.Lead) is { } ld) Step(1, ld); break;
+            case "intercept" or "ambush": if (o.Convoy is { } c2 && car(c2.Lead) is { } ld) Step(1, ld); break;
             case "defend": Step(1, P(o.Arrive)); break;
             case "escort": Step(1, P(o.Escort?.Mid)); Step(2, P(o.Escort?.Goal)); break;
             case "raid": Step(1, P(o.Arrive)); Step(3, P(o.Escape)); break;

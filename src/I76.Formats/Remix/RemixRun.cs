@@ -386,7 +386,7 @@ public sealed class RemixRun
     /// <summary>What a template is called on the choice screen.</summary>
     public static string JobWord(string template) => template switch
     {
-        "deliver" => "DELIVERY", "tail" => "SHAKE THE TAIL", "intercept" => "CONVOY HIT", "defend" => "DEFENCE",
+        "deliver" => "DELIVERY", "tail" => "SHAKE THE TAIL", "intercept" => "CONVOY HIT", "ambush" => "AMBUSH", "defend" => "DEFENCE",
         "escort" => "ESCORT", "raid" => "RAID", _ => template.ToUpperInvariant(),
     };
 

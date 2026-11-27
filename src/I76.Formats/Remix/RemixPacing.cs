@@ -69,6 +69,18 @@ public static class RemixPacing
             case "defend":
                 Add("defend", start, P(o.Arrive));
                 break;
+            case "ambush":
+                // the convoy comes to him: its delay and its run along the route to where it passes nearest him; then away
+                if (o.Convoy is { } am && spec.Places.TryGetValue(am.Route, out var rpts) && rpts.Count > 1)
+                {
+                    int near = 0;
+                    for (int i = 1; i < rpts.Count; i++) if (Dist2(rpts[i], start) < Dist2(rpts[near], start)) near = i;
+                    double run = 0;
+                    for (int i = 1; i <= near; i++) run += System.Math.Sqrt(Dist2(rpts[i], rpts[i - 1]));
+                    legs.Add(new Leg("ambush", start, start, Extra: am.Delay + run / System.Math.Max(1, am.Speed)));
+                    Add("away", rpts[near], P(o.Finish));
+                }
+                break;
             case "escort":
                 if (o.Escort is { } e && spec.Places.TryGetValue(e.Route, out var route) && route.Count > 1)
                 {
@@ -122,6 +134,8 @@ public static class RemixPacing
         }
         return new Report(timed, first, mean, bad);
     }
+
+    private static double Dist2(double[] a, double[] b) => (a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]);
 
     private static readonly Dictionary<string, Roads> Cache = new(StringComparer.OrdinalIgnoreCase);
 
