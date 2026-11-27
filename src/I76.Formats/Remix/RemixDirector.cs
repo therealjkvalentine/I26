@@ -125,14 +125,14 @@ public static class RemixDirector
                 // roof or a slope
                 void Guard()
                 {
-                    double a = (r.Next(8) * 45 + 22.5) * Math.PI / 180, d = 6 + 5 * o.Sleepers.Count;
+                    double a = (r.Next(4) * 45 + 202.5) * Math.PI / 180, d = 6 + 5 * o.Sleepers.Count;   // the west side: the wrecks are east
                     var g = NewCar(Heat[heat], [pickup.At[0] + d * Math.Sin(a), pickup.At[1] + d * Math.Cos(a)], r.Next(360));
                     o.Sleepers.Add(new SleeperSpec { Car = g, Wake = 220 });
                 }
                 Guard();
                 grow.Add(("guards", () => o.Sleepers.Count, Guard));
                 // the goods are in a pile of wrecks beside the road at the pickup
-                Prop("akwreck3", 2, [pickup.At[0] + 22, pickup.At[1] + 6], r.Next(360));
+                Prop("akwreck3", 2, [pickup.At[0] + 12, pickup.At[1] + 3], r.Next(360));   // on the shoulder: further out it stood on the bank
                 // the twist: they cut the way home as the return starts
                 var cut = NearestEntry(map, home, 400, 1500, r);
                 var re = new ReinforceSpec { Entry = Entry(cut), AtStep = 2, Delay = 15, Speed = 25 };

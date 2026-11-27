@@ -114,12 +114,19 @@ public static class RemixCheck
             // a checked car dies a few seconds later, as the player's kill (the later waves wait for kills)
             for (int k = doom.Count - 1; k >= 0; k--)
                 if (now >= doom[k].At) { if (setup.Entities.FirstOrDefault(e => e.Vehicle == doom[k].Car) is { Dead: false } de) { de.KilledByPlayer = true; s.Script!.Host.Destroy(de); } doom.RemoveAt(k); }
+            // the sleepers where they are parked, once settled
+            if (t == (int)(2 / s.TickSeconds))
+                foreach (var (name, v) in cars.Where(c => Part(roles, c.Key) == "sleeper"))
+                {
+                    float g = setup.Ground.BareHeight((float)v.Pos.X, (float)v.Pos.Z);
+                    if (System.Math.Abs((float)v.Pos.Y - g) > 8) bad.Add($"sleeper {name}: parked at height {v.Pos.Y:0.0}, the ground is {g:0.0}");
+                }
             if (t % 10 != 0) continue;
             foreach (var (name, v) in cars)
             {
                 if (seen.Contains(name) || !Weapons.Combat.IsLive(v)) continue;
                 if (Weapons.Combat.IsDead(v)) { seen.Add(name); continue; }
-                if (!grounded.Contains(name))
+                if (!grounded.Contains(name) && Part(roles, name) != "sleeper")   // a sleeper is held to the ground where it is parked (below), not mid-drive
                 {
                     float g = setup.Ground.BareHeight((float)v.Pos.X, (float)v.Pos.Z);
                     if (System.Math.Abs((float)v.Pos.Y - g) > 8) bad.Add($"{Part(roles, name)} {name}: out at height {v.Pos.Y:0.0}, the ground is {g:0.0}");
