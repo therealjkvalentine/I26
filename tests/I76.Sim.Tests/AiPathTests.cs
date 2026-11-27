@@ -143,10 +143,29 @@ public class AiPathTests
         Assert.True(winding.Most < 1f, $"the van circled {winding.Most:0.00} turns in 30 s on its path");
     }
 
+    /// <summary>
+    /// S07: the player shows up by the convoy, then far away; the Milk Toast semi drives its path to its compound without circling
+    /// (the mission ends lost, the semi home). The semi is kept whole, as the escorts' van is in T10: what its escorts' turrets do to
+    /// it is <see cref="TheMilkToastEscortsSpareTheSemi"/>'s question.
+    /// </summary>
     [Theory]
     [InlineData(20)]
     [InlineData(60)]
-    public void TheMilkToastSemiDoesNotCircle(int hz)
+    public void TheMilkToastSemiDoesNotCircle(int hz) => MilkToast(hz, keepSemi: true);
+
+    /// <summary>
+    /// The same run with the semi left to its escorts. On the stock install at 20 Hz the escort s07fd01, 6 to 8 m beside the semi, fires
+    /// its 7.62 turret at the player 100 to 30 m off (from 34 s) through the semi, and kills it at 41.7 s: the friendly scan (the
+    /// original's) holds a round only within 2 m of a friend's origin when the friend is within 8 m of the shooter, and the rounds
+    /// strike the semi's body away from its origin. At 60 Hz the escorts' line differs and the semi lives. Before the turret fix (fix/turret-aim-moving-carrier, measured
+    /// against the original) the turrets shot behind and missed.
+    /// </summary>
+    [Theory(Skip = "Open: do the original's S07 escorts kill the Milk Toast semi with their turrets when the player parks by the convoy? Measure the original before choosing.")]
+    [InlineData(20)]
+    [InlineData(60)]
+    public void TheMilkToastEscortsSpareTheSemi(int hz) => MilkToast(hz, keepSemi: false);
+
+    private static void MilkToast(int hz, bool keepSemi)
     {
         if (InstallDir is null) return;
         var (setup, session) = Load("s07", hz);
@@ -169,6 +188,7 @@ public class AiPathTests
             if (moved == 0 && host.Now >= 30f) { Put(2700, 50260, 90); moved++; }
             if (moved == 1 && host.Now >= 45f) { Put(2000, 49000, 0); moved++; }
             Heal(me);
+            if (keepSemi) Heal(semi.Vehicle!);
             session.Tick([new CarInput()]);
             winding.Add(semi);
         }

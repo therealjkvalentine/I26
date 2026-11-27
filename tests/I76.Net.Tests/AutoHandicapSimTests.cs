@@ -11,8 +11,9 @@ namespace I76.Net.Tests;
 /// <summary>
 /// Auto handicap on a table of mixed skill (docs/multiplayer.md "Auto handicap"), as <c>i76 melee-sim</c> plays it: six bots of three
 /// strengths (a factor on the damage each lands, the test-only skill knob, with the AI tier) fight for five game-minutes with the rule
-/// off and on, from one seed, so the behaviour is pinned: the rule moves levels, says so, the strong bots are the ones taken harder,
-/// and the game stays deterministic.
+/// off and on, from one seed, so the behaviour is pinned: the rule moves levels, says so, by the standings (harder over the table's mean,
+/// easier under it), the strong pair ends taken hardest, and the game
+/// stays deterministic.
 /// </summary>
 public class AutoHandicapSimTests(ITestOutputHelper output)
 {
@@ -35,7 +36,8 @@ public class AutoHandicapSimTests(ITestOutputHelper output)
     private static readonly float[] Strengths = [2f, 2f, 1f, 1f, 0.5f, 0.5f];
     private const double Minutes = 5;
 
-    private sealed record Outcome(int[] Kills, int[] Deaths, int[] Levels, List<string> Said);
+    /// <summary>The game's numbers; <paramref name="Moves"/> each level move with the mover's kills minus deaths less the table's mean then.</summary>
+    private sealed record Outcome(int[] Kills, int[] Deaths, int[] Levels, List<string> Said, List<(int Level, float Over)> Moves);
 
     private static Outcome Play(string install, HandicapMode mode, double minutes)
     {
@@ -51,10 +53,15 @@ public class AutoHandicapSimTests(ITestOutputHelper output)
         }
         host.Setup.Combat.Damage = new Strength(host.Setup.Combat.Damage!, a => a is Vehicle v && strength.TryGetValue(v, out float f) ? f : 1f);
         var said = new List<string>();
-        host.Game.HandicapChanged += p => said.Add($"{Tiers[bots.FindIndex(b => b.Player == p)]}:{Handicaps.Label(p.Car.Handicap)}");
+        var moves = new List<(int, float)>();
+        host.Game.HandicapChanged += p =>
+        {
+            said.Add($"{Tiers[bots.FindIndex(b => b.Player == p)]}:{Handicaps.Label(p.Car.Handicap)}");
+            moves.Add((p.Car.Handicap, p.Kills - p.Deaths - (float)bots.Average(b => b.Player.Kills - b.Player.Deaths)));
+        };
         int ticks = (int)(minutes * 60 / host.Session.TickSeconds);
         for (int t = 0; t < ticks && !host.Over; t++) host.Step();
-        return new Outcome([.. bots.Select(b => b.Player.Kills)], [.. bots.Select(b => b.Player.Deaths)], [.. bots.Select(b => b.Player.Car.Handicap)], said);
+        return new Outcome([.. bots.Select(b => b.Player.Kills)], [.. bots.Select(b => b.Player.Deaths)], [.. bots.Select(b => b.Player.Car.Handicap)], said, moves);
     }
 
     [Fact]
@@ -68,17 +75,22 @@ public class AutoHandicapSimTests(ITestOutputHelper output)
         // the rule off: every level stays 0, and the same seed plays the same game twice
         Assert.All(off.Levels, l => Assert.Equal(0, l));
         Assert.Equal(off.Kills, Play(install, HandicapMode.Off, Minutes).Kills);
-        // the rule on: levels moved, each said once as it moved, only strong bots went harder and only weak or middling ones easier
+        // the rule on: levels moved, each said once as it moved; a harder level only while over the table's mean and an easier one only
+        // while under it (the rule reads the standings, not the skill: at 28.5 s the two best bots met, and the one killed, a kill under
+        // the mean, went to +1 until 150 s); over the game the strong pair taken hardest
         Assert.NotEmpty(auto.Said);
-        Assert.All(auto.Said.Where(s => s.EndsWith("-1") || s.EndsWith("-2") || s.EndsWith("-3")), s => Assert.StartsWith("1:", s));
-        Assert.All(auto.Said.Where(s => s.Contains(":+")), s => Assert.False(s.StartsWith("1:")));
+        Assert.Equal(auto.Said.Count, auto.Moves.Count);
+        Assert.All(auto.Moves, m => Assert.True(m.Level == 0 || (m.Level < 0) == (m.Over > 0), $"level {m.Level} at {m.Over:+0.00;-0.00} over the mean"));
+        Assert.All(auto.Said.Where(s => s.Contains(":-")), s => Assert.StartsWith("1:", s));
+        Assert.True(auto.Levels[0] + auto.Levels[1] < System.Math.Min(auto.Levels[2] + auto.Levels[3], auto.Levels[4] + auto.Levels[5]), string.Join(",", auto.Levels));
         Assert.All(auto.Levels, l => Assert.InRange(l, -3, 3));
-        // pinned: the numbers of this seed (a change here is a change of the rule or of the bots' game; re-pinned for a level a
-        // net kill with the damage taken scaled too, on play, whose turret fix had changed the bots' game)
+        // pinned: the numbers of this seed on a stock install (a change here is a change of the rule or of the bots' game; re-pinned for
+        // a level a net kill with the damage taken scaled too, on play, whose turret fix had changed the bots' game; re-pinned on the
+        // stock install, whose Piranha is not the one an install's garage saved into addon\, which the first pins were measured with)
         Assert.Equal(auto.Said, Play(install, HandicapMode.Auto, Minutes).Said);
-        Assert.Equal([2, 1, 0, 1, 0, 0], auto.Kills);
-        Assert.Equal([-1, 0, 0, 2, 0, 0], auto.Levels);
-        Assert.Equal(["1:-1", "3:+1", "1:-1", "1:0", "1:-1", "3:+2", "1:0"], auto.Said);
-        Assert.Equal([1, 3, 1, 0, 0, 0], off.Kills);
+        Assert.Equal([2, 4, 0, 2, 0, 0], auto.Kills);
+        Assert.Equal([0, -2, 1, 0, 1, 0], auto.Levels);
+        Assert.Equal(["1:-1", "1:+1", "1:0", "3:+1", "1:-1", "5:+1", "1:0", "1:-2"], auto.Said);
+        Assert.Equal([2, 2, 1, 1, 1, 1], off.Kills);
     }
 }

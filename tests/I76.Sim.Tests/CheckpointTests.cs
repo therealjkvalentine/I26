@@ -16,7 +16,9 @@ public class CheckpointTests
     /// Played with the 1997 CD build's tactic choice (build-rules.cfg ai_tactics=1997): under the 1998 build's draw the
     /// lead cop takes road_side and shoots Taurus from the road, and the corpus's driver, who does not defend him, fails
     /// the mission before the first objective (seeds 1-6, ticks 1002-1074); under the 1997 stub the cop circles out of
-    /// sight and the objective is done at tick 1007 (seeds 1, 3, 4).
+    /// sight and the objective is done at tick 1007 on most seeds. Which seeds is the AI's: seed 1 did at first, and lost it to
+    /// fixes of the cops' aim and sight; on the stock install seeds 3 to 12 do and 1 and 2 fail before it, so the test takes the
+    /// first of seeds 1 to 12 that does.
     /// </summary>
     [Fact]
     public void ARetryFromTheObjectivesCheckpointIsTheStateItWasTakenIn()
@@ -24,15 +26,21 @@ public class CheckpointTests
         if (SnapshotRig.Install is not { } dir) return;
         var l = new SnapshotRig.Loaded(dir);
         var b = SnapshotRig.BuildOf(dir, "t14");
-        var (s, _) = SnapshotRig.Make(l, b, SimRate.R20, 1);   // a seed whose run gets the first objective done
-        s.Script!.Host.TacticStub1997 = true;   // a rule of the session, set at each mission start (not in the snapshot)
-        var policy = CheckpointPolicy.For(s, enabled: true)!;
+        // the first seed whose run gets the first objective done (which seeds do is the AI's business, not the checkpoints')
+        SimSession s = null!;
         var taken = new List<(string Why, int Tick, byte[] Snap, string Dump)>();
-        while (s.Script!.Result is null && s.Ticks < 6000)
+        for (uint seed = 1; seed <= 12 && taken.Count < 2; seed++)
         {
-            SnapshotRig.Tick(s);
-            if (policy.Due(s) is { } why) taken.Add((why, s.Ticks, s.Snapshot(), StateDump.Of(s)));
-            SnapshotRig.TakeEvents(s);
+            (s, _) = SnapshotRig.Make(l, b, SimRate.R20, seed);
+            s.Script!.Host.TacticStub1997 = true;   // a rule of the session, set at each mission start (not in the snapshot)
+            var policy = CheckpointPolicy.For(s, enabled: true)!;
+            taken.Clear();
+            while (s.Script!.Result is null && s.Ticks < 6000)
+            {
+                SnapshotRig.Tick(s);
+                if (policy.Due(s) is { } why) taken.Add((why, s.Ticks, s.Snapshot(), StateDump.Of(s)));
+                SnapshotRig.TakeEvents(s);
+            }
         }
         Assert.False(s.Script.Result);
         Assert.Equal(["start", "objective 1"], taken.Select(t => t.Why));

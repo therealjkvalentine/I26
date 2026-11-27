@@ -127,16 +127,22 @@ public sealed partial class MeleeGame
     /// to drive over the bot's spot, Combat.AiDrop), with the port's limits on top: none in the first <see cref="DropGridSeconds"/> of
     /// the game (the start grid's bunch), none under <see cref="DropMinSpeed"/> (a bot in a pinch or backing out lays them on itself),
     /// none while a teammate is within <see cref="DropTeamRange"/> of it (in an arena the cars circle: a drop with a teammate near, ahead or
-    /// behind, is driven over by its own side soon after), and the last quarter of a full load kept for a later chase. The original's
-    /// mission AI has no teammates to spare.
+    /// behind, is driven over by its own side soon after), and the last quarter of a full load kept for a later chase. In team play it lays
+    /// no mines or Blox (<see cref="LastingDrop"/>): they lie until a car finds them, and the cars circle the arena, so its own side finds
+    /// them as often as the other (m05, four Hard bots a side, ten minutes: three enemies and three teammates mined, one killed). The
+    /// original's mission AI has no teammates to spare.
     /// </summary>
     private bool BotHoldsWeapon(Entity shooter, Weapons.Weapon w)
     {
         if (w.Def.Class != 6 || shooter.Vehicle is not { } v || !_botCars.Contains(v)) return false;
         if (Host.Now < DropGridSeconds || v.Speed < DropMinSpeed) return true;
         if (w.Ammo * 4 <= (int)w.Def.Ammo) return true;
+        if (Rules.TeamPlay && LastingDrop(w)) return true;
         return TeammateNear(shooter);
     }
+
+    /// <summary>A dropper whose drop lies until a car drives over it and hurts that car: mines (round kind 0xf) and Blox (0x10).</summary>
+    internal static bool LastingDrop(Weapons.Weapon w) => w.Def.Kind is 0xf or 0x10;
 
     /// <summary>Whether a teammate (a seat, bot or human, on the shooter's side in team play) is within <see cref="DropTeamRange"/> of the shooter on the ground.</summary>
     private bool TeammateNear(Entity shooter)

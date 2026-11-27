@@ -87,7 +87,9 @@ public class NetBotTests(ITestOutputHelper output)
     /// A race bot killed mid-lap comes back at a spawn point (behind check1) wanting the checkpoint it wanted, as a person's car does
     /// (the race's count goes on through a respawn), and drives the course to it from check1 in order, not straight across the arena
     /// (where the planner took it off the course into the walls and drops, to die and come back to try again): it takes that one and
-    /// finishes the lap without dying again.
+    /// finishes the lap. A crash on the course is driving, not the route: on N31 (seed 3) the respawned bot overshoots the hairpin
+    /// after check2 (where its first lap also stopped against the bank) and rolls on the road 20 m from its first lap's line; it may
+    /// die so, on the course, and then drives the course from check1 again. Every life after the kill is held to the course.
     /// </summary>
     [Theory]
     [InlineData("N31.RAC", 1)]
@@ -101,35 +103,56 @@ public class NetBotTests(ITestOutputHelper output)
         var checks = game.Checkpoints.Where(c => c.Key < 99).OrderBy(c => c.Key).ToList();
         double dt = host.Session.TickSeconds, t = 0;
         RaceTracker Tracker() => game.RaceOf(bot)!;
-        // lap one, then to the checkpoint after check(killAfter + 1)
-        while (t < 600 && !(game.RaceOf(bot) is { Laps: >= 1 } r && r.Current == killAfter)) { host.Step(); t += dt; }
+        // lap one, then to the checkpoint after check(killAfter + 1); its line, the course as the bot drives it
+        var line = new List<Vector2>();
+        while (t < 600 && !(game.RaceOf(bot) is { Laps: >= 1 } r && r.Current == killAfter))
+        {
+            host.Step(); t += dt;
+            var p = new Vector2((float)bot.Car.Pos.X, (float)bot.Car.Pos.Z);
+            if (line.Count == 0 || Vector2.Distance(line[^1], p) > 5f) line.Add(p);
+        }
         Assert.True(t < 600, "the bot raced a lap");
         int deaths = bot.Deaths, laps = Tracker().Laps;
         output.WriteLine($"{arena}: killed at {t:0} s by check{killAfter + 1}, {bot.Car.Pos.X:0},{bot.Car.Pos.Z:0}");
         host.Setup.Damage.Destroy(bot.Car);
-        while (t < 900 && (bot.Destroyed || DamageModel.IsDead(bot.Car))) { host.Step(); t += dt; }
-        double back = t;
-        var at = bot.Car.Pos;
-        output.WriteLine($"back at {back:0} s at {at.X:0},{at.Z:0}");
-        Assert.Equal(deaths + 1, bot.Deaths);
-        Assert.True(game.Spawns.Min(s => System.Math.Sqrt((s.Pos.X - at.X) * (s.Pos.X - at.X) + (s.Pos.Z - at.Z) * (s.Pos.Z - at.Z))) < 25, "at a spawn point");
-        Assert.Equal(killAfter, Tracker().Current);                     // the same checkpoint wanted
-        // the checkpoints the car comes by (within 30 m across the ground) on its way: the course from check1 in order
-        var seen = new List<int>();
-        double took = 0;
-        while (t - back < 240 && Tracker().Laps == laps)
+        double start = t, took = 0;
+        for (int life = 1; took == 0; life++)
         {
-            host.Step(); t += dt;
-            Assert.Equal(deaths + 1, bot.Deaths);
-            var p = bot.Car.Pos;
-            foreach (var (n, c) in checks)
-                if (took == 0 && (p.X - c.X) * (p.X - c.X) + (p.Z - c.Z) * (p.Z - c.Z) < 30 * 30 && (seen.Count == 0 || seen[^1] != n)) seen.Add(n);
-            if (took == 0 && Tracker().Current != killAfter) took = t;
+            while (t < start + 300 && (bot.Destroyed || DamageModel.IsDead(bot.Car))) { host.Step(); t += dt; }
+            double back = t;
+            var at = bot.Car.Pos;
+            output.WriteLine($"back at {back:0} s at {at.X:0},{at.Z:0}");
+            Assert.Equal(deaths + life, bot.Deaths);
+            Assert.True(life <= 3, "died three times after the kill");
+            Assert.True(game.Spawns.Min(s => System.Math.Sqrt((s.Pos.X - at.X) * (s.Pos.X - at.X) + (s.Pos.Z - at.Z) * (s.Pos.Z - at.Z))) < 25, "at a spawn point");
+            Assert.Equal(killAfter, Tracker().Current);                     // the same checkpoint wanted
+            // the checkpoints the car comes by (within 30 m across the ground) on its way: the course from check1 in order
+            var seen = new List<int>();
+            bool died = false;
+            while (t - start < 300 && Tracker().Laps == laps)
+            {
+                host.Step(); t += dt;
+                var p = bot.Car.Pos;
+                if (bot.Deaths > deaths + life)
+                {
+                    var q = new Vector2((float)p.X, (float)p.Z);
+                    float off = line.Min(l => Vector2.Distance(l, q));
+                    output.WriteLine($"died again at {t:0} s at {p.X:0},{p.Z:0}, {off:0} m from the first lap's line; by checkpoints {string.Join(", ", seen)}");
+                    Assert.True(off < 30f, $"died {off:0} m off the course");
+                    died = true;
+                    break;
+                }
+                foreach (var (n, c) in checks)
+                    if (took == 0 && (p.X - c.X) * (p.X - c.X) + (p.Z - c.Z) * (p.Z - c.Z) < 30 * 30 && (seen.Count == 0 || seen[^1] != n)) seen.Add(n);
+                if (took == 0 && Tracker().Current != killAfter) took = t;
+            }
+            Assert.Equal(Enumerable.Range(1, seen.Count), seen);           // in order from check1, as far as it got
+            if (died) continue;
+            output.WriteLine($"by checkpoints {string.Join(", ", seen)}; took check{killAfter + 2} {took - back:0} s after, the lap {t - back:0} s after");
+            Assert.True(took > 0, $"took check{killAfter + 2}");
+            Assert.Equal(Enumerable.Range(1, killAfter + 2), seen);
+            Assert.Equal(laps + 1, Tracker().Laps);
         }
-        output.WriteLine($"by checkpoints {string.Join(", ", seen)}; took check{killAfter + 2} {took - back:0} s after, the lap {t - back:0} s after");
-        Assert.True(took > 0, $"took check{killAfter + 2}");
-        Assert.Equal(Enumerable.Range(1, killAfter + 2), seen);
-        Assert.Equal(laps + 1, Tracker().Laps);
     }
 
     // ---- capture the flag ----

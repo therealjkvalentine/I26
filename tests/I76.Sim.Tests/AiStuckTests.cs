@@ -31,12 +31,12 @@ public class AiStuckTests(ITestOutputHelper log)
     private static string? InstallDir =>
         Environment.GetEnvironmentVariable("I76_INSTALL") is { Length: > 0 } d && Directory.Exists(d) ? d : null;
 
-    private static MissionSetup T15()
+    private static MissionSetup T15(uint seed = 1)
     {
         var install = new GameInstall(InstallDir!);
         var vfs = new AssetVfs(install);
         var asm = new ModelAssembler(vfs);
-        return MissionSetup.Build(vfs, new MissionWorld(vfs, asm, install.Resolve("miss16", "t15.msn")!), asm, rand: new I76.Sim.Rng.CrtRand(1));
+        return MissionSetup.Build(vfs, new MissionWorld(vfs, asm, install.Resolve("miss16", "t15.msn")!), asm, rand: new I76.Sim.Rng.CrtRand(seed));
     }
 
     /// <summary>Puts a car at rest on the ground at (x, z) facing <paramref name="yaw"/> radians from +Z toward +X.</summary>
@@ -93,6 +93,14 @@ public class AiStuckTests(ITestOutputHelper log)
         Assert.True(went > 150f, $"went only {went:0}");
     }
 
+    /// <summary>
+    /// A stopped car in dirt_gunner with its target alongside or behind gets going and turns on it (it does not sit braking). Its
+    /// path is the AI's draws (tactic_skid's push, 1 in 31 a frame at speed, takes it out of dirt_gunner mid-turn), so the test runs
+    /// seeds 1 to 20: never more than 1 s sat, on every seed; and its nose within 0.4 rad of the target in dirt_gunner on at least 15.
+    /// Measured on the stock install, seeds 1 to 30: sat at most 0.3 s; within 0.4 rad on 30, 25 and 29 of 30 (right, left, behind),
+    /// with the float-rounded odds of 1 in 32 30, 26 and 29; on seeds 1 to 20, 20, 16 and 19 (1 in 32: 20, 17, 19). Seed 1 alone,
+    /// the first form of the test, faces left 0.14 rad with 1 in 32 and 0.45 with 1 in 31.
+    /// </summary>
     [Theory]
     [InlineData(5f, 0f)]      // alongside, to its right
     [InlineData(-5f, 0f)]     // to its left
@@ -100,7 +108,21 @@ public class AiStuckTests(ITestOutputHelper log)
     public void AStoppedCarWithItsTargetAlongsideTurnsOnIt(float right, float ahead)
     {
         if (InstallDir is null) return;
-        var s = T15();
+        int faced = 0;
+        for (uint seed = 1; seed <= 20; seed++)
+        {
+            var (best, sat, moved) = TurnOn(right, ahead, seed);
+            log.WriteLine($"target at ({right}, {ahead}), seed {seed}: moved {moved:0.0}, best heading error {best:0.00}, sat {sat:0.0} s");
+            // unfixed: 3 to 11 s of the 15 stopped, braking, with the target off to the side or behind
+            Assert.True(sat < 1f, $"seed {seed}: sat {sat:0.0} s stopped with its target off its nose");
+            if (best < 0.4f) faced++;
+        }
+        Assert.True(faced >= 15, $"faced its target on {faced} of 20 seeds");
+    }
+
+    private (float Best, float Sat, float Moved) TurnOn(float right, float ahead, uint seed)
+    {
+        var s = T15(seed);
         float dt = SimRate.R20.TickSeconds;
         var h = s.Script!.Host;
         // a Piranha, whose clearance at rest is over 0.1, so the boxed-in test stays out of it
@@ -129,12 +151,9 @@ public class AiStuckTests(ITestOutputHelper log)
             if (Top(car) == 6) best = MathF.Min(best, err);
             if (Top(car) == 6 && v.Speed < 0.5f && err > 0.4f) sat += dt;
         }
-        float moved = Vector3.Distance(start, v.Pos.ToVector3());
-        log.WriteLine($"target at ({right}, {ahead}): moved {moved:0.0}, best heading error {best:0.00}, sat {sat:0.0} s");
-        // unfixed: 3 to 11 s of the 15 stopped, braking, with the target off to the side or behind
-        Assert.True(sat < 1f, $"sat {sat:0.0} s stopped with its target off its nose");
-        Assert.True(best < 0.4f, $"never faced its target (best {best:0.00} rad)");
+        return (best, sat, Vector3.Distance(start, v.Pos.ToVector3()));
     }
+
     /// <summary>
     /// #60: an AI car nosed up against a building, its target 60 beyond it, backs out and goes round. Nearly every
     /// building of the original (the houses, barns, warehouses, the fences, the wrecks) collides through class-0x2000
