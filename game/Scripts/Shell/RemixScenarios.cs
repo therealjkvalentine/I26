@@ -64,7 +64,8 @@ public static class RemixScenarios
             var yaml = RemixDirector.ToYaml(spec);
             RemixBuilder.Build(new GameInstall(installRoot), RemixSpec.Parse(yaml)).WriteTo(Dir);
             File.WriteAllText(System.IO.Path.Combine(Dir, RemixDirector.JobStem + ".job.yaml"), yaml);   // the description, to roll it again by hand
-            GD.Print($"remix: RANDOM JOB seed {seed}: {spec.Objective.Template} on {spec.Base} (i76 remix roll --seed {seed})");
+            // the reproduction line (docs/remix-missions.md "Reproducing a job")
+            GD.Print($"remix: JOB #{seed} builder v{RemixBuilder.Version} map {spec.Base} template {spec.Objective.Template} challenge 1.0 commit {I76.Game.Boot.BuildInfo.Commit} (i76 remix roll --seed {seed})");
             Remember(seed);
             return (seed, null);
         }

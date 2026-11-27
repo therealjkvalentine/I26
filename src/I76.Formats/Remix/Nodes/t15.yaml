@@ -23,6 +23,9 @@ nodes:
   - {name: southwest, kinds: [pickup, yard], at: [2277, 43140], called: the southwest bend of the mesa road}
   - {name: northeast, kinds: [pickup, home], at: [3191, 45267], called: the northeast pumps}
   - {name: west, kinds: [home, hideout], at: [2126, 43926], called: "the mesa's west side"}
+  # places of note: the open barn east of the mesa (its door south; Skeeter's van inside), the dead end on top of the mesa
+  - {name: barn, kinds: [start, hideout, home], at: [3422, 43690], heading: 180, sort: barn, inside: {object: bhbarn2, nth: 0}, out: [3422, 43650], friend: {vcf: vsvan1, at: [3423, 43697], heading: 180}, called: 'the open barn east of the mesa'}
+  - {name: mesa_top, kinds: [start, hideout], at: [3070, 42465], sort: overlook, called: 'the dead end on top of the mesa'}
 entries:
   - {name: north, at: [[2357, 45991], [2421, 45884]]}
   - {name: south, at: [[2903, 41778], [3023, 41816]]}

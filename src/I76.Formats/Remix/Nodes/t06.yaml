@@ -23,6 +23,8 @@ nodes:
   - {name: tracks, kinds: [pickup, home], at: [8989, 43535], called: the dirt tracks between the two roads}
   - {name: parade_west, kinds: [home, hideout], at: [7650, 44629], called: the west end of the Gas Parade road}
   - {name: between, kinds: [hideout], at: [8241, 43935], called: the open ground between the dirt tracks and the Gas Parade road}
+  # places of note: under the Gas Parade's long awning (the garage yard west of town is on ground cut off from the rest)
+  - {name: awning, kinds: [start, pickup, home], at: [9183, 44665], heading: 270, sort: awning, inside: {object: bfparad2, nth: 0}, out: [9160, 44665], called: 'under the long awning at the Gas Parade'}
 entries:
   - {name: wash_east, at: [[10777, 44569], [10654, 44555]]}
   - {name: bend, at: [[9795, 43622], [9754, 43738]]}

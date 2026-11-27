@@ -23,6 +23,8 @@ public static class RunCarry
         c.Suspension = d.Suspension?.Hp ?? -1;
         for (int k = 0; k < 6; k++) c.Wheels[k] = d.Slots[k] is WheelPart w ? w.Hp : -1;
         c.Weapons = [.. (v.Armory?.LoadOrder ?? []).Select(w => new[] { (int)w.Hardpoint.Id, w.Hp, w.Ammo })];
+        c.ArmourMax = [.. d.ArmourMax];
+        c.ChassisMax = [.. d.ChassisMax];
         c.ArmourLeft = Percent(d.Armour.Sum(), d.ArmourMax.Sum());
         c.ChassisLeft = Percent(d.Chassis.Sum(), d.ChassisMax.Sum());
         int full = (v.Armory?.LoadOrder ?? []).Sum(w => System.Math.Max(0, (int)w.Def.Ammo));

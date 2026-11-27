@@ -621,6 +621,7 @@ public partial class Main : Node3D
 		{
 			BugReport = () => WriteBugReport(_menuFrame),
 			Vfs = _builder.Vfs, Palette = pal, InstallDir = _opt.Install, Mission = mission, NoReconfigure = four, Faithful = _mode1997, End = end, Net = _net is not null,
+			RoadTrip = _launch is { RoadTrip: true }, RemixLabel = RemixLabel(),
 			Live = s => { ApplyAudio(s); ApplyGraphics(s); }, CheatsOff = I76.Game.Shell.CheatMarker.Clear, CanRetry = CanRetry, Developer = DevOn,
 			PausedFrame = () => _pit?.MirrorWhilePaused(), PlayFps = () => _fpsRecorder?.Recent,
 			SelfDestructRefused = _net is null ? null : () => !I76.Net.Hud.NetMenu.CanSelfDestruct(PlayerDead || _ended, _netHud?.Decided == true),
@@ -693,13 +694,31 @@ public partial class Main : Node3D
 		_sim.AddChild(layer);
 		var ob = _script.Host.Objectives;
 		int shown = -1;
-		ob.Sound += _ =>
+		var steps = I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Steps ?? [];
+		void SayOpen()
 		{
-			// the first objective neither done nor hidden: when it changes, say it
+			// the first objective neither done nor hidden: when it changes, say it, and how far and which way its place is from the
+			// player now (docs/remix-missions.md "Finding the places": the stock game has no objective marker on the radar)
 			int open = System.Array.FindIndex(ob.Flags, f => (f & (I76.Sim.Missions.Objectives.Hidden | I76.Sim.Missions.Objectives.Succeeded | I76.Sim.Missions.Objectives.Failed)) == 0);
 			if (open < 0 || open == shown || !GodotObject.IsInstanceValid(line)) return;
 			shown = open;
-			line.Say(I76.Formats.Remix.RemixBuilder.Plain(ob.Text.Objectives[open].Text) is var t && t.Length > 0 ? char.ToUpperInvariant(t[0]) + t[1..] : t);
+			string t = I76.Formats.Remix.RemixBuilder.Plain(ob.Text.Objectives[open].Text);
+			if (t.Length > 0) t = char.ToUpperInvariant(t[0]) + t[1..];
+			if (steps.FirstOrDefault(st => st.Objective == open + 1) is { Objective: > 0 } step && _sim?.World.Player is { } me)
+			{
+				double[] from = [me.Pos.X, me.Pos.Z], to = [step.At.X, step.At.Y];
+				if (System.Math.Sqrt((to[0] - from[0]) * (to[0] - from[0]) + (to[1] - from[1]) * (to[1] - from[1])) > 120)
+					t += $" ({I76.Formats.Remix.RemixDirector.Distance(from, to)} {I76.Formats.Remix.RemixDirector.Compass(from, to)})";
+			}
+			line.Say(t);
+		}
+		ob.Sound += _ => SayOpen();
+		SayOpen();
+		// a radio clip the install lacks: its words lettered instead (the description's radio.words)
+		var words = I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Words;
+		_script.Host.Cb.Missing += name =>
+		{
+			if (words is not null && words.TryGetValue(System.IO.Path.GetFileNameWithoutExtension(name), out var w) && GodotObject.IsInstanceValid(line)) line.Say(w);
 		};
 		OpenPicture(MissionPicture.Kind.Notepad);
 	}
@@ -739,7 +758,7 @@ public partial class Main : Node3D
 		var view = new MissionPicture
 		{
 			What = kind, Picture = pic, Objectives = objectives, Lee = lee,
-			Marks = remix?.Marks ?? [], Title = remix?.Title, Routes = remix?.Lines ?? [], Notes = notes,
+			Marks = remix?.Marks ?? [], Title = remix?.Title, Routes = remix?.Lines ?? [], Notes = notes, Landmarks = remix?.Landmarks ?? [],
 			// the art's pixels kept in both looks (the text is set at the window's scale); an upscale filtered smooth
 			TextureFilter = hd is null ? CanvasItem.TextureFilterEnum.Nearest : CanvasItem.TextureFilterEnum.LinearWithMipmaps,
 			Closed = k =>
@@ -760,6 +779,24 @@ public partial class Main : Node3D
 				if (bank.Get(snd) is { } st) layer.AddChild(new AudioStreamPlayer { Stream = st, Bus = bus, Autoplay = true, ProcessMode = ProcessModeEnum.Always });
 		_picture = layer;
 		AddChild(layer);
+	}
+
+	/// <summary>
+	/// A generated job's two label lines for the pause pad (docs/remix-missions.md "Reproducing a job"): the shell's for a road trip
+	/// or a RANDOM JOB, else read off the built job's description beside it (a remix started from the command line).
+	/// </summary>
+	private string? RemixLabel()
+	{
+		if (_launch?.RemixLabel is { Length: > 0 } l) return l;
+		if (!I76.Formats.Remix.RemixMarks.IsRemix(_opt.Mission) || GameInstall.UserMissionDir is not { } dir) return null;
+		try
+		{
+			var p = System.IO.Path.Combine(dir, (_opt.Mission ?? "").ToLowerInvariant() + ".job.yaml");
+			if (!System.IO.File.Exists(p)) return $"{(_opt.Mission ?? "").ToUpperInvariant()} v{I76.Formats.Remix.RemixBuilder.Version}";
+			var spec = I76.Formats.Remix.RemixSpec.Load(p);
+			return $"JOB #{spec.Seed}\n({spec.Base} {spec.Objective.Template}) v{I76.Formats.Remix.RemixBuilder.Version}";
+		}
+		catch (System.Exception ex) when (ex is System.IO.IOException or I76.Formats.Remix.RemixError) { return null; }
 	}
 
 	/// <summary>The menu's outcome as the game state it set: resume (5), replay (7; T17's becomes 8), reconfigure (8), abort (2), exit (10).</summary>
@@ -1164,7 +1201,36 @@ public partial class Main : Node3D
 		if (_launch is { RoadTrip: true } && _sim?.World.Player is { } rp)
 		{
 			int kills = _sim.Script?.Host.Entities.Count(e => e.Vehicle is not null && e.Vehicle != rp && e.Dead && e.KilledByPlayer) ?? 0;
-			_lastRun = new I76.Game.Shell.RunResult(won, kills, I76.Sim.Trip.RunCarry.Capture(rp));
+			// how it ended, for the run's bust rule and the debrief page: the failure line (none: walked away), the objectives as they stood
+			int fm = _script?.Host.End is { Success: false } fe ? fe.FailMessage : -1;
+			bool aborted = !won && _script?.Result is null;
+			string why = aborted ? "You walked away from the job."
+				: !won && _objectives is { } ft && fm >= 0 && fm < ft.Failures.Count ? ft.Failures[fm] : "";
+			var obs = new List<(string, bool, bool)>();
+			if (_objectives is { } ot && _script?.Host.Objectives is { } of)
+				for (int i = 0; i < ot.Objectives.Count && i < of.Flags.Length; i++)
+				{
+					if ((of.Flags[i] & I76.Sim.Missions.Objectives.Hidden) != 0) continue;
+					obs.Add((I76.Formats.Remix.RemixBuilder.Plain(ot.Objectives[i].Text), (of.Flags[i] & I76.Sim.Missions.Objectives.Succeeded) != 0, (of.Flags[i] & I76.Sim.Missions.Objectives.Failed) != 0));
+				}
+			// a won job's wrecks: the trip's thinning, without the stock mission's own scripted salvage (its .fsi)
+			List<I76.Sim.Trip.SalvageItem>? items = null;
+			if (won && _salvage is { } rpool && _builder?.Vfs is { } rvfs)
+			{
+				try
+				{
+					var rng = new System.Random();
+					items = rpool.Finish(n => n.EndsWith(".fsi", System.StringComparison.OrdinalIgnoreCase) ? null : rvfs.TryRead(n), () => rng.Next(0x8000));
+				}
+				catch (System.Exception ex) { GD.PrintErr($"road trip salvage: not taken: {ex.Message}"); }
+			}
+			_lastRun = new I76.Game.Shell.RunResult(won, kills, I76.Sim.Trip.RunCarry.Capture(rp))
+			{
+				FailMessage = fm, PlayerDead = PlayerDead || I76.Sim.Damage.DamageModel.IsDead(rp), Aborted = aborted, Why = why, Objectives = obs,
+				Salvage = items, Parts = I76.Sim.Trip.CarState.Capture(rp),
+			};
+			GD.Print($"remix: road trip job ended: {(won ? "won" : aborted ? "walked away" : $"failed on line {fm + 1}")}, {kills} kills{(items is null ? "" : $", {items.Count} salvage items")}");
+			_salvage = null;   // the trip's own salvage hand-back below is the trip's alone
 		}
 		_lastLaunch = _launch;
 		_launch = null;
@@ -1317,8 +1383,18 @@ public partial class Main : Node3D
 			_salvage.Watch(setup.Damage, world.Player);
 			if (setup.Script is { } salvScript) { var pool = _salvage; salvScript.Host.Salvaged += f => pool.Add(f, -1, true); }
 		}
-		// a road trip's job: the car's damage carried from the last job (RunCarry: armour and chassis too, the port's)
-		if (_launch is { RoadTrip: true, Carry: { } carry } && world.Player is { } rtp) I76.Sim.Trip.RunCarry.Apply(carry, rtp);
+		// a road trip's job: the parts' state from the run's garage (the trip's CarState), then the damage carried from the last job
+		// (RunCarry: armour and chassis too, the port's); its wrecks feed a salvage pool at the level of the trip mission whose map it is
+		if (_launch is { RoadTrip: true } rtl && world.Player is { } rtp)
+		{
+			if (rtl.State is { } rts) rts.Apply(rtp);
+			if (rtl.Carry is { } carry) I76.Sim.Trip.RunCarry.Apply(carry, rtp);
+			if (rtl.RunBase is { Length: > 0 } rb)
+			{
+				_salvage = new I76.Sim.Trip.SalvagePool(I76.Formats.Remix.RemixRun.SalvageStem(rb));
+				_salvage.Watch(setup.Damage, world.Player);
+			}
+		}
 		MissionBuilder.Trace("spawn: session");
 		var ground = setup.Ground;
 		var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);
@@ -1423,6 +1499,7 @@ public partial class Main : Node3D
 		AddChild(damageView);
 		foreach (var step in damageView.ReadySteps()) yield return step;
 		_damageView = damageView;
+		damageView.OpenRemoved();   // a generated mission's doors taken off before the start (docs/remix-missions.md "Places")
 		MissionBuilder.Trace("spawn: damage view");
 		// the player's car's wreck and the other cars' (built once): their models assembled on a worker while the fire's materials are
 		// made here, their meshes built here after (the mission's materials are this thread's while its frames run: DamageView.PrewarmWrecksBeside)
@@ -5082,7 +5159,8 @@ public partial class Main : Node3D
 			// each key is down for one frame, so held-key checks see it too
 			foreach (var (f, u, k, m) in _keys.Where(e => e.Until == _n - 1)) Post(k, m, false);
 			foreach (var (f, u, k, m) in _keys.Where(e => e.Frame == _n)) Post(k, m, true);
-			foreach (var (f, path) in _shots.Where(e => e.Frame == _n)) { GetViewport().GetTexture().GetImage().SavePng(path); GD.Print($"game shot {path} at frame {_n}"); }
+			// ({L} in a path: the run's mission load, so a road trip's jobs keep their own pictures)
+			foreach (var (f, p0) in _shots.Where(e => e.Frame == _n)) { var path = p0.Replace("{L}", _missionLoads.ToString(System.Globalization.CultureInfo.InvariantCulture)); GetViewport().GetTexture().GetImage().SavePng(path); GD.Print($"game shot {path} at frame {_n}"); }
 			if (!GetTree().Paused || (Owner._menu is null && Owner._picture is null && Owner._dev is null)) return;
 			var o = Owner._opt;
 			if (o.Screenshot is not null && ++Owner._frames == System.Math.Max(o.QuitAfter, 10) - 2) GetViewport().GetTexture().GetImage().SavePng(o.Screenshot);
@@ -5279,6 +5357,8 @@ public partial class Main : Node3D
 			// a co-op game that goes on after its mission (the fork's, MainNetCoop.cs): no way back to the menus, the next mission follows
 			if (NetCoopEnded(result)) _endMenuShown = true;
 			else if (result && !I76.Game.Shell.CheatMarker.Set) EndMission(true);
+			// a road trip's job failed: no end menu (no Replay: a job is played once), straight to its debrief page in the shell
+			else if (!result && _launch is { RoadTrip: true }) { _endMenuShown = true; EndMission(false); }
 			else
 			{
 				if (result) GD.Print("mission won with the cheats marker set: the cheater's end menu");
@@ -5291,17 +5371,20 @@ public partial class Main : Node3D
 		if (_script is not null && System.Environment.GetEnvironmentVariable("I76_SCRIPT_MOVIE") is { } sm && sm.Split('@') is [var smName, var smAt]
 			&& int.TryParse(smAt, out int smFrame) && _frames == smFrame)
 			_script.Host.PlayMovie(smName);
-		// test hook: I76_END_MISSION=win@frame (or fail@frame) ends the mission as the script would
+		// test hook: I76_END_MISSION=win@frame (or fail@frame, or fail:K@frame on failure line K) ends the mission as the script would
 		// (at "Ns": once the mission has run N seconds of its own time, whatever the frames its load took)
-		if ((_launch is not null || _script is not null) && System.Environment.GetEnvironmentVariable("I76_END_MISSION") is { } end && end.Split('@') is [var how, var at]
+		// (a comma list ends each mission load in turn: "win@20s,fail:3@20s,fail@20s" wins the first, fails the second on line 3...)
+		if ((_launch is not null || _script is not null) && System.Environment.GetEnvironmentVariable("I76_END_MISSION") is { } endAll
+			&& endAll.Split(',') is { Length: > 0 } ends && ends[System.Math.Clamp(_missionLoads - 1, 0, ends.Length - 1)] is var end && end.Split('@') is [var how, var at]
 			&& (int.TryParse(at, out int endFrame) && _frames == endFrame
 				|| at.EndsWith('s') && double.TryParse(at[..^1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double endS)
 					&& !_endedByHook && _sim?.Session.World is { } endWorld && endWorld.Time >= endS && (_endedByHook = true)))
 		{
 			// through the script's own end where there is one (a failure with its first message), so the end menu comes up as it would;
 			// a network co-op mission's is the listen server's script (a client's comes as the server's end)
-			if (NetCoop) _net!.Server?.Invoke(h => h.Setup.Script!.Host.EndMission(how == "win", 0, how == "win" ? -2 : 0));
-			else if (_script is { Melee: null } es) es.Host.EndMission(how == "win", 0, how == "win" ? -2 : 0);
+			int failLine = how.StartsWith("fail:", System.StringComparison.Ordinal) && int.TryParse(how[5..], out int fk) && fk > 0 ? fk - 1 : 0;
+			if (NetCoop) _net!.Server?.Invoke(h => h.Setup.Script!.Host.EndMission(how == "win", 0, how == "win" ? -2 : failLine));
+			else if (_script is { Melee: null } es) es.Host.EndMission(how == "win", 0, how == "win" ? -2 : failLine);
 			else EndMission(how == "win");
 		}
 		// test hook: I76_NET_TEST holds the capture's frame count through a network game (MainNet.cs)

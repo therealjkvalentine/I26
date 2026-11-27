@@ -24,6 +24,9 @@ nodes:
   - {name: west_hills, kinds: [hideout], at: [430, 47600], called: the hills west of the loop road}
   - {name: east_hills, kinds: [hideout], at: [2250, 46900], called: the hills east of the loop road's south bend}
   - {name: gas, kinds: [pickup, yard], at: [1365, 47580], called: the Sincere Gas station on 114}
+  # places of note: under the Sincere station's canopy, under the overpass by the Bar-D
+  - {name: canopy, kinds: [start, pickup, home], at: [1338, 47604], heading: 90, sort: canopy, inside: {object: bfsince1, nth: 0}, out: [1362, 47604], called: 'under the Sincere station canopy on 114'}
+  - {name: underpass, kinds: [hideout, pickup], at: [1590, 46800], sort: underpass, called: 'under the overpass by the Bar-D'}
 entries:
   - {name: south, at: [[1595, 45791], [1595, 45912]]}
   - {name: loop_east, at: [[1936, 47471], [1931, 47344]]}

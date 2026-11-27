@@ -25,6 +25,8 @@ nodes:
   - {name: town_east, kinds: [home, hideout, yard], at: [4895, 38565], called: the dirt road east of town}
   - {name: north_spur, kinds: [pickup], at: [3489, 38820], called: the dirt road north of the loop road}
   - {name: gas_station, kinds: [pickup, yard], at: [3215, 35700], called: the Gas4Cash station south of town}
+  # places of note: under the Sincere station's canopy
+  - {name: canopy, kinds: [start, pickup, home], at: [3922, 38646], heading: 270, sort: canopy, inside: {object: bfsince1, nth: 0}, out: [3898, 38646], called: 'under the Sincere station canopy in Seagraves'}
 entries:
   - {name: south, at: [[3076, 35478], [3144, 35589]]}
   - {name: east_spur, at: [[4610, 37280], [4489, 37308]]}

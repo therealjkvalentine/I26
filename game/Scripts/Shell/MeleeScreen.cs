@@ -522,6 +522,7 @@ public sealed partial class MeleeScreen : ShellScreen
                 void Roll(int? job)
                 {
                     if (RemixScenarios.RollJob(Shell.Install.Root, job) is { Error: { } err }) { GD.PrintErr(err); Draw(); return; }
+                    GD.Print($"remix: JOB car {car}");
                     Go();
                 }
                 if (System.Environment.GetEnvironmentVariable("I76_JOB_NUMBER") is { } given)

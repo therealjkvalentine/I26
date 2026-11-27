@@ -36,15 +36,32 @@ public static class RemixDirector
     private static readonly string[] LeadCalled = ["milk truck", "milk truck", "van", "bus"];
 
     /// <summary>The templates in the order they are drawn from.</summary>
-    public static readonly string[] Templates = ["deliver", "tail", "intercept", "defend", "escort", "raid"];
+    public static readonly string[] Templates = ["deliver", "tail", "intercept", "defend", "escort", "raid", "ambush"];
 
     /// <summary>The most cars a job sets on the player (the budget stops there).</summary>
     public const int MaxCars = 14;
 
     // The radio, by what it says (clips of the install by stem: never shipped, only named). Each step's instruction.
     private const string GoThere = "01sta63", GoNorth = "01sta20", Rendezvous = "14sta06", GetThem = "01sta26", Found = "01sta24",
-        Company = "05sgc05", Bandits = "06sgc15", GotAway = "gdsgc74", Problem = "gdsta14", GotIt = "14sta05", UhOh = "07sgc23",
+        Company = "05sgc05", GotAway = "gdsgc74", Problem = "gdsta14", GotIt = "14sta05", UhOh = "07sgc23",
         LastOfThem = "gdsgc32", Clean = "10sta06", TookLong = "11sta08", OhNo = "12sgc08", RightOn = "gdsgc16";
+
+    /// <summary>
+    /// The incoming-enemies cue (the owner: "just saying 'incoming bandits' is probably more subtle"): Groove's "Yeah, I dig. Dig
+    /// incoming bandits." cut to its last two words (1625-2895 ms, the splice work's alignment), not the whole stuttering line.
+    /// The good-rated "More creepers coming from the east." is the Nitro Pack's words spliced, and names a direction the job does
+    /// not know; Taurus's "incoming bandits" takes are all from a panicked line the owner rated bad.
+    /// </summary>
+    public const string Bandits = "06sgc15@1625-2895";
+
+    /// <summary>What each clip says, for the radio's text fallback (an install without the clip).</summary>
+    public static readonly Dictionary<string, string> Words = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [GoThere] = "Get over there.", [GoNorth] = "That's just north of here.", [Rendezvous] = "Get over to the rendezvous.", [GetThem] = "Pick your shots.",
+        [Found] = "There they are.", [Company] = "Looks like we got company.", [Bandits] = "Incoming bandits.", [GotAway] = "We got away.", [Problem] = "We got a problem.",
+        [GotIt] = "Got it.", [UhOh] = "Uh oh.", [LastOfThem] = "That's the last of them.", [Clean] = "We're clean.", [TookLong] = "Took long enough.", [OhNo] = "Oh no.",
+        [RightOn] = "Right on.", ["gdsta14"] = "We got a problem.",
+    };
 
     /// <summary>A job's description from a seed, over the node tables (the built-in ones by default), at a challenge level.</summary>
     public static RemixSpec Roll(int seed, IReadOnlyList<RemixNodes>? tables = null, string id = JobStem, int level = RemixChallenge.DefaultLevel) =>
@@ -81,8 +98,48 @@ public static class RemixDirector
         string num = seed.ToString(CultureInfo.InvariantCulture);
         var spec = new RemixSpec { Id = id, Title = $"JOB {num}", Base = map.Base, Seed = seed, Hour = map.Hour };
         spec.Gates.Start.AddRange(map.Gates);
-        var start = r.Quiet(map, map.Starts.Where(s => StartAllows(map, template, s)).ToList(), s => s.At);
-        spec.Start = new PoseSpec { At = start.At, Heading = start.Heading };
+        // the start is placed near the job's first place (docs/remix-missions.md "Pacing"), not at the map's stock start: from the
+        // table's starts and its nodes, the places inside or under structures preferred; each case below sets it
+        var spots = Spots(map);
+        var start = new StartNode { Name = "", At = [0, 0], Called = "" };
+        void UseStart(Spot sp, double[] face)
+        {
+            double toward = (Bearing(sp.At, face) + 360) % 360;
+            double hd = sp.Fixed ? sp.Heading : sp.Road && Math.Abs(((toward - sp.Heading + 540) % 360) - 180) < 100 ? sp.Heading : toward;
+            start = new StartNode { Name = sp.Name, At = sp.At, Heading = hd, Called = sp.Called };
+            spec.Start = new PoseSpec { At = sp.At, Heading = hd, Out = sp.Node?.Out };
+            Inside(sp.Node);
+            Friend(sp.Node);   // a start in a hideout: Skeeter's van parked beside the player
+        }
+        // a place inside or under a structure the job uses: its doors off, its wall section out, checked by driving out of it
+        void Inside(PointNode? n)
+        {
+            if (n is not { Inside: not null } || spec.Inside.Any(x => x.Name == n.Name)) return;
+            spec.Inside.Add(new InsideSpec { Name = n.Name, At = n.At, Heading = n.Heading ?? 0, Out = n.Out ?? n.At, Called = n.Called });
+            foreach (var op in n.Open) if (!spec.Open.Any(x => x.Object == op.Object && x.Nth == op.Nth)) spec.Open.Add(op);
+            foreach (var rm in n.Remove) if (!spec.Remove.Any(x => x.Object == rm.Object && x.Nth == rm.Nth)) spec.Remove.Add(rm);
+        }
+        // a friendly car parked at a hideout (Skeeter's van in the barn): the player's side, never started
+        void Friend(PointNode? n)
+        {
+            if (n?.Friend is not { } f || spec.Cars.Values.Any(c => c.At.SequenceEqual(f.At))) return;
+            spec.Cars[$"friend{spec.Cars.Count + 1}"] = new CarSpec { Vcf = f.Vcf, At = f.At, Heading = f.Heading, Team = 1 };
+        }
+        // the places with a start spot min..max metres from them (all of them when none has)
+        List<T> WithStart<T>(List<T> l, Func<T, double[]> at, double min, double max, Func<T, PointNode?>? self = null)
+        {
+            var ok = l.Where(x => spots.Any(sp => (self is null || sp.Node is null || sp.Node != self(x)) && Far(sp.At, at(x), min, max))).ToList();
+            return ok.Count > 0 ? ok : l;
+        }
+        // a spot near a place (min..max metres; the nearest beyond 300 m when none is), not the place itself
+        Spot NearStart(double[] target, double min, double max, Func<Spot, bool>? ok = null, PointNode? not = null)
+        {
+            bool Fits(Spot sp) => sp.Node is null || sp.Node != not;
+            var near = spots.Where(sp => Fits(sp) && Far(sp.At, target, min, max) && (ok is null || ok(sp))).ToList();
+            if (near.Count == 0) near = spots.Where(sp => Fits(sp) && Far(sp.At, target, min, max)).ToList();
+            if (near.Count == 0) near = [spots.Where(sp => Fits(sp) && Dist(sp.At, target) >= 300).OrderBy(sp => Dist(sp.At, target)).FirstOrDefault() ?? spots[0]];
+            return r.Weighted(map, near, sp => sp.At, sp => sp.Node?.IsSpecial == true ? InsideWeight : sp.Node is null ? 2 : 1);
+        }
         double[] Lot(int i) => [map.Lot[0] + 12 * (i % 6), map.Lot[1] + 12 * (i / 6)];
         int carNo = 0;
         string NewCar(string[] pool, double[]? at = null, double heading = 0)
@@ -127,10 +184,14 @@ public static class RemixDirector
         {
             case "deliver":
             {
-                var pickup = r.Quiet(map, map.Of("pickup").Where(n => Far(n.At, start.At, 700, 4000)).ToList(), n => n.At);
-                // home: the start (T05's way) or another home node away from the pickup
-                var homes = map.Of("home").Where(n => Far(n.At, pickup.At, 700, 4500)).ToList();
-                var homeNode = homes.Count > 0 && r.Next(2) == 0 ? r.Quiet(map, homes, n => n.At) : null;
+                var pickup = r.Weighted(map, WithStart(map.Of("pickup").ToList(), n => n.At, MinFirst, MaxFirst, n => n), n => n.At, n => n.IsSpecial ? InsideWeight : 1);
+                UseStart(NearStart(pickup.At, MinFirst, MaxFirst, not: pickup), pickup.At);
+                Inside(pickup);
+                // home: the start (T05's way) or another home node a short drive from the pickup (not an end-to-end haul)
+                var homes = map.Of("home").Where(n => Far(n.At, pickup.At, MinNext, MaxNext) && Dist(n.At, start.At) > 150).ToList();
+                var homeNode = homes.Count > 0 && r.Next(2) == 0 ? r.Weighted(map, homes, n => n.At, n => n.IsSpecial ? InsideWeight : 1) : null;
+                Inside(homeNode);
+                Friend(homeNode);
                 double[] home = homeNode?.At ?? start.At;
                 string homeCalled = homeNode is null ? $"where you started ({start.Called})" : Where(home, homeNode.Called);
                 o.Pickup = new ZoneSpec { Place = Place("pickup", pickup.At), Radius = 40 };
@@ -144,16 +205,18 @@ public static class RemixDirector
                 // guards parked by the pickup, woken as he comes
                 // on the road at the pickup itself (the node is on a road), a few metres apart: 60 m off in any direction put one on a
                 // roof or a slope
+                // (a pickup inside a building: the guards stand at its door, outside)
+                double[] guardAt = pickup.IsInside && pickup.Out is { } po ? po : pickup.At;
                 void Guard()
                 {
                     double a = (r.Next(4) * 45 + 202.5) * Math.PI / 180, d = 6 + 5 * o.Sleepers.Count;   // the west side: the wrecks are east
-                    var g = NewCar(Heat[heat], [pickup.At[0] + d * DetMath.Sin(a), pickup.At[1] + d * DetMath.Cos(a)], r.Next(360));
+                    var g = NewCar(Heat[heat], [guardAt[0] + d * DetMath.Sin(a), guardAt[1] + d * DetMath.Cos(a)], r.Next(360));
                     o.Sleepers.Add(new SleeperSpec { Car = g, Wake = 220 });
                 }
                 Guard();
                 grow.Add(("guards", () => o.Sleepers.Count, Guard));
                 // the goods are in a pile of wrecks beside the road at the pickup
-                Prop("akwreck3", 2, [pickup.At[0] + 12, pickup.At[1] + 3], r.Next(360));   // on the shoulder: further out it stood on the bank
+                if (!pickup.IsInside) Prop("akwreck3", 2, [pickup.At[0] + 12, pickup.At[1] + 3], r.Next(360));   // on the shoulder: further out it stood on the bank
                 // the twist: they cut the way home as the return starts
                 var cut = NearestEntry(map, home, 400, 1500, r);
                 var re = new ReinforceSpec { Entry = Entry(cut), AtStep = 2, Delay = 15, Speed = 25 };
@@ -172,11 +235,18 @@ public static class RemixDirector
             }
             case "tail":
             {
-                bool HasSafe(PointNode h) => map.Of("hideout").Concat(map.Of("home")).Any(n => n != h && Far(n.At, h.At, 700, 3000));
-                var hide = r.Quiet(map, map.Of("hideout").Where(n => Far(n.At, start.At, 1500, 99999) && HasSafe(n)).ToList(), n => n.At);
-                var safes = map.Of("hideout").Concat(map.Of("home")).Where(n => n != hide && Far(n.At, hide.At, 700, 3000)).Distinct().ToList();
-                var safe = r.Quiet(map, safes, n => n.At);
-                var entry = r.Pick(map.Entries.Where(e => EntryNear(map, e, start.At, 250, 550)).ToList());
+                var hides = map.Of("hideout").Where(n => HasSafe(map, n)).ToList();
+                var hide = r.Weighted(map, WithStart(hides.Count > 0 ? hides : map.Of("hideout").ToList(), n => n.At, 900, 1500, n => n), n => n.At, n => n.IsSpecial ? InsideWeight : 1);
+                // the start: far enough from the hideout to lose them on the way, with an entry behind it for the pursuit
+                UseStart(NearStart(hide.At, 900, 1500, sp => map.Entries.Any(e => EntryNear(map, e, sp.At, 250, 700)), hide), hide.At);
+                Inside(hide);
+                Friend(hide);
+                var safes = map.Of("hideout").Concat(map.Of("home")).Where(n => n != hide && Far(n.At, hide.At, MinNext, MaxNext)).Distinct().ToList();
+                if (safes.Count == 0) safes = map.Of("hideout").Concat(map.Of("home")).Where(n => n != hide).OrderBy(n => Dist(n.At, hide.At)).Take(1).ToList();
+                var safe = r.Weighted(map, safes, n => n.At, n => n.IsSpecial ? InsideWeight : 1);
+                Inside(safe);
+                var behind = map.Entries.Where(e => EntryNear(map, e, start.At, 250, 700)).ToList();
+                var entry = behind.Count > 0 ? r.Pick(behind) : NearestEntry(map, start.At, 250, 900, r);
                 string police = cops.Count > 0 ? r.Pick(cops).Name : "The sheriff";
                 o.Hideout = new ZoneSpec { Place = Place("hideout", hide.At), Radius = 120 };
                 o.Lost = new LostSpec { Radius = 450 + 50 * heat, Seconds = 10 + 3 * heat };
@@ -214,7 +284,8 @@ public static class RemixDirector
             }
             case "intercept":
             {
-                var route = r.Quiet(map, map.Routes.Where(rt => Far(RouteStart(rt), start.At, 500, 2500)).ToList(), RouteStart);
+                var route = r.Quiet(map, WithStart(map.Routes.ToList(), RouteStart, MinFirst, MaxFirst), RouteStart);
+                UseStart(NearStart(RouteStart(route), MinFirst, MaxFirst), RouteStart(route));
                 string routePlace = route.Path ?? Place("route", [.. route.Points]);
                 var exit = route.Exit ?? route.Points[^1];
                 var park = route.Park ?? (route.Points.Count > 0 ? route.Points[0] : throw new RemixError($"{map.Base} route {route.Name}: a stock path needs park"));
@@ -245,9 +316,15 @@ public static class RemixDirector
                 re.Cars.Add(NewCar(Heat[heat]));
                 o.Reinforce.Add(re);
                 grow.Add(("backup", () => re.Cars.Count, () => re.Cars.Add(NewCar(Heat[heat]))));
-                o.Finish = new ZoneSpec { Place = Place("home", start.At), Radius = 100 };
+                // home: the start, or a home node nearer where the convoy is caught (the middle of its run), whichever is nearer
+                double[] caught = [(park[0] + exit[0]) / 2, (park[1] + exit[1]) / 2];
+                var backNode = map.Of("home").Concat(map.Of("hideout")).Where(n => Dist(n.At, caught) + 200 < Dist(start.At, caught) && Dist(n.At, caught) > 400).OrderBy(n => Dist(n.At, caught)).FirstOrDefault();
+                Inside(backNode);
+                Friend(backNode);
+                o.Finish = new ZoneSpec { Place = Place("home", backNode?.At ?? start.At), Radius = 100 };
                 o.FinishClear = 300;
                 o.FinishAfter = re.Delay + 20;
+                string backWords = backNode is null ? "where you started" : backNode.Called;
                 var near = map.Nodes.OrderBy(n => Dist(n.At, exit)).FirstOrDefault();
                 string toward = near is not null && Dist(near.At, exit) < 600 ? $"toward {near.Called}" : $"{Compass(park, exit)}";
                 spec.Radio.Start.Add(Found);
@@ -257,16 +334,78 @@ public static class RemixDirector
                 spec.Radio.Reinforce.Add(Bandits);
                 spec.Radio.Win.Add(LastOfThem);
                 string what = LeadCalled[li];
-                spec.Text.Objectives.AddRange([$"{job}: {gang}'s {what} is pulling out. Stop it before it gets away.", "(hidden)Take out its escorts.", "(hidden)Get back to where you started, with nobody on your tail."]);
+                spec.Text.Objectives.AddRange([$"{job}: {gang}'s {what} is pulling out. Stop it before it gets away.", "(hidden)Take out its escorts.", $"(hidden)Get back to {backWords}, with nobody on your tail."]);
                 spec.Text.Notes.AddRange([$"The {what}: parked {Distance(start.At, park)} {Compass(start.At, park)} of the start; it runs {toward}, {Distance(park, exit)} off."]);
                 spec.Text.Deaths.AddRange([$"You were killed before you could stop the {what}.", $"{gang}'s escorts got you.", "You were killed on the way back."]);
                 spec.Text.Failures.AddRange([Deaths0, left, "They got away. Too late now."]);
+                break;
+            }
+            case "ambush":
+            {
+                // the owner: "opportunities for us to be the ones ambushing instead of the creepers". The player waits hidden at a
+                // place of note by a route (an overlook, a barn, the fort, a canopy, a road end); a convoy comes along it unaware,
+                // passing him about a minute in; it reacts only when fired on or when he is seen close (the lead runs, the escorts turn)
+                var spot = r.Weighted(map, AmbushSpots(map), x => x.Spot.At, x => x.Spot.Node?.IsSpecial == true ? InsideWeight : 1);
+                var pts = spot.Route.Points;
+                int i0 = spot.From, iA = spot.At;
+                var route = pts.Skip(i0).ToList();
+                var park = route[0];
+                var exit = pts[^1];
+                double hd = (Bearing(route[0], route[1]) + 360) % 360, h = hd * Math.PI / 180;
+                UseStart(spot.Spot, pts[iA]);
+                string routePlace = Place("route", [.. route]);
+                int li = r.Next(Leads.Length);
+                var lead = $"car{++carNo}";
+                spec.Cars[lead] = new CarSpec { Vcf = Leads[li], At = park, Heading = hd };
+                var escorts = new List<string>();
+                void Escort()
+                {
+                    int i = escorts.Count;
+                    double back = 20 * (i / 2 + 1), side = i % 2 == 0 ? -3.5 : 3.5;
+                    escorts.Add(NewCar(Heat[heat], [park[0] - DetMath.Sin(h) * back + DetMath.Cos(h) * side, park[1] - DetMath.Cos(h) * back - DetMath.Sin(h) * side], hd));
+                }
+                Escort();
+                grow.Add(("escorts", () => escorts.Count, Escort));
+                int speed = 16 + 2 * heat;
+                double toSpot = PolyLength(pts, i0, iA);
+                // rolls almost at once; seen only close (120 m) or fired on
+                o.Convoy = new ConvoySpec
+                {
+                    Lead = lead, Escorts = escorts, Route = routePlace, Exit = new ZoneSpec { Place = Place("exit", exit), Radius = 120 },
+                    Speed = speed, AlertSpeed = 30 + 2 * heat, Alert = 120, Delay = 5, Roll = 0,
+                };
+                int passIn = (int)Math.Round(5 + toSpot / speed);
+                // the twist: their backup comes once the lead is down; then away to a hideout, nobody behind
+                var back = NearestEntry(map, pts[iA], 400, 1500, r);
+                var re = new ReinforceSpec { Entry = Entry(back), AtStep = 2, Delay = 12, Speed = 25 };
+                re.Cars.Add(NewCar(Heat[heat]));
+                o.Reinforce.Add(re);
+                grow.Add(("backup", () => re.Cars.Count, () => re.Cars.Add(NewCar(Heat[heat]))));
+                var away = map.Of("hideout").Concat(map.Of("home")).Where(n => Far(n.At, pts[iA], MinNext, MaxNext)).OrderBy(n => Dist(n.At, pts[iA])).FirstOrDefault();
+                Inside(away);
+                Friend(away);
+                o.Finish = new ZoneSpec { Place = Place("home", away?.At ?? start.At), Radius = 100 };
+                o.FinishClear = 300;
+                o.FinishAfter = re.Delay + 20;
+                string what = LeadCalled[li];
+                string awayWords = away is null ? "where you waited" : away.Called;
+                spec.Radio.Start.Add(Found);
+                spec.Radio.Steps.AddRange([[], [GetThem], [GotAway]]);
+                spec.Radio.Trap.Add(RightOn);
+                spec.Radio.Reinforce.Add(Bandits);
+                spec.Radio.Win.Add(LastOfThem);
+                spec.Text.Objectives.AddRange([$"{job}: {gang}'s {what} comes along the road below you; it'll pass in about {(passIn < 75 ? "a minute" : $"{(int)Math.Round(passIn / 60.0)} minutes")}. Hit it before it gets through.", "(hidden)Take out its escorts.", $"(hidden)Get away to {awayWords}, with nobody on your tail."]);
+                spec.Text.Notes.AddRange([$"You wait at {start.Called}. The {what} comes from the {Compass(pts[iA], park)}, {Distance(pts[iA], park)} up the road, and runs on {Compass(pts[iA], exit)}.", $"Away: {(away is null ? "where you waited" : Where(away.At, away.Called))}."]);
+                spec.Text.Deaths.AddRange([$"You were killed before you could stop the {what}.", $"{gang}'s escorts got you.", "You were killed getting away."]);
+                spec.Text.Failures.AddRange([Deaths0, left, "They got through. The ambush is blown."]);
                 break;
             }
             case "escort":
             {
                 // the escorted car waits at the route's start; the player starts 35 m behind it, facing the way it will go
                 var route = r.Quiet(map, map.Routes.Where(rt => rt.Escort && rt.Points.Count >= 3).ToList(), rt => rt.Points[^1]);
+                // (a long route is cut where the drive to the goal would pass about four minutes at the escorted car's pace)
+                route = Shortened(route, 12.0 * 240 / 1.2);
                 double[] p0 = route.Points[0], p1 = route.Points[1];
                 double hd = Bearing(p0, p1), hr = hd * Math.PI / 180;
                 int li = r.Next(Leads.Length);
@@ -290,8 +429,9 @@ public static class RemixDirector
                     spec.Cars[wing] = new CarSpec { Vcf = r.Pick(Heat[1]), At = [spec.Start.At[0] + 8 * DetMath.Cos(hr), spec.Start.At[1] - 8 * DetMath.Sin(hr)], Heading = spec.Start.Heading };
                     ec.Wingmen.Add(wing);
                 }
-                // an ambush parked on the way, between the halfway point and the goal, woken as they come
-                var lie = route.Points[Math.Min(route.Points.Count - 1, route.Points.Count * 3 / 4)];
+                // an ambush parked on the way, a third of the way to the goal (the first contact in a minute or two), woken as they come
+                // (a vertex of the route, typed on the road: a point between two could fall on a bridge's deck over the ground)
+                var lie = route.Points.Skip(1).OrderBy(p => Math.Abs(PolyLength(route.Points, 0, route.Points.IndexOf(p)) - RouteLength(route.Points) / 3)).First();
                 void Ambusher()
                 {
                     double a = (r.Next(8) * 45) * Math.PI / 180, d = 8 + 6 * o.Sleepers.Count;
@@ -323,8 +463,9 @@ public static class RemixDirector
             }
             case "raid":
             {
-                var targets = RaidTargets(map).Where(x => Far(x.At, start.At, 700, 3500)).ToList();
+                var targets = WithStart(RaidTargets(map), x => x.At, MinFirst, MaxFirst, x => x.Node);
                 var tg = r.Quiet(map, targets, x => x.At);
+                UseStart(NearStart(tg.At, MinFirst, MaxFirst, not: tg.Node), tg.At);
                 string what;
                 if (tg.Cluster is { } cl)
                 {
@@ -359,8 +500,10 @@ public static class RemixDirector
                 Guard();
                 grow.Add(("guards", () => o.Sleepers.Count, Guard));
                 // out: a home or hideout away from the target, else the start
-                var outs = map.Of("home").Concat(map.Of("hideout")).Where(n => Far(n.At, tg.At, 800, 3000)).Distinct().ToList();
-                var outNode = outs.Count > 0 ? r.Quiet(map, outs, n => n.At) : null;
+                var outs = map.Of("home").Concat(map.Of("hideout")).Where(n => Far(n.At, tg.At, MinNext, MaxNext) && Dist(n.At, start.At) > 150).Distinct().ToList();
+                var outNode = outs.Count > 0 ? r.Weighted(map, outs, n => n.At, n => n.IsSpecial ? InsideWeight : 1) : null;
+                Inside(outNode);
+                Friend(outNode);
                 double[] escAt = outNode?.At ?? start.At;
                 string escCalled = outNode is null ? $"where you started ({start.Called})" : Where(escAt, outNode.Called);
                 int secs = (int)Math.Round(Dist(tg.At, escAt) * 1.3 / 15 + 45);
@@ -391,6 +534,7 @@ public static class RemixDirector
             case "defend":
             {
                 var cl = r.Pick(map.Clusters.Where(x => x.Serves("defend")).ToList());
+                UseStart(NearStart(cl.At, MinFirst, MaxFirst), cl.At);
                 for (int i = 0; i < cl.Objects.Count; i++) { spec.Bind[$"s{i}"] = cl.Objects[i]; o.Defend.Add($"s{i}"); }
                 foreach (var en in cl.Entries) o.Entries.Add(Entry(map.Entries.First(e => e.Name == en)));
                 o.Arrive = new ZoneSpec { Place = Place("defend", cl.At), Radius = cl.Radius, Seconds = (int)Math.Round(Dist(start.At, cl.At) * 1.3 / 12 + 90) };
@@ -441,8 +585,29 @@ public static class RemixDirector
             g.Add();
         }
         spec.Text.Notes.Add($"{job}: {map.Base.ToUpperInvariant()}, challenge {Score(spec) / RemixChallenge.Spanner:0.0} (Back to Spanner 1.0).");
+        spec.Landmarks.AddRange(Landmarks(map, spec));
+        foreach (var clip in spec.Radio.All) if (Words.TryGetValue(clip, out var w)) spec.Radio.Words[clip] = w;
         return spec;
     }
+
+    /// <summary>
+    /// One or two landmarks for a job's map (docs/remix-missions.md "The map"): the map's named clusters (a town's street, an oil
+    /// field) and places of note (a fort, a barn, a bridge), the two nearest the job's places that are not one of its marks.
+    /// </summary>
+    private static List<LandmarkSpec> Landmarks(RemixNodes map, RemixSpec spec)
+    {
+        var used = spec.Places.Values.Where(p => p.Count == 1).Select(p => p[0]).Append(spec.Start?.At ?? [0, 0]).ToList();
+        double cx = used.Average(p => p[0]), cz = used.Average(p => p[1]);
+        // the clusters and places of note first, then any named node (a far corner's road end names little)
+        var cands = map.Clusters.Where(c => c.Called.Length > 0).Select(c => (Name: c.Called, c.At, Rank: 0))
+            .Concat(map.Nodes.Where(n => n.IsSpecial && n.Called.Length > 0).Select(n => (Name: n.Called, n.At, Rank: 0)))
+            .Concat(map.Nodes.Where(n => !n.IsSpecial && n.Called.Length > 0).Select(n => (Name: n.Called, n.At, Rank: 1)))
+            .Where(c => used.All(u => Dist(u, c.At) > 250)).GroupBy(c => c.Name).Select(g => g.First())
+            .OrderBy(c => c.Rank).ThenBy(c => Dist(c.At, [cx, cz])).Take(2);
+        return [.. cands.Select(c => new LandmarkSpec { Name = Upper(c.Name.StartsWith("the ", StringComparison.Ordinal) ? c.Name[4..] : c.Name), At = c.At })];
+    }
+
+    private static string Upper(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
     /// <summary>The death line before a job's own: failure line 1, as every template's (the templates show each step's own).</summary>
     private const string Deaths0 = "You should be more careful... try to stay alive.";
@@ -463,21 +628,111 @@ public static class RemixDirector
     private static List<RaidTarget> RaidTargets(RemixNodes t) =>
         [.. t.Clusters.Where(c => c.Serves("raid")).Select(c => new RaidTarget(c.At, c.Called, c, null)), .. t.Of("yard").Select(n => new RaidTarget(n.At, n.Called, null, n))];
 
-    /// <summary>Whether a table has what a template needs.</summary>
-    public static bool Allows(RemixNodes t, string template) => t.Lot.Length == 2 && t.Starts.Any(s => StartAllows(t, template, s));
-
-    /// <summary>Whether a template can start there: a pickup, a hideout (and a safe house), a route within reach.</summary>
-    private static bool StartAllows(RemixNodes t, string template, StartNode s) => template switch
+    /// <summary>Whether a table has what a template needs (the start is then placed near the job's first place).</summary>
+    public static bool Allows(RemixNodes t, string template) => t.Lot.Length == 2 && Spots(t).Count > 1 && template switch
     {
-        "deliver" => t.Of("pickup").Any(p => Far(p.At, s.At, 700, 4000)) && t.Entries.Any(e => e.At.Count > 0),
-        "tail" => t.Of("hideout").Any(h => Far(h.At, s.At, 1500, 99999) && t.Of("hideout").Concat(t.Of("home")).Any(n => n != h && Far(n.At, h.At, 700, 3000)))
-            && t.Entries.Any(e => EntryNear(t, e, s.At, 250, 550)),
-        "intercept" => t.Routes.Any(rt => Far(RouteStart(rt), s.At, 500, 2500)),
+        "deliver" => t.Of("pickup").Any() && t.Entries.Any(e => e.At.Count > 0),
+        "tail" => t.Of("hideout").Any(h => HasSafe(t, h)) && t.Entries.Any(e => e.At.Count > 0),
+        "intercept" => t.Routes.Count > 0,
         "defend" => t.Clusters.Any(c => c.Serves("defend")),
         "escort" => t.Routes.Any(rt => rt.Escort && rt.Points.Count >= 3),
-        "raid" => RaidTargets(t).Any(x => Far(x.At, s.At, 700, 3500)) && t.Entries.Any(e => e.At.Count > 0),
+        "raid" => RaidTargets(t).Count > 0 && t.Entries.Any(e => e.At.Count > 0),
+        "ambush" => AmbushSpots(t).Count > 0 && t.Entries.Any(e => e.At.Count > 0),
         _ => false,
     };
+
+    /// <summary>
+    /// An ambush's places: a spot (a table's start or a node; inside places too) 40-450 m from a point of a route with at least
+    /// 700 m of the route before that point (the convoy's run in, about a minute) and 400 m after it (the run on to its exit); the
+    /// convoy parks about 1100 m before the point.
+    /// </summary>
+    private sealed record Ambush(Spot Spot, RouteNode Route, int From, int At);
+
+    private static List<Ambush> AmbushSpots(RemixNodes t)
+    {
+        var o = new List<Ambush>();
+        foreach (var rt in t.Routes.Where(r => r.Points.Count >= 3))
+            foreach (var sp in Spots(t))
+            {
+                int best = -1;
+                double bd = double.MaxValue;
+                for (int i = 1; i < rt.Points.Count - 1; i++)
+                {
+                    double d = Dist(sp.At, rt.Points[i]);
+                    if (d is >= 40 and <= 450 && d < bd && PolyLength(rt.Points, 0, i) >= 700 && PolyLength(rt.Points, i, rt.Points.Count - 1) >= 400) { bd = d; best = i; }
+                }
+                if (best < 0) continue;
+                int from = best;
+                while (from > 0 && PolyLength(rt.Points, from, best) < 1100) from--;
+                if (best - from >= 1) o.Add(new Ambush(sp, rt, from, best));
+            }
+        return o;
+    }
+
+    private static double PolyLength(List<double[]> p, int a, int b)
+    {
+        double d = 0;
+        for (int i = a + 1; i <= b && i < p.Count; i++) d += Dist(p[i - 1], p[i]);
+        return d;
+    }
+
+    /// <summary>A hideout with a safe house (another hideout or a home) a short drive from it.</summary>
+    private static bool HasSafe(RemixNodes t, PointNode h) => t.Of("hideout").Concat(t.Of("home")).Any(n => n != h && Far(n.At, h.At, 500, 3000));
+
+    // ---- pacing (docs/remix-missions.md "Pacing"): metres in a straight line; the roads add about a third ----
+
+    /// <summary>The start from the job's first place: about 40-100 s of driving.</summary>
+    private const double MinFirst = 350, MaxFirst = 1300;
+    /// <summary>From one event to the next (a pickup to home, a hideout to the safe house, a target to the way out).</summary>
+    private const double MinNext = 600, MaxNext = 1500;
+    /// <summary>How much more likely a place inside or under a structure is than a plain road point.</summary>
+    public const int InsideWeight = 6;
+
+    /// <summary>A place a job may start the player at: a table's start (on a road, its heading along it) or a node (facing the job's first place, or out of its building).</summary>
+    private sealed record Spot(string Name, double[] At, double Heading, bool Road, bool Fixed, string Called, PointNode? Node);
+
+    private static List<Spot> Spots(RemixNodes t) =>
+    [
+        .. t.Starts.Select(s => new Spot(s.Name, s.At, s.Heading, true, false, s.Called, null)),
+        .. t.Nodes.Where(n => n.Kinds.Any(k => k is "start" or "pickup" or "home" or "hideout") && (!n.IsInside || n.Kinds.Contains("start")))
+            .Select(n => new Spot(n.Name, n.At, n.Heading ?? 0, false, n.Heading is not null && n.IsInside, n.Called, n)),
+    ];
+
+    /// <summary>A route cut short at a length (its points up to there, the last one on the line), for an escort that would drive too long.</summary>
+    private static RouteNode Shortened(RouteNode rt, double max)
+    {
+        if (RouteLength(rt.Points) <= max) return rt;
+        var pts = new List<double[]> { rt.Points[0] };
+        double d = 0;
+        for (int i = 1; i < rt.Points.Count; i++)
+        {
+            double seg = Dist(rt.Points[i - 1], rt.Points[i]);
+            if (d + seg >= max) { pts.Add(Along([rt.Points[i - 1], rt.Points[i]], max - d)); break; }
+            d += seg;
+            pts.Add(rt.Points[i]);
+        }
+        return new RouteNode { Name = rt.Name, Points = pts, Escort = rt.Escort, Called = $"the road {(rt.Called.Length > 0 ? "toward " + rt.Called : "ahead")}", Heading = rt.Heading };
+    }
+
+    private static double RouteLength(List<double[]> p)
+    {
+        double d = 0;
+        for (int i = 1; i < p.Count; i++) d += Dist(p[i - 1], p[i]);
+        return d;
+    }
+
+    /// <summary>The point a distance along a polyline.</summary>
+    private static double[] Along(List<double[]> p, double at)
+    {
+        double d = 0;
+        for (int i = 1; i < p.Count; i++)
+        {
+            double seg = Dist(p[i - 1], p[i]);
+            if (d + seg >= at && seg > 0) { double f = (at - d) / seg; return [p[i - 1][0] + f * (p[i][0] - p[i - 1][0]), p[i - 1][1] + f * (p[i][1] - p[i - 1][1])]; }
+            d += seg;
+        }
+        return p[^1];
+    }
 
     /// <summary>The description as YAML (the builder's own format; empty parts left out), with a line saying where it came from.</summary>
     public static string ToYaml(RemixSpec spec) =>
@@ -547,10 +802,13 @@ public static class RemixDirector
         /// A pick weighted toward the quiet corners: each weighs 1 + 8 × (its distance from the stock mission's action, over
         /// 1.2 km, at most 1)², so a place the stock mission never goes near is nine times as likely as one in the middle of it.
         /// </summary>
-        public T Quiet<T>(RemixNodes map, IReadOnlyList<T> l, Func<T, double[]> at)
+        public T Quiet<T>(RemixNodes map, IReadOnlyList<T> l, Func<T, double[]> at) => Weighted(map, l, at, _ => 1);
+
+        /// <summary>The quiet-corner pick with each item's weight multiplied by a factor of its own (a place inside a structure: <see cref="InsideWeight"/>).</summary>
+        public T Weighted<T>(RemixNodes map, IReadOnlyList<T> l, Func<T, double[]> at, Func<T, int> factor)
         {
             if (l.Count == 0) throw new RemixError("the director drew from an empty list");
-            var w = l.Select(x => (int)Math.Round(100 * (1 + 8 * DetMath.Pow(Math.Min(1, map.Quiet(at(x)) / 1200), (double)(2))))).ToList();
+            var w = l.Select(x => factor(x) * (int)Math.Round(100 * (1 + 8 * DetMath.Pow(Math.Min(1, map.Quiet(at(x)) / 1200), (double)(2))))).ToList();
             int k = Next(w.Sum());
             for (int i = 0; i < l.Count; i++) { if (k < w[i]) return l[i]; k -= w[i]; }
             return l[^1];

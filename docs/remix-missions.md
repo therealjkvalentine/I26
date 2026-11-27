@@ -372,7 +372,112 @@ The first run of the roguelike plan: four generated jobs across neighbouring map
 - **The screen.** The port's paper sheet (record 16's paper, as Control Configuration's) in the shell's fonts: the title in its
   heavy caps, the offers in the hand of the scenario list, one box each, the chosen one marked in red pencil; Up and Down (or 1-3,
   or a click) choose, Enter or TAKE THE JOB takes it, Esc or BACK goes back to the scenario form with the run kept.
+- **Round five** (below): busts, the debrief page, the salvage and garage between jobs, the choice map, reproduction lines.
 - **Not yet.** Fuel: see the plan (fuel would be a run-level number spent per kilometre driven and per job, read off the player's
   odometer at a job's end, refilled at a job's gas station node or by a fourth pick; an offer would show its cost). Nitro maps:
   the tables' `nitro` flag and the offers' filter are there, no Nitro table yet.
 
+## Round five: pacing, places, busts, salvage, reproduction, screens, radio
+
+### Pacing
+
+The owner: "1-2 mins of driving between events on average (snaky drive for fun or race closer to 3-4 okay)". `RemixPacing` times a
+job's drives on its map's roads (each road's centre line every 10 m, junctions within 30 m; a point off the road joins its nearest
+sample across country; the quicker of that and straight across country at 12 m/s), at 22 m/s on the road (about 50 mph): the start
+to the first contact (a tail's pursuit comes to the player: its delay and a run in; a parked guard or sleeper on the way can come
+first), then each event to the next (deliver: pickup, home; tail: hideout, safe house; intercept: the convoy, back from where it is
+caught; defend: the place; escort: the ambush, halfway and the goal at the escorted car's pace; raid: the target, the way out). Each
+job declares its budget (`pacing: {first, mean, leg, long, long_legs}`; by default 120 s to the first contact, 120 s between events
+on average, 150 s for one leg, 240 s for a long one: an escort's legs, a raid's escape). `i76 remix check` fails a job over budget;
+`i76 remix pace [--seeds A-B] [--trips A-B] [--builtin] [--stock] [--places]` prints the distributions.
+
+The director places the start near the job's first place (350-1300 m in a straight line, from the table's starts and its nodes, the
+places of note six times as likely), the next places 600-1500 m on (a home node near the pickup rather than back at the map's other
+end; a hideout 900-1500 m from the start), cuts an escort's route at about four minutes at the escorted car's pace, and puts its
+ambush a third of the way. Measured (300 rolled jobs; the stock missions: the player's placement to the nearest enemy car, and between
+enemy groups): first contact median 92 s before, 47 s after (stock 58 s); between events median 104 s before, 62 s after (stock 54 s);
+over budget 49 % before, 0 after. Tatum Tail and Back to Spanner declare their own long budgets (a winding drive; a race).
+
+### Places
+
+Node tables may name places inside or under structures and places of note in the open (`sort`: fort, barn, yard, canopy, awning,
+compound, overlook, spur, riverbed, underpass): `heading` (the way out), `inside: {object, nth}`, `out` (a point outside the car
+drives to), `open: [{object, nth, nodes: [...]}]` (structure nodes taken away before the start), `remove` (placements taken away),
+`friend: {vcf, at, heading}` (a friendly car parked there: Skeeter's van in a barn), and the kind `start`. Found with
+`i76 remix structures BASE [--near X,Z,R] [--nodes]` (each placement's colliders and nodes) and `i76 remix roadsurvey BASE` (the
+highest road points, the dead ends). `i76 remix check --nodes` builds a job started at each inside place and drives it out
+(`RemixDriveOut`: full throttle steered to the way out; out within 14 m, on its wheels, never lifted over a wall); `i76 remix check`
+drives out of every inside place a job uses. Shipped: T16 Fort Davis's yard (its gate's doors HF1_DRL1, HF1_DRR1 and arch HF1_GAT1
+taken off: the doors hold a car in, the arch's box closes the gateway), T07's and T15's open barns (Skeeter's van inside), T01, T03,
+T05 and T08's Sincere station canopies, T02's garage yard, T06's Gas Parade awning, T12's Komplex yard (its signed wall section
+removed); in the open: T02's hairpins, T05's canyon rim and floor, T09's hilltop and west spur, T10's summit and south spur, T03's
+underpass, T11's riverbed under the Pecos bridge, T15's mesa top. Left out: T07's livery stable (its door so tight a car jams), T06's
+garage yard and T02's south spur (on ground the rest of the map cannot reach).
+
+A description's `open:` is written as an actor bound to the placement, labelled `rx_open__NODE__NODE...`; the mission build
+(`MissionSetup`) takes those nodes' colliders away before the first tick (`StaticObject.RemoveNodes`, `StructureNode.Removed`:
+structural, from the mission file) and the game draws the placement without them (their 'A' wrecks too). Fort Davis's wall is one
+box over the whole fort (the original's class-0x2000 rule): a car cannot drive back in from outside, gate or no gate.
+
+### Busts
+
+A road trip's job ends won, busted or with the player dead (`RemixRun.Classify`): failure line 1 or a death line (the lines after
+the failures) or the car destroyed is a death and ends the run; any other failure (leaving the map, the job's own: the target lost,
+the convoy through, too slow, the escorted car wrecked) or walking away (Abort) is a bust: the damage carries, no salvage, and the
+next job's challenge is one step on (a bust in job 1 makes job 2 1.2). Four jobs played end the run, busts and all. A failed job
+skips the end menu and goes straight to the run's debrief page in the shell (JOB DONE, JOB BUSTED or WRECKED: the line it ended on,
+its objectives DONE / FAILED / open, the kills, the car, what follows); with the Developer setting on it has RETRY JOB (the same job,
+the car as it began: `RemixRun.Retry`). The pause pad's Abort has no Replay in a road trip.
+
+### Salvage between jobs
+
+After a won job the trip's own FIELD SALVAGE and garage run on the run's inventory (`TripInventory`, kept in run.yaml): the job's
+wrecks feed a salvage pool levelled as the trip mission whose map it is (T04 and T12 as T03 and T11; the stock mission's scripted
+salvage, its .fsi, left out), the trip's thinning, its repair order (finished after the next job, as the trip's), the van. The
+road trip's own: every part left in the field when DONE is pressed is scrapped for armour plate, a tenth of the car's full armour
+each, the weakest side first, then the chassis (`RemixRun.Patch`); the guns are reloaded, as the trip's are. The next job's car is
+the garage's (served from memory as vehrun.vcf, its parts' state from the inventory), its armour and chassis carried.
+
+### Reproducing a job
+
+Every generated job's launch writes one line to the game log and (a road trip's) the run file:
+`remix: RUN 004242 JOB 2/4 #637742 builder v5 map t07 (the farms on 380) template deliver challenge 1.2 car vppirna1.vcf commit
+abc1234 (i76 remix roll --run 4242 --job 2 --picks 0,1b)`; RANDOM JOB's: `remix: JOB #N builder v5 map ... commit ...`. The pause
+pad's free rows 9 and 10 show "RUN 004242 JOB 2/4 #637742" and "(t07 the farms on 380, delivery) v5" (both looks; the original's rows
+untouched). `i76 remix roll --run N --job K --picks A,Bb,C` rolls that job again (a `b` after a pick that was busted). A run made by
+another builder version says so on its choice screen; older versions are not kept (the director's code is the version).
+
+### Loading, the map, finding the places
+
+A generated job's loading card is its own briefing: its map on the left, its notepad's text (the objectives shown at the start, the
+notes) on a paper column (`RemixLoadingCard`); PLEASE STAND BY stays in its corner. Its map (M) draws the whole map
+(`ArenaSketch.Whole`: every road, paved solid, dirt dashed, a wash or planks dotted, a key in the corner), one or two landmarks (the
+table's clusters and places of note nearest the job), the marks to make for double-ringed. The stock game has no objective marker on
+the radar or a compass, so as each objective opens its line at the top of the screen adds how far and which way its place is from
+the player then ("Bring them home, and hurry! (1.2 km northeast)"; the marks file's `STEP` lines).
+
+### The choice map
+
+The road trip's choice screen is the region (`RemixRegion`, Remix/Region/region.yaml: the state line, towns, highways as chains of
+towns, the trip maps' places, all typed by hand from real geography) with the offers as numbered rings, the run's road so far in red
+pencil, and beside it the offers and the chosen one's own map (its whole-map sketch and marks) and notes. Up, Down, 1-3 or a click on
+a ring or a box choose; Enter or a second click takes the job.
+
+### Template `ambush`
+
+The owner: "there are some opportunities for us to be the ones ambushing instead of the creepers". The player starts at a place
+by a route (`AmbushSpots`: a table's start or node, places of note preferred, 40-450 m from a route point with at least 700 m of
+route before it and 400 m after); a convoy (a lead and its escorts, the intercept template's machinery) parks about 1100 m up the
+route and rolls five seconds in, unaware: it keeps its pace (16-20 m/s) and is alerted only when the player comes within 120 m or a
+shot or a death in it gives him away, then the lead runs at its alert speed and the escorts turn on him. The first objective says
+when it passes ("in about a minute"); objective 1 the lead dead, 2 the escorts, then away to a hideout or home nearby with nobody
+behind, while the gang's backup comes in. The convoy through is failure line 3 (a road trip's bust). Measured over 150 rolls: it
+passes the player 71 s in (median; 60-82 s quartiles), the away leg 46 s.
+
+### The radio
+
+A radio clip may be a cut: `STEM@START-END` in milliseconds into the clip (`SoundFiles.Cut`; faded in over 12 ms and out over 35 ms;
+its length is the cut's for the CB queue). The incoming-enemies cue is Groove's "Yeah, I dig. Dig incoming bandits." cut to its last
+two words (`06sgc15@1625-2895`, from the splice work's alignment): the owner rated the whole stuttering line and Taurus's panicked
+takes bad; the good-rated "More creepers coming from the east." is Nitro Pack words spliced and names a direction a job does not
+know. A description's `radio.words` gives each clip's words: an install without the clip letters them instead.

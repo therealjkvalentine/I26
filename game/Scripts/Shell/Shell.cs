@@ -32,10 +32,27 @@ public sealed record ShellLaunch(string Mission, GameKind Kind, string? Car = nu
     /// <summary>A road trip's job (the play fork's; docs/remix-missions.md "Road trip"): the car's damage it carries in (null: as built), applied at load.</summary>
     public bool RoadTrip { get; init; }
     public I76.Formats.Remix.RunCar? Carry { get; init; }
+    /// <summary>A road trip's job: the stock map it is on (its salvage pool's level: the job's wrecks as that trip mission's).</summary>
+    public string? RunBase { get; init; }
+    /// <summary>A generated job's reproduction label (RemixRun.Label: "RUN 004242 JOB 2/4 #637742" and its map, template and builder), for the pause pad's rows.</summary>
+    public string? RemixLabel { get; init; }
 }
 
-/// <summary>What a road trip's job hands back: won or not, the player's kills, and the car's damage to carry on.</summary>
-public sealed record RunResult(bool Won, int Kills, I76.Formats.Remix.RunCar Car);
+/// <summary>
+/// What a road trip's job hands back: won or not, the player's kills, the car's damage to carry on; how it ended (the failure line,
+/// the player dead, walked away from), the line it ended on and the objectives as they stood (its debrief page); a won job's
+/// salvage and the car's parts as the trip's (CarState) for the field salvage and the garage.
+/// </summary>
+public sealed record RunResult(bool Won, int Kills, I76.Formats.Remix.RunCar Car)
+{
+    public int FailMessage { get; init; } = -1;
+    public bool PlayerDead { get; init; }
+    public bool Aborted { get; init; }
+    public string Why { get; init; } = "";
+    public IReadOnlyList<(string Text, bool Done, bool Failed)> Objectives { get; init; } = [];
+    public IReadOnlyList<I76.Sim.Trip.SalvageItem>? Salvage { get; init; }
+    public I76.Sim.Trip.CarState? Parts { get; init; }
+}
 
 /// <summary>The trip at a mission's launch: the mission number (trip.cfg's) and the car with its parts (the bookmark .cmp body, <see cref="I76.Sim.Trip.TripInventory.Save"/>).</summary>
 /// <param name="Lap">The Trip+ lap (the play fork's): 1 the original's trip.</param>
@@ -535,7 +552,8 @@ public partial class Shell : CanvasLayer
             return new StandingsScreen { Rows = rows, TeamPlay = a.Length > 2 && a[2] == "team", Kind = kind };
         }
         // test hook: I76_SHELL_START=melee:N opens that melee form (3 is the LAN host form)
-        if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") is { } ms && ms.StartsWith("melee:"))
+        // (not on the way back from a road trip's job: the run's own screens follow, as a player's would)
+        if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") is { } ms && ms.StartsWith("melee:") && LastLaunch is not { RoadTrip: true })
             return new MeleeScreen { Mode = int.Parse(ms[6..]) };
         // test hook: I76_SHELL_START=garage:MODEL:VARIANT opens the melee chassis form (the 3D garage) on that model and variant (0 and 1 based)
         if (System.Environment.GetEnvironmentVariable("I76_SHELL_START") is { } gs && gs.StartsWith("garage:") && gs.Split(':') is [_, var gm, var gv]
@@ -571,7 +589,7 @@ public partial class Shell : CanvasLayer
             return new ScenarioScreen { Character = Math.Max(0, ch) };
         }
         // back from a road trip's job (the play fork's): its reward, the next choice, or the run's end (docs/remix-missions.md "Road trip")
-        if (LastLaunch is { Kind: GameKind.Scenario, RoadTrip: true }) return RoadTripScreen.Back(LastRun, LoadError);
+        if (LastLaunch is { Kind: GameKind.Scenario, RoadTrip: true }) return RoadTripScreen.Back(this, LastRun, LoadError);
         // back from a melee (the original front end's main loop decides by kind, whatever the state): STANDINGS, or the scenario form
         if (LastLaunch is { Kind: GameKind.Scenario } sl)
         {

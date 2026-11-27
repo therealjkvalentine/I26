@@ -84,11 +84,32 @@ public sealed class StartNode
 public sealed class PointNode
 {
     public string Name { get; set; } = "";
-    /// <summary>What it can serve as: pickup, home, hideout.</summary>
+    /// <summary>What it can serve as: pickup, home, hideout, yard, start (a place a job may start the player at).</summary>
     public List<string> Kinds { get; set; } = [];
     public double[] At { get; set; } = [];
     /// <summary>What it is, in the port's words ("downtown Tatum, by the bank"), for the notepad.</summary>
     public string Called { get; set; } = "";
+    /// <summary>The way a car there faces (degrees from +Z toward +X): an inside place's way out. Null: a start there faces the job's first place.</summary>
+    public double? Heading { get; set; }
+    /// <summary>
+    /// The structure the place is inside or under (docs/remix-missions.md "Places": a barn, a fort's yard, a gas station's canopy),
+    /// by object name and copy; null for a place in the open.
+    /// </summary>
+    public BindSpec? Inside { get; set; }
+    /// <summary>What kind of place it is (fort, barn, stable, yard, canopy, awning, compound, underpass, overlook, spur, riverbed), for the words and the weights.</summary>
+    public string Sort { get; set; } = "";
+    /// <summary>A point outside the structure the car drives out to (the check drives it there from the place, at Heading).</summary>
+    public double[]? Out { get; set; }
+    /// <summary>Structure nodes taken away before the start (a fort's doors), by placement and node name.</summary>
+    public List<OpenSpec> Open { get; set; } = [];
+    /// <summary>Placements taken away before the start (a compound's wall section, its gate).</summary>
+    public List<BindSpec> Remove { get; set; } = [];
+    /// <summary>A friendly car parked there for a hideout (Skeeter's van in the barn): its .vcf stem, its point and heading.</summary>
+    public CarSpec? Friend { get; set; }
+    /// <summary>Whether a car can be put here as a start or a parked friend: inside or under a structure.</summary>
+    [YamlDotNet.Serialization.YamlIgnore] public bool IsInside => Inside is not null;
+    /// <summary>A place of note (inside or under a structure, an overlook, a dead-end spur, a riverbed): the director prefers it over a plain road point.</summary>
+    [YamlDotNet.Serialization.YamlIgnore] public bool IsSpecial => Sort.Length > 0 || Inside is not null;
 }
 
 public sealed class CastNode

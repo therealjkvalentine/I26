@@ -28,6 +28,9 @@ nodes:
   - {name: east_end, kinds: [home, hideout], at: [6900, 47720], called: 380 at the east end}
   - {name: east_north, kinds: [pickup, hideout], at: [7455, 48514], called: the north road at the east end}
   - {name: east_south, kinds: [pickup, hideout, home], at: [7536, 47072], called: the south road at the east end}
+  # places of note: the summit of the dirt road on the mountain, the dead end of the south dirt road
+  - {name: summit, kinds: [start, hideout, home], at: [3837, 48413], sort: overlook, called: 'the summit of the mountain dirt road'}
+  - {name: south_spur, kinds: [start, pickup, hideout], at: [3905, 46965], sort: spur, called: 'the dead end of the dirt road south of 380'}
 entries:
   - {name: east, at: [[7050, 47720], [6950, 47720]]}
   - {name: northeast, at: [[7440, 48600], [7440, 48400]]}

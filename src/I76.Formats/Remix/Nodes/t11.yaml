@@ -25,6 +25,8 @@ nodes:
   - {name: east_380, kinds: [home, hideout], at: [5251, 48935], called: 380 east of the bridge}
   - {name: west_380, kinds: [home], at: [2910, 48935], called: 380 west of the bridge}
   - {name: east_field, kinds: [hideout], at: [5600, 49150], called: the flat ground north of 380 at the east end}
+  # places of note: the riverbed under the Pecos bridge
+  - {name: under_bridge, kinds: [hideout, pickup, home], at: [3370, 48835], sort: riverbed, called: 'the riverbed under the Pecos bridge'}
 entries:
   - {name: east, at: [[5345, 48935], [5219, 48935]]}
   - {name: west, at: [[2126, 48935], [2247, 48935]]}

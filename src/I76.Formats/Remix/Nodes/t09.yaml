@@ -22,6 +22,9 @@ nodes:
   - {name: middle, kinds: [pickup], at: [1903, 48460], called: the track through the middle of the field}
   - {name: northeast, kinds: [home, hideout], at: [3256, 49048], called: the northeast pumps}
   - {name: east_track, kinds: [pickup, yard], at: [2892, 48465], called: the track east of the middle pumps}
+  # places of note: the hilltop on the field's middle track, the dead end of the west dirt road
+  - {name: hilltop, kinds: [start, hideout, home], at: [1632, 48480], sort: overlook, called: 'the hilltop on the middle track'}
+  - {name: west_spur, kinds: [start, pickup, hideout], at: [1025, 49365], sort: spur, called: 'the dead end of the west dirt road'}
 entries:
   - {name: west, at: [[824, 49234], [908, 49324]]}
   - {name: southwest, at: [[1181, 48561], [1182, 48687]]}

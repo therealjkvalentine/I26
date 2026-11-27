@@ -23,6 +23,8 @@ nodes:
   - {name: north_bend, kinds: [pickup], at: [2650, 50308], called: the valley road north of the bend}
   - {name: west_end, kinds: [home, yard], at: [1630, 49879], called: the west end of the valley road}
   - {name: northeast_slope, kinds: [hideout], at: [4230, 49780], called: the slope north of the east road}
+  # places of note (docs/remix-missions.md "Places"): inside the fort, its gate's doors and arch taken off (the car drives out south)
+  - {name: fort_yard, kinds: [start, hideout, home], at: [2943, 49665], heading: 180, sort: fort, inside: {object: bhftdav1, nth: 0}, out: [2945, 49585], open: [{object: bhftdav1, nth: 0, nodes: [HF1_DRL1, HF1_DRR1, HF1_GAT1]}], friend: {vcf: vsvan1, at: [2928, 49672], heading: 180}, called: 'the yard inside Fort Davis, its gates off'}
 entries:
   - {name: east, at: [[4021, 49554], [3899, 49592]]}
   - {name: north, at: [[3585, 49814], [3461, 49783]]}

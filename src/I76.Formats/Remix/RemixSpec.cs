@@ -36,6 +36,15 @@ public sealed class RemixSpec
     public List<PropSpec> Props { get; set; } = [];
     /// <summary>Stock objects removed (by object name and copy), such as a gate that would close a road.</summary>
     public List<BindSpec> Remove { get; set; } = [];
+    /// <summary>
+    /// Structure nodes taken away before the start: a fort's doors (docs/remix-missions.md "Places"). They are hidden from the
+    /// picture (both looks) and the check holds that the way out past them can be driven; the sim's colliders are the base's.
+    /// </summary>
+    public List<OpenSpec> Open { get; set; } = [];
+    /// <summary>Places inside or under structures the job uses (where, the way out, what), checked by driving out of each (i76 remix check).</summary>
+    public List<InsideSpec> Inside { get; set; } = [];
+    /// <summary>One or two places of the map lettered on the job's map for bearings (a town, a fort, a bridge): a name and a point.</summary>
+    public List<LandmarkSpec> Landmarks { get; set; } = [];
     /// <summary>The stock leave-map threads dropped, by their exit path's label (a start beside an exit).</summary>
     public List<string> DropExits { get; set; } = [];
     /// <summary>
@@ -49,6 +58,8 @@ public sealed class RemixSpec
     public RadioSpec Radio { get; set; } = new();
     public ObjectiveSpec Objective { get; set; } = new();
     public TextSpec Text { get; set; } = new();
+    /// <summary>The job's pacing budget: the seconds of driving it allows to the first contact and between events (RemixPacing; i76 remix check).</summary>
+    public PacingSpec Pacing { get; set; } = new();
 
     public static RemixSpec Parse(string yaml)
     {
@@ -64,6 +75,33 @@ public sealed class PoseSpec
 {
     public double[] At { get; set; } = [];
     public double Heading { get; set; }
+    /// <summary>A start inside a structure: the point outside it the car must be able to drive out to (i76 remix check drives it there).</summary>
+    public double[]? Out { get; set; }
+}
+
+/// <summary>Structure nodes taken away before the mission starts (a fort's doors): the placement by object name and copy, and its nodes by name.</summary>
+public sealed class OpenSpec
+{
+    public string Object { get; set; } = "";
+    public int Nth { get; set; }
+    public List<string> Nodes { get; set; } = [];
+}
+
+/// <summary>A landmark lettered on a job's map: its name and where it is.</summary>
+public sealed class LandmarkSpec
+{
+    public string Name { get; set; } = "";
+    public double[] At { get; set; } = [];
+}
+
+/// <summary>A place of a job inside or under a structure: its point, the way a car there faces, the point outside it drives out to, and its words.</summary>
+public sealed class InsideSpec
+{
+    public string Name { get; set; } = "";
+    public double[] At { get; set; } = [];
+    public double Heading { get; set; }
+    public double[] Out { get; set; } = [];
+    public string Called { get; set; } = "";
 }
 
 public sealed class CarSpec
@@ -289,6 +327,8 @@ public sealed class RadioSpec
     public List<List<string>> Steps { get; set; } = [];
     /// <summary>Clips for a reinforcement's arrival.</summary>
     public List<string> Reinforce { get; set; } = [];
+    /// <summary>What a clip says, in words: lettered at the top of the screen when the install has no such clip (the radio's text fallback).</summary>
+    public Dictionary<string, string> Words { get; set; } = [];
     [YamlIgnore] public IEnumerable<string> All => Start.Concat(Trap).Concat(Wave).Concat(Win).Concat(Steps.SelectMany(s => s)).Concat(Reinforce).Distinct(StringComparer.OrdinalIgnoreCase);
 }
 

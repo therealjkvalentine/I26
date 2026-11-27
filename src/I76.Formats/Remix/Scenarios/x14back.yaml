@@ -9,6 +9,9 @@ places:
   truckstop: [[5420, 45180]]                  # the goal: Spanner's truckstop
   road: [[6025, 40580], [5815, 40580], [5650, 40580], [5270, 41100], [5270, 42295], [5295, 43600], [5295, 44130], [5375, 44775], [5400, 45150]]
                                               # T14's van route reversed (no script uses it: a route for test drivers)
+# pacing (docs/remix-missions.md "Pacing"): a race up 285 against the clock, one long leg home; the first contact is T14's own
+# police parked along 285 (stock cars the check cannot place), so the budget is the whole leg
+pacing: {first: 280, mean: 280, leg: 150, long: 280, long_legs: [home]}
 objective:
   template: deliver
   home: {place: truckstop, radius: 120}

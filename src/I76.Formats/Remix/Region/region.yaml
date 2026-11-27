@@ -1,0 +1,57 @@
+# The road trip's region (docs/remix-missions.md "The choice map"): the port's own drawing of the country the trip crosses, west
+# Texas and southeast New Mexico, from real geography typed by hand (latitude, longitude in degrees; approximate, a few km):
+# the state line, towns, highways as chains of towns, and where each trip map lies (the roguelike gazetteer's places). Nothing
+# here comes from the game's files.
+bounds: {south: 30.35, north: 33.95, west: -104.85, east: -101.55}
+states:
+  - {name: NEW MEXICO, at: [33.75, -104.30]}
+  - {name: TEXAS, at: [31.70, -102.20]}
+lines:
+  # the Texas - New Mexico line: the 103rd meridian (a little west of it) north of the 32nd parallel, then the parallel west
+  - [[34.00, -103.06], [32.00, -103.06], [32.00, -104.90]]
+towns:
+  - {name: Lubbock, quiet: true, at: [33.58, -101.85]}
+  - {name: Levelland, at: [33.59, -102.38]}
+  - {name: Morton, quiet: true, at: [33.73, -102.76]}
+  - {name: Brownfield, at: [33.18, -102.27]}
+  - {name: Plains, at: [33.19, -102.83]}
+  - {name: Seagraves, quiet: true, at: [32.94, -102.56]}
+  - {name: Seminole, at: [32.72, -102.64]}
+  - {name: Lamesa, quiet: true, at: [32.74, -101.95]}
+  - {name: Tahoka, quiet: true, at: [33.17, -101.80]}
+  - {name: Tatum, at: [33.26, -103.32]}
+  - {name: Hobbs, quiet: true, at: [32.70, -103.14]}
+  - {name: Roswell, at: [33.39, -104.52]}
+  - {name: Artesia, at: [32.84, -104.40]}
+  - {name: Carlsbad, at: [32.42, -104.23]}
+  - {name: Pecos, at: [31.42, -103.49]}
+  - {name: Odessa, at: [31.85, -102.37]}
+  - {name: Fort Stockton, at: [30.89, -102.88]}
+  - {name: Fort Davis, at: [30.59, -103.89]}
+highways:
+  - {name: '380', towns: [Roswell, Tatum, Plains, Brownfield, Tahoka]}
+  - {name: '285', towns: [Roswell, Artesia, Carlsbad, Pecos, Fort Stockton]}
+  - {name: '62', towns: [Carlsbad, Hobbs, Seminole, Lamesa]}
+  - {name: '385', towns: [Levelland, Brownfield, Seagraves, Seminole, Odessa]}
+  - {name: '114', towns: [Levelland, Morton]}
+  - {name: '87', towns: [Lubbock, Tahoka, Lamesa]}
+  - {name: '17', towns: [Pecos, Fort Davis]}
+  - {name: '82', towns: [Lubbock, Levelland]}
+# where each trip map lies (the gazetteer's: canon or inferred places of the trip)
+maps:
+  t01: [32.95, -102.57]
+  t02: [33.38, -102.33]
+  t03: [33.70, -102.70]
+  t05: [33.00, -101.95]
+  t06: [33.18, -102.12]
+  t07: [33.19, -102.55]
+  t08: [33.19, -102.83]
+  t09: [33.08, -102.83]
+  t10: [33.25, -103.20]
+  t11: [33.40, -104.36]
+  t12: [33.39, -104.52]
+  t13: [32.40, -104.21]
+  t14: [32.25, -104.17]
+  t15: [31.10, -103.75]
+  t16: [30.59, -103.89]
+  t17: [30.72, -103.65]

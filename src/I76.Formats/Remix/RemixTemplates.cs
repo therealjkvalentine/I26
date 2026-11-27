@@ -19,11 +19,11 @@ public static class RemixTemplates
         "defend" => Defend(c),
         "deliver" => Deliver(c),
         "tail" => Tail(c),
-        "intercept" => Intercept(c),
+        "intercept" or "ambush" => Intercept(c),
         "escort" => Escort(c),
         "raid" => Raid(c),
         var t => throw new RemixError($"objective template '{t}': defend, deliver, tail, intercept, escort or raid"),
-    }) + (c.Spec.Objective.Template is "intercept" or "defend" or "escort" or "raid" ? Sleepers(c) : "") + Reinforcements(c)).Replace("\r\n", "\n");
+    }) + (c.Spec.Objective.Template is "intercept" or "ambush" or "defend" or "escort" or "raid" ? Sleepers(c) : "") + Reinforcements(c)).Replace("\r\n", "\n");
 
     /// <summary>
     /// Sleepers for the templates without their own (intercept, defend): each waits parked where it is until the player comes within
@@ -71,7 +71,7 @@ public static class RemixTemplates
             "defend" => 3,
             "deliver" => (o.Pickup is not null ? 2 : 1) + (o.Clear > 0 ? 1 : 0),
             "tail" => 2,
-            "intercept" => o.Convoy is { KillEscorts: true, Escorts.Count: > 0 } ? 2 : 1,
+            "intercept" or "ambush" => o.Convoy is { KillEscorts: true, Escorts.Count: > 0 } ? 2 : 1,
             "escort" => 2,
             "raid" => 3,
             _ => 0,
@@ -209,7 +209,7 @@ public static class RemixTemplates
         return ((int)Math.Round(-fx * back + fz * side), (int)Math.Round(-fz * back - fx * side));
     }
 
-    private static string SoundKey(string clip) => "rx_cb_" + clip.ToLowerInvariant();
+    private static string SoundKey(string clip) => "rx_cb_" + clip.ToLowerInvariant().Replace('@', '_').Replace('-', '_');
 
     /// <summary>
     /// What every template shares, as a document of its own (merged like the template's): the radio's clips in the sounds table,
@@ -221,8 +221,13 @@ public static class RemixTemplates
     {
         var y = new StringBuilder();
         var clips = c.Spec.Radio.All.ToList();
+        // a clip is a sound file's stem, or a cut of one: STEM@START-END, in milliseconds (docs/remix-missions.md "The radio")
         foreach (var clip in clips)
-            if (clip.Length is 0 or > 34 || clip.Any(ch => !char.IsAsciiLetterOrDigit(ch) && ch != '_')) throw new RemixError($"radio clip '{clip}': a sound file's stem");
+        {
+            var stem = Audio.SoundFiles.Cut(clip) is { } cut ? cut.Stem : clip;
+            if (clip.Length is 0 or > 34 || stem.Any(ch => !char.IsAsciiLetterOrDigit(ch) && ch != '_') || (stem != clip && Audio.SoundFiles.Cut(clip) is null))
+                throw new RemixError($"radio clip '{clip}': a sound file's stem, or STEM@START-END in milliseconds");
+        }
         if (clips.Count > 0)
         {
             y.Append("sounds:\n");

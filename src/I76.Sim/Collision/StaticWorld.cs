@@ -52,6 +52,11 @@ public sealed class StructureNode
     public bool Sign => Type == 4;
     /// <summary>Its destroyed slot has geometry (an 'A' twin): a dead node keeps a collider, else its class drops to none.</summary>
     public bool Wreck { get; init; }
+    /// <summary>
+    /// Taken away before the mission starts (a generated mission's opened doors, docs/remix-missions.md "Places"): no collider,
+    /// never drawn, alive or dead, and no hits. Set by the mission build from the mission file (<see cref="StaticObject.RemoveNodes"/>).
+    /// </summary>
+    public bool Removed { get; set; }
     /// <summary>A type-7 node's slide (<see cref="GateMotion"/>), null for every other node.</summary>
     public GateMotion? Gate { get; set; }
     /// <summary>
@@ -274,8 +279,8 @@ public sealed partial class StaticObject
     {
         if (Nodes.Count == 0) { if (Destroyed) Collapse(); return; }
         _intact ??= ([.. Polys], [.. Surfaces], [.. Boxes], [.. Spheres], [.. MeshBounds], Centre, Radius, BoundRadius);
-        bool Alive(int n) => n < 0 ? !Destroyed : !Nodes[n].Destroyed;
-        bool Dead(int n) => n < 0 ? Destroyed : Nodes[n].Destroyed;
+        bool Alive(int n) => n < 0 ? !Destroyed : !Nodes[n].Destroyed && !Nodes[n].Removed;
+        bool Dead(int n) => n < 0 ? Destroyed : Nodes[n].Destroyed && !Nodes[n].Removed;
         Polys.Clear(); Surfaces.Clear(); Boxes.Clear(); Spheres.Clear(); MeshBounds.Clear();
         Polys.AddRange(_intact.Value.Polys.Where(p => Alive(p.Node)).Select(Moved));
         Surfaces.AddRange(_intact.Value.Surfaces.Where(p => Alive(p.Node)).Select(Moved));
@@ -451,6 +456,40 @@ public sealed partial class StaticObject
         Hp = 0;
         Thrown = true;
         return true;
+    }
+
+    /// <summary>
+    /// Nodes taken away at the mission build (a generated mission's opened doors): their colliders out of the geometry as built,
+    /// so nothing meets them and the placement stays as built otherwise (a snapshot need not carry it: the mission file says so).
+    /// The names not found are returned.
+    /// </summary>
+    public List<string> RemoveNodes(IEnumerable<string> names)
+    {
+        var missing = new List<string>();
+        var gone = new HashSet<int>();
+        foreach (var name in names)
+        {
+            int i = Nodes.FindIndex(n => n.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            if (i < 0) { missing.Add(name); continue; }
+            Nodes[i].Removed = true;
+            gone.Add(i);
+        }
+        if (gone.Count == 0) return missing;
+        Polys.RemoveAll(p => gone.Contains(p.Node));
+        Surfaces.RemoveAll(p => gone.Contains(p.Node));
+        Boxes.RemoveAll(b => gone.Contains(b.Node));
+        Spheres.RemoveAll(b => gone.Contains(b.Node));
+        MeshBounds.RemoveAll(b => gone.Contains(b.Node));
+        if (Remains is { } r)
+        {
+            r.Polys.RemoveAll(p => gone.Contains(p.Node));
+            r.Surfaces.RemoveAll(p => gone.Contains(p.Node));
+            r.Boxes.RemoveAll(b => gone.Contains(b.Node));
+            r.Spheres.RemoveAll(b => gone.Contains(b.Node));
+            r.MeshBounds.RemoveAll(b => gone.Contains(b.Node));
+        }
+        BoundsChanged();
+        return missing;
     }
 
     /// <summary>The destroyed state on the wire: bit 0 the root, bit n + 1 node n, bit count + 1 <see cref="Thrown"/>.</summary>

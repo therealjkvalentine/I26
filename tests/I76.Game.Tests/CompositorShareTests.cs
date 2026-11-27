@@ -76,4 +76,30 @@ public class CompositorShareTests
         }
         Assert.Empty(found);
     }
+
+    /// <summary>
+    /// Every compositor effect releases the scene buffers' wrapper in its callback (a using declaration): the collector's finalizer
+    /// thread otherwise deleted a freed viewport's buffers (the mirrors' after a mission), freeing GPU resources off the render thread
+    /// ("free_rid can only be called from the render thread") and crashing the game as a second mission in one run began.
+    /// </summary>
+    [Fact]
+    public void EveryEffectReleasesTheSceneBuffersInItsCallback()
+    {
+        var dir = RepoFile(Path.Combine("game", "Scripts"));
+        var calls = new List<string>();
+        var bare = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
+        {
+            var src = File.ReadAllText(file);
+            foreach (Match m in Regex.Matches(src, @"GetRenderSceneBuffers\(\)"))
+            {
+                int line = src[..m.Index].Count(c => c == '\n') + 1;
+                calls.Add($"{Path.GetFileName(file)}: {line}");
+                int start = src.LastIndexOf('\n', m.Index) + 1;
+                if (!Regex.IsMatch(src[start..m.Index], @"^\s*using\s+var\s+\w+\s*=\s*\w+\.$")) bare.Add($"{Path.GetFileName(file)}: {line}");
+            }
+        }
+        Assert.NotEmpty(calls);
+        Assert.Empty(bare);
+    }
 }

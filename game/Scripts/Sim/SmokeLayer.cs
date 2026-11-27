@@ -266,6 +266,9 @@ public partial class SmokeLayer : Node3D
     {
         GetTree().NodeAdded -= OnNodeAdded;
         GetTree().NodeRemoved -= OnNodeRemoved;
+        // the mirrors' quads are this layer's children, freed with it: the views (kept for the process) make new ones in the next
+        // mission (a second mission in one run, a road trip's next job, used the freed ones: ObjectDisposedException every frame)
+        foreach (var v in Views) { v.Quad = null; v.Mat = null; v.Seen = 0; }
     }
 
     public override void _Process(double delta)
@@ -594,7 +597,10 @@ public partial class SmokeLayer : Node3D
     {
         var rd = RenderingServer.GetRenderingDevice();
         if (rd is null) return;
-        if (renderData.GetRenderSceneBuffers() is not RenderSceneBuffersRD buffers || renderData.GetRenderSceneData() is not RenderSceneDataRD scene) return;
+        // the buffers' wrapper released here, on the render thread: left to the collector it kept a freed viewport's buffers (the
+        // mirrors' at a mission's end) alive until the finalizer thread deleted them, freeing GPU resources off the render thread
+        using var held = renderData.GetRenderSceneBuffers();
+        if (held is not RenderSceneBuffersRD buffers || renderData.GetRenderSceneData() is not RenderSceneDataRD scene) return;
         int count = 0;
         lock (Lock)
         {

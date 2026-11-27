@@ -506,7 +506,10 @@ public partial class HeatShimmer : Node3D
     {
         var rd = RenderingServer.GetRenderingDevice();
         if (rd is null) return;
-        if (renderData.GetRenderSceneBuffers() is not RenderSceneBuffersRD buffers || renderData.GetRenderSceneData() is not RenderSceneDataRD scene) return;
+        // the buffers' wrapper released here, on the render thread: left to the collector it kept a freed viewport's buffers (the
+        // mirrors' at a mission's end) alive until the finalizer thread deleted them, freeing GPU resources off the render thread
+        using var held = renderData.GetRenderSceneBuffers();
+        if (held is not RenderSceneBuffersRD buffers || renderData.GetRenderSceneData() is not RenderSceneDataRD scene) return;
         if (buffers.GetViewCount() != 1) return;   // one view (no XR)
         var size = buffers.GetInternalSize();
         if (size.X <= 0 || size.Y <= 0) return;

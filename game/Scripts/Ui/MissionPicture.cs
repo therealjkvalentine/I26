@@ -39,6 +39,10 @@ public partial class MissionPicture : Control
     /// notepad after a rule, and along the map's foot.
     /// </summary>
     public IReadOnlyList<string> Notes { get; init; } = [];
+    /// <summary>A remix map's landmarks (a town, a fort) on the 640 x 480 sheet: a small square, lettered in the roads' sepia; with them the road key.</summary>
+    public IReadOnlyList<(Vector2 At, string Label)> Landmarks { get; init; } = [];
+    /// <summary>Drawn only (a loading screen's picture): no key closes it.</summary>
+    public bool Passive { get; init; }
     /// <summary>The key that closed it, to be acted on as usual.</summary>
     public required Action<InputEventKey> Closed { get; init; }
 
@@ -51,14 +55,14 @@ public partial class MissionPicture : Control
         ProcessMode = ProcessModeEnum.Always;
         // the whole window (anchors and offsets both: anchors alone left it 0x0 under its CanvasLayer)
         SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        MouseFilter = MouseFilterEnum.Stop;
+        MouseFilter = Passive ? MouseFilterEnum.Ignore : MouseFilterEnum.Stop;
         Resized += QueueRedraw;
     }
 
     public override void _Input(InputEvent e)
     {
         // keyboard only: the original reads the keyboard's buffered key for the frame (the port's pad: A, B and Back close it, Start is Esc)
-        if (_done) return;
+        if (_done || Passive) return;
         InputEventKey? k = e as InputEventKey;
         if (e is InputEventJoypadButton { Pressed: true, ButtonIndex: JoyButton.A or JoyButton.B or JoyButton.Back or JoyButton.Start } jb && GodotPads.IsStandard(jb.Device)
             && (jb.ButtonIndex is JoyButton.A or JoyButton.B || !Controls.PadButtonBound(jb.ButtonIndex)))
@@ -145,9 +149,35 @@ public partial class MissionPicture : Control
             DrawString(Lee!, o + new Vector2(44, fy) * s, note, HorizontalAlignment.Left, 552 * s, tiny, ink);
             fy += 12;
         }
+        // the landmarks, for bearings: a small square in the roads' sepia, the name beside it smaller than a mark's
+        var sepia = Color.Color8(92, 58, 26);
+        int land = Mathf.Max(1, Mathf.RoundToInt(13 * s));
+        foreach (var (at, label) in Landmarks)
+        {
+            var p = o + at * s;
+            DrawRect(new Rect2(p - new Vector2(3, 3) * s, new Vector2(6, 6) * s), sepia);
+            float lw = Lee!.GetStringSize(label, HorizontalAlignment.Left, -1, land).X;
+            var lp = at.X * s + 8 * s + lw > 630 * s ? p + new Vector2(-8 * s - lw, 4 * s) : p + new Vector2(8 * s, 4 * s);
+            DrawString(Lee, lp, label, HorizontalAlignment.Left, -1, land, sepia);
+        }
+        // the road key (a whole map's roads are drawn by kind) in the top left corner, under the sheet's edge
+        if (Landmarks.Count > 0 || Title is not null)
+        {
+            float ky = 24;
+            foreach (var (name, on, off, wd) in new[] { ("paved", 99f, 0f, 2f), ("dirt", 4.5f, 3f, 1.6f), ("wash", 1.3f, 2.6f, 1.6f) })
+            {
+                var a = o + new Vector2(44, ky) * s;
+                for (float d = 0; d < 26; d += on + off)
+                    DrawLine(a + new Vector2(d, 0) * s, a + new Vector2(Mathf.Min(26, d + on), 0) * s, sepia, Mathf.Max(1f, wd * s));
+                DrawString(Lee!, a + new Vector2(32, 4) * s, name, HorizontalAlignment.Left, -1, Mathf.Max(1, Mathf.RoundToInt(11 * s)), sepia);
+                ky += 11;
+            }
+        }
         foreach (var (at, label) in Marks)
         {
             var p = o + at * s;
+            // a mark the player must make for: a double ring, so it stands out from the landmarks and the start
+            if (!label.StartsWith("START", StringComparison.Ordinal)) DrawArc(p, 13 * s, 0, Mathf.Tau, 28, ink, Mathf.Max(1f, 1f * s));
             DrawArc(p, 9 * s, 0, Mathf.Tau, 24, ink, Mathf.Max(1f, 1.5f * s));
             float lw = Lee!.GetStringSize(label, HorizontalAlignment.Left, -1, small).X;
             var lp = at.X * s + 14 * s + lw > 630 * s ? p + new Vector2(-14 * s - lw, 5 * s) : p + new Vector2(14 * s, 5 * s);
