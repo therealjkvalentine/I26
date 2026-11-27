@@ -477,9 +477,10 @@ public static class LightingCalibration
     /// The least sun factor the sunlit look takes, whatever the solve finds: the drawn ground has less contrast than the cells say
     /// (the texture's own brights muted by the modern ground's filtering and blends, the sky's occlusion, the ambient occlusion), so
     /// measured on the frames the sunlit and the shaded thirds of every day mission came out nearer each other than the 1997 look's
-    /// at a sun of 1 (set from the captures: docs/deviations.md "Lighting").
+    /// at a sun of 1: 3 (the captures of every day mission, docs/deviations.md "Lighting": T10's sunlit and brightest ground nearest the
+    /// 1997 look's with its shade no lighter; the round-two comps' x2.8 by eye).
     /// </summary>
-    public const double SunlitMinGain = 1;
+    public const double SunlitMinGain = 3;
 
     /// <summary>The sun's factor <see cref="SolveSunlit"/> takes (1 when the contrast cells have no spread of light).</summary>
     public static double SunGainFor(ReadOnlySpan<byte> texels, IReadOnlyList<Cell> ground, IReadOnlyList<Cell> contrast, ToneCurve curve = ToneCurve.Card)
