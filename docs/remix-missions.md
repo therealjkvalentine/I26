@@ -74,7 +74,7 @@ drop_exits: [exit1]          # stock leave-map threads dropped, by their exit pa
 gates: {start: [gate1], trap: [gate1], win: [gate1, gateblock], settle: 30}   # gates triggered at the start, the trap moment, the win
 idle_cars: remove            # or keep: the stock cars nothing names
 radio: {start: [...], trap: [...], wave: [...], win: [...], steps: [[...], ...], reinforce: [...]}   # CB clips (sound file stems of the install)
-objective: {template: defend | deliver | tail | intercept, reinforce: [...], finish: {place, radius}, finish_clear, finish_after, ...}
+objective: {template: defend | deliver | tail | intercept | escort | raid, reinforce: [...], finish: {place, radius}, finish_clear, finish_after, ...}
 text: {objectives: [...], failures: [...], deaths: [...], notes: [...]}   # the .npt and the notepad's notes
 ```
 
@@ -136,6 +136,31 @@ metres of the lead, the lead or an escort shot, or the lead dead: a bump among t
 Objectives: 1 the lead dead, 2 the escorts dead (with `kill_escorts`, the default; revealed with the lead's death). Failures:
 1 death, 2 left the map, 3 the convoy got through.
 
+### Template `escort`
+
+See a slow friendly through (the design list's escort, written fresh). `escort: {car, route, mid, goal, speed, wait, resume,
+wingmen}`: the escorted car (a `cars` entry, on the player's side, team 1) drives `route` at `speed` by way of `mid` (objective
+1) to `goal` (objective 2), but only while the player keeps up: once he is more than `wait` metres away (220) it stops, and it
+goes on when he is back within `resume` (110), so it never meets an ambush alone (the owner's complaint about the stock escorts:
+helpers that ran ahead or fell behind). Wingmen (`cars` entries, the player's side) ride with it in line behind it on the road,
+40 m back and 15 m more each, firing at the nearest enemy, and stop when it stops. (A station off to its side put one in a ditch;
+one nearer than 40 m kept nosing into its back and stopping to dodge it; one following the player fell 250 m behind, dodging
+the player's own car in the column.) The ambush: sleepers on the way, and reinforcements whose `target: escort` comes for the
+escorted car itself rather than the player.
+
+Objectives: 1 the halfway point, 2 the goal, then the finish (see it in: the player at the goal with nobody within 300 m).
+Failures: 1 death, 2 left the map, 3 the escorted car wrecked.
+
+### Template `raid`
+
+Hit and run. `targets`: what must fall, each a `bind` entry (a structure of the base: a cluster's oil pumps, a town's shops) or a
+`cars` entry that never starts (trucks parked at a yard, on the enemy's side); `arrive` (optional) the target area; `escape:
+{place, radius, seconds}` the way out. Objective 1 is getting there (or hitting a target from afar), 2 every target down, 3 out
+to the escape zone within its seconds of the last target's fall, while the reinforcements of step 3 close in on the way out
+(a roadblock of wrecks at their entry). Guards parked on the road in wake as the player comes.
+
+Objectives: 1 there, 2 the targets, 3 out. Failures: 1 death, 2 left the map, 3 too slow ("They closed the roads").
+
 ### Every template: steps, the twist, the finish, sleepers
 
 - **Sides.** Every car the template turns on the player (raiders, sleepers, pursuers, a convoy, reinforcements) is placed on the
@@ -145,12 +170,16 @@ Objectives: 1 the lead dead, 2 the escorts dead (with `kill_escorts`, the defaul
   instruction) and sets the death line.
 - **Death lines.** `text.deaths` (one a objective; made from the objective's own line when missing) follow the failures in the
   .npt; a death shows the open objective's ("Ocean 5 caught up with you", "You were killed on the way to the safe house").
-- **Reinforcements** (`reinforce: [{cars, entry, at_step, delay, speed, siren}]`): wait hidden in the lot until their step opens,
-  then `delay` seconds, are teleported in at the entry in pairs side by side and come for the player; `radio.reinforce` on arrival.
+- **Reinforcements** (`reinforce: [{cars, entry, at_step, delay, speed, siren, target}]`): wait hidden in the lot until their step opens,
+  then `delay` seconds, are teleported in at the entry in pairs side by side and come for the player (`target: escort`: for the
+  escorted car); `radio.reinforce` on arrival.
 - **Finish** (`finish`, `finish_clear`, `finish_after`): after the template's own win, the last objective line opens: get to the
   zone with nobody within `finish_clear`, counted only `finish_after` seconds after it opened (a finish at the start is not done
   by standing there).
-- **Sleepers** for intercept and defend too (a roadblock on a convoy's road): parked until the player is within `wake` or shoots.
+- **Sleepers** for intercept, defend, escort and raid too (a roadblock on a convoy's road, an ambush on an escort's, a raid's
+  guards): parked until the player is within `wake` or shoots.
+- **Idle cars**: the stock cars and helicopters (type 9) nothing drives any more are removed (an idle helicopter left by T11's
+  riverbed kept a tail from ever being lost: it counted as an enemy near the player).
 
 ### Structures
 
@@ -176,13 +205,22 @@ job's map for every later roll in the same run (the owner's convoy "marked east,
 
 ### Checking a build
 
+`i76 remix check --nodes [BASE|FILE.yaml...]` (and `RemixRound4Tests`) holds each node table to its map (`RemixNodeCheck`): every
+point on the map's ground, on a road (22 m) or on drivable ground (no slope over 32 degrees within 5 m), every start, node, cluster
+and escort route's ends 300 m or more from a leave-map exit, every point reachable from the table's first start over drivable
+ground or roads (a flood over a 10 m grid; roads always pass, so a bridge counts), an entry's two points 20-400 m apart, a route's
+points on roads, a cluster's structures where it says, the lot 350 m or more from every place, the neighbours tables, the words
+(`called`, `name`) written. (It found T06's crossroads by Santana's on ground of their own, cut off from the rest of the map.)
+
+
 `i76 remix check [--builtin] [--seeds A-B]` (and `RemixMissionTests`, over the shipped remixes and 500 rolled jobs) loads each
 build into the sim and holds it to its description and map (`RemixCheck`): every hostile car exists, is on the enemy's team, stands
 where it is parked, on the ground; the convoy's lead starts at its CONVOY mark; every mark is the zone its script tests; every
 place the player must reach is 300 m or more from a leave-map exit (the library's warning starts at 275 m and fails the mission
 at 50 m: the director's first side nodes sat in road-end exit stubs); every prop is a collidable static. It then walks the job
-(the player teleported to each step's place as it opens; each hostile car killed as the player's kill once checked) until every
-car has come out, and from 60 m checks that it is a radar contact the next-target key reaches.
+(the player teleported to each step's place as it opens; an escort walked 70 m behind its car, which must reach its goal; a raid's
+targets shot through as its second step opens; each hostile car killed as the player's kill once checked) until every car has
+come out, and from 60 m checks that it is a radar contact the next-target key reaches.
 
 ### Challenge
 
@@ -207,7 +245,7 @@ strength (0.3-0.6, 0.65-0.95, 1.0-1.7 Piranhas).
 
 ## Playing them
 
-- **In the game**: MELEE, AUTO MELEE, SCENARIO: the five are at the end of the list (scroll down), sorted by id, and RANDOM JOB
+- **In the game**: MELEE, AUTO MELEE, SCENARIO: the five are at the end of the list (scroll down), sorted by id, then RANDOM JOB
   last; pick a car and ENTER AREA. `--mission x07farm` (with `--drive`) starts one directly; `--mission xjob` the last job rolled.
 - **Headless**: `i76 remix build --builtin --out DIR`, then `i76 --remix-dir DIR run x07farm 300`. `I76_REMIX_DIR` stands in
   for `--remix-dir`. The run's drivers (`I76_RUN_AIDRIVE`, `I76_RUN_ROUTE`, `--player-at`) take the generated places by their
@@ -253,13 +291,29 @@ routes: [{name, points: [...] | path: LABEL, park: [x, z], heading, exit: [x, z]
 clusters: [{name, called, at, radius, objects: [{object, nth}], entries: [names]}]   # the base's own structures to defend
 ```
 
-Shipped: T02, T05, T07, T10, T14.
+Shipped: sixteen, the trip's maps but T04 (a dream): T01-T03, T05-T17. Round four added T01, T03, T06, T08, T09, T11, T12, T13,
+T15, T16 and T17, read off the map dumps (`i76 remix map BASE --json`) and the printable atlas's unvisited areas (its grid squares,
+roads and buildings): side roads, road ends and the open ground beside them for nodes, the building clusters for defence and raids
+(Seagraves' main street, Plains' warehouses, the oil fields' pumps of T09, T15 and T17, Roswell's school and the Komplex's
+outbuildings), and escort routes along roads a slow car can drive (three were cut short where the AI's car jammed: under the
+Pecos bridge, round the corner east at the Bar-D, through the hairpin west of the mesa's pumps). Each table also has:
+
+```yaml
+name: Seagraves               # the map on a road trip's choice screen
+neighbours: [t02, t07, t08, t09]   # the maps next to it (bases with tables), for a road trip's route
+nitro: false                  # a Nitro Pack map: offered only with the Nitro install (no Nitro table yet)
+routes: [{name, points, escort: true, called: the dirt road east of town}]   # a route an escort can drive, and its end in words
+clusters: [{..., uses: [defend, raid]}]   # what a cluster serves (defend only when left out)
+nodes: [{kinds: [yard]}]      # a yard: where a raid's trucks can be parked
+```
 
 ## The director
 
 `RemixDirector.Roll(seed)` (`src/I76.Formats/Remix/RemixDirector.cs`, outside the simulation, its own SplitMix64 stream) picks,
 from a seed: a (map, template) pair the node tables allow (deliver needs a pickup 0.7-4 km from a start; tail a hideout 2 km
-or more and an entry 250-800 m behind a start; intercept a route starting 0.5-2.5 km away; defend a cluster), a heat (0-2: the
+or more and an entry 250-800 m behind a start; intercept a route starting 0.5-2.5 km away; defend a cluster that serves defence;
+escort an escort route (the player starts 35 m behind the escorted car at its first point); raid a raid cluster or a yard
+0.7-3.5 km from a start), a heat (0-2: the
 cars' pool, their count and skill), the start, the nodes, the cars (the base game's generic cars by heat, the police for a
 tail, a truck to lead a convoy; new placements at the lot, or at the route's start for a convoy) and the deadlines (from the
 distances). It writes an ordinary description (title `JOB N`, objective 1 begins `Job N:`, so a player's job can be rolled
@@ -279,6 +333,46 @@ pick your shots, got away, we got a problem, company, bandits) and its own death
   Esc stays on the form; `I76_JOB_NUMBER` answers for a capture). The number is on the notepad's first line, its notes and the
   map's title. Then it rolls that seed, builds the job as `xjob` into
   `user://remix` (its description beside it as `xjob.job.yaml`) and starts it. The game log says `remix: RANDOM JOB seed N`.
-- **Headless**: `i76 remix roll --seed N [--yaml FILE] [--build [--out DIR]] [--id STEM]`, then `i76 --remix-dir DIR run xjob`.
+- **Headless**: `i76 remix roll --seed N [--yaml FILE] [--build [--out DIR]] [--id STEM] [--template T] [--map BASE] [--challenge C]`,
+  then `i76 --remix-dir DIR run xjob`; `--template`, `--map` and `--challenge` narrow a roll as a road trip's offer does (also
+  for `check` and `score`).
 - **Tests**: 200 seeds roll, build (the builder's validation included) with every car file in the install; one job of each
   template loads and runs half a minute.
+
+## Road trip
+
+The first run of the roguelike plan: four generated jobs across neighbouring maps of the region, the challenge rising 0.8, 1.0,
+1.2, 1.4 (Back to Spanner's 1.0). `RemixRun` (`src/I76.Formats/Remix/RemixRun.cs`, no Godot, no sim) and the shell's
+`RoadTripScreen` (`game/Scripts/Shell/RoadTripScreen.cs`).
+
+- **The offers.** Before each job the player picks one of two or three offers: a map (by its node table's `name`: "Seagraves",
+  "the Pecos bridge"), the job (DELIVERY, SHAKE THE TAIL, CONVOY HIT, DEFENCE, ESCORT, RAID), its challenge, and a line of flavour
+  that is the job's own first objective, naming the gang ("Gas Bandit's crew left the goods..."). The first job's offers are on the
+  run's home map (picked by the run's number) and its neighbours; later ones on the neighbours (`neighbours` in each table, written
+  from the roguelike gazetteer's road and neighbour links) of the map the last job was on, ones not yet visited first, a different
+  template each where the maps allow. Each offer carries its job's seed; the job is the director's roll for that seed on that map
+  and template at that challenge (`RemixDirector.JobAsk`), built as `xrun`, titled `ROAD TRIP k/4`, its first objective labelled
+  "Road trip N, job k:".
+- **The number.** Everything a run offers is a function of its number and the picks made (a SplitMix64 stream of its own,
+  outside the simulation, never the wall clock): the same number and the same picks give the same offers and the same jobs. ROAD
+  TRIP asks for the run number on the job number's popup (blank: a new one; Up and Down: the last ten, `user://remix/runs.txt`;
+  `I76_RUN_NUMBER` answers for a capture).
+- **The car.** The car picked on the scenario form drives the whole run. Its damage carries from job to job (`RunCarry`: read off
+  at a job's end, put back at the next one's load before the first tick): armour and chassis on each side, engine, brakes,
+  suspension, wheels, each gun's hit points and rounds. The trip's own carry (the original's) leaves armour and chassis out and
+  fills the guns; a run carries all of it (docs/deviations.md). Each win grants one pick: FULL REPAIR (armour, chassis and parts as
+  built; the rounds as they are), FULL AMMO (every gun loaded; the damage as it is) or PUSH ON (nothing, a bonus mark).
+- **The end.** A failed job ends the run (the escape menu's Replay leaves a road trip's job as Abort does: a job is played once);
+  four wins finish it. The summary sheet lists the jobs, the kills (the player's, counted at each job's end), the bonus marks and
+  the run's number; DONE keeps the run as `run-last.yaml` and clears the way for a new one.
+- **Kept.** The run is `user://remix/run.yaml` (YAML: the number, the phase, the map, the jobs played, the car's state), written
+  before each job and after each result (to a new file, then moved over the old). Quitting the game keeps it: ROAD TRIP on the
+  scenario form takes it up at the same choice; a job the game closed during comes back as the same choice (the same offers),
+  not as a loss. Single player only, base game only.
+- **The screen.** The port's paper sheet (record 16's paper, as Control Configuration's) in the shell's fonts: the title in its
+  heavy caps, the offers in the hand of the scenario list, one box each, the chosen one marked in red pencil; Up and Down (or 1-3,
+  or a click) choose, Enter or TAKE THE JOB takes it, Esc or BACK goes back to the scenario form with the run kept.
+- **Not yet.** Fuel: see the plan (fuel would be a run-level number spent per kilometre driven and per job, read off the player's
+  odometer at a job's end, refilled at a job's gas station node or by a fourth pick; an offer would show its cost). Nitro maps:
+  the tables' `nitro` flag and the offers' filter are there, no Nitro table yet.
+

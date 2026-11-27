@@ -25,6 +25,19 @@ public static class RemixRoles
         if (o.Pursuit is { } p) foreach (var c in p.Cars) Add(c, "pursuer");
         if (o.Convoy is { } cv) { Add(cv.Lead, "lead"); foreach (var e in cv.Escorts) Add(e, "escort"); }
         foreach (var r in o.Reinforce) foreach (var c in r.Cars) Add(c, "reinforcement");
+        foreach (var t in o.Targets) if (spec.Cars.ContainsKey(t)) Add(t, "target");
+        return l;
+    }
+
+    /// <summary>The cars on the player's side: an escort's escorted car and its wingmen.</summary>
+    public static List<Role> Friendlies(RemixSpec spec)
+    {
+        var l = new List<Role>();
+        if (spec.Objective.Escort is { } e)
+        {
+            if (e.Car.Length > 0) l.Add(new Role(e.Car, "escorted"));
+            foreach (var w in e.Wingmen) l.Add(new Role(w, "wingman"));
+        }
         return l;
     }
 }

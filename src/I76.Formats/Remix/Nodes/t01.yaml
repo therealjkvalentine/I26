@@ -1,0 +1,48 @@
+# T01's map (Seagraves: the highway north through town, the farm road, the loop road west of town): coordinates read off the
+# map (i76 remix map t01) and the atlas's unvisited areas, written by hand with the port's own words for the places. T01's own
+# action is the highway and the town; jobs prefer the dirt road east of the highway, the loop road and the town's east end.
+base: t01
+name: Seagraves
+neighbours: [t02, t07, t08, t09]
+lot: [2290, 34685]                  # the far southwest corner, off every road but the highway's end
+cast:
+  - {name: Gas Bandit, side: gang}
+  - {name: Patriot, side: gang}
+stock_action: [[3345, 35880], [3890, 38755], [4045, 39490], [3635, 36400], [3670, 36700], [3535, 40215], [4545, 38675], [4200, 38680], [4190, 38365], [4580, 38350], [3670, 39045], [3995, 39810], [3650, 37105], [3885, 37325], [3770, 37775], [3450, 38055], [3050, 38045], [3600, 38375]]
+starts:
+  - {name: highway_south, at: [3488, 36116], heading: 30, called: on the highway south of town}
+  - {name: east_spur, at: [4610, 37280], heading: 275, called: at the end of the dirt road east of the highway}
+  - {name: west_loop, at: [2885, 38578], heading: 75, called: on the loop road west of town}
+  - {name: north_dirt, at: [4368, 38918], heading: 265, called: on the dirt road north of the east end of town}
+nodes:
+  - {name: town, kinds: [home, hideout], at: [4113, 38680], called: 'Seagraves main street, by the bank'}
+  - {name: barn, kinds: [pickup], at: [3738, 36765], called: the barn and water tower beside the highway}
+  - {name: east_spur, kinds: [pickup, hideout], at: [4610, 37280], called: the end of the dirt road east of the highway}
+  - {name: east_field, kinds: [hideout], at: [4890, 37285], called: the open ground past the end of the east dirt road}
+  - {name: west_loop, kinds: [pickup, hideout, home], at: [2885, 38578], called: the loop road west of town}
+  - {name: farm_west, kinds: [pickup, yard], at: [3285, 37020], called: the west end of the farm road}
+  - {name: farm_east, kinds: [pickup, hideout, yard], at: [4238, 37020], called: the east end of the farm road}
+  - {name: town_east, kinds: [home, hideout, yard], at: [4895, 38565], called: the dirt road east of town}
+  - {name: north_spur, kinds: [pickup], at: [3489, 38820], called: the dirt road north of the loop road}
+  - {name: gas_station, kinds: [pickup, yard], at: [3215, 35700], called: the Gas4Cash station south of town}
+entries:
+  - {name: south, at: [[3076, 35478], [3144, 35589]]}
+  - {name: east_spur, at: [[4610, 37280], [4489, 37308]]}
+  - {name: west_loop, at: [[2885, 38578], [3005, 38609]]}
+  - {name: farm_west, at: [[3285, 37020], [3411, 37020]]}
+  - {name: farm_east, at: [[4176, 37020], [4054, 37020]]}
+  - {name: north, at: [[3720, 40579], [3720, 40453]]}
+  - {name: town_east, at: [[4895, 38565], [4838, 38662]]}
+  - {name: north_dirt, at: [[4368, 38918], [4247, 38894]]}
+routes:
+  - {name: highway_north, heading: 25, points: [[3488, 36116], [3630, 36389], [3670, 36700], [3640, 37015], [3853, 37202], [3889, 37505], [3770, 37773], [3577, 37955], [3315, 38063], [3063, 38109], [3328, 38233], [3577, 38370], [3740, 38555], [3888, 38757], [3701, 38999], [3718, 39278], [4003, 39399], [4028, 39697], [3925, 39987], [3741, 40226], [3720, 40579]]}
+  - {name: through_town, escort: true, called: the dirt road east of town, heading: 25, points: [[3488, 36116], [3609, 36338], [3668, 36584], [3656, 36854], [3661, 37109], [3868, 37240], [3890, 37494], [3833, 37735], [3595, 37830], [3476, 38046], [3219, 38057], [3088, 38141], [3328, 38233], [3534, 38367], [3656, 38555], [3895, 38609], [4093, 38680], [4360, 38680], [4626, 38680], [4879, 38639], [4895, 38565]]}
+  - {name: loop_to_north, escort: true, called: the dirt road north of the east end of town, heading: 80, points: [[2885, 38578], [3148, 38614], [3405, 38583], [3656, 38555], [3895, 38609], [4093, 38680], [4214, 38848], [4368, 38918]]}
+clusters:
+  - name: main_street
+    called: Seagraves main street
+    at: [4116, 38668]
+    radius: 250
+    objects: [{object: bcbank1}, {object: bcpost1}, {object: bddonut1}, {object: bdsaloo1}, {object: bcindia1}, {object: bctatto1}, {object: bcindia2}]
+    entries: [town_east, north_dirt, west_loop, farm_east]
+    uses: [defend, raid]

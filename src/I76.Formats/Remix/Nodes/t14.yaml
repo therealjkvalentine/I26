@@ -2,6 +2,8 @@
 # written by hand with the port's own words for the places. stock_action: where T14's own mission happens (285 and the county
 # road), so jobs prefer the rest: the dirt roads east of the truckstop, the west road and 285 north of the truckstop.
 base: t14
+name: the county line
+neighbours: [t13, t15]
 hour: 19
 lot: [8000, 40620]                  # the east end of the county road, past where any job goes
 cast:

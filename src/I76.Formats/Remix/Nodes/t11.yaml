@@ -1,0 +1,39 @@
+# T11's map (380 across the Pecos: the bridge, the dry riverbed under it, dirt roads south): coordinates read off the map (i76
+# remix map t11) and the atlas's unvisited areas, written by hand with the port's own words. T11's own action is the bridge and
+# 380 west of it; jobs lean on the riverbed's ends, 380 east of the bridge and the dirt roads to the south.
+base: t11
+name: the Pecos bridge
+neighbours: [t10, t12]
+lot: [5695, 46190]                  # the southeast corner, off the roads
+cast:
+  - {name: Road Knight, side: gang}
+  - {name: Balrog, side: gang}
+  - {name: Ocean 5, side: police}
+stock_action: [[3525, 48905], [4535, 49985], [1450, 48935], [2420, 48935], [4690, 47120], [4240, 49115], [4440, 48760], [4440, 48240], [2938, 49888], [3408, 48052], [3808, 47748], [3452, 49868], [3808, 49608], [4162, 47532], [4858, 46822]]
+starts:
+  - {name: east_380, at: [5251, 48935], heading: 270, called: on 380 east of the bridge}
+  - {name: west_380, at: [2910, 48935], heading: 90, called: on 380 west of the bridge}
+  - {name: riverbed_north, at: [3596, 50407], heading: 200, called: in the dry riverbed north of the bridge}
+  - {name: southwest_dirt, at: [3006, 48208], heading: 185, called: on the dirt road southwest of the bridge}
+nodes:
+  - {name: bridge, kinds: [home], at: [4007, 48952], called: the Pecos bridge on 380}
+  - {name: riverbed_north, kinds: [pickup, hideout], at: [3596, 50407], called: the dry riverbed north of the bridge}
+  - {name: riverbed_mid, kinds: [pickup, hideout], at: [3425, 49363], called: the riverbed just north of the bridge}
+  - {name: riverbed_south, kinds: [pickup, hideout, yard], at: [3885, 48280], called: the riverbed south of the bridge}
+  - {name: southwest_dirt, kinds: [pickup, hideout, yard], at: [3147, 47584], called: the end of the dirt road southwest of the bridge}
+  - {name: south_dirt, kinds: [pickup, hideout], at: [4274, 47130], called: the dirt road south of the bridge}
+  - {name: east_380, kinds: [home, hideout], at: [5251, 48935], called: 380 east of the bridge}
+  - {name: west_380, kinds: [home], at: [2910, 48935], called: 380 west of the bridge}
+  - {name: east_field, kinds: [hideout], at: [5600, 49150], called: the flat ground north of 380 at the east end}
+entries:
+  - {name: east, at: [[5345, 48935], [5219, 48935]]}
+  - {name: west, at: [[2126, 48935], [2247, 48935]]}
+  - {name: riverbed_north, at: [[4038, 50312], [3989, 50193]]}
+  - {name: riverbed_south, at: [[3885, 48280], [3803, 48375]]}
+  - {name: southwest, at: [[3147, 47584], [3106, 47703]]}
+  - {name: south, at: [[4826, 46457], [4845, 46580]]}
+  - {name: south_dirt, at: [[4274, 47130], [4178, 47210]]}
+routes:
+  - {name: west_on_380, heading: 270, points: [[5251, 48935], [4946, 48935], [4631, 48935], [4323, 48935], [4007, 48952], [3692, 48935], [3439, 48905], [3105, 48935], [2818, 48935], [2492, 48935], [2126, 48935]]}
+  - {name: down_the_riverbed, escort: true, called: the riverbed just north of the bridge, heading: 240, points: [[4038, 50312], [3881, 50210], [3649, 50401], [3504, 50227], [3386, 49952], [3403, 49666], [3422, 49374]]}   # it ends short of the bridge: its piers stop a car in the riverbed
+  - {name: east_on_380, escort: true, called: 380 east of the bridge, heading: 90, points: [[2910, 48935], [3105, 48935], [3439, 48905], [3692, 48935], [4007, 48952], [4323, 48935], [4631, 48935], [4946, 48935], [5251, 48935]]}

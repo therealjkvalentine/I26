@@ -2,6 +2,8 @@
 # the port's own words for the places. stock_action: where T05's own mission happens, so jobs prefer the rest: the long dirt
 # road south, the spur south of the bend, the far southwest and the far east of the north road.
 base: t05
+name: Oil Well Road
+neighbours: [t03, t06]
 lot: [10720, 45930]                 # T05's own lot north of the wreck
 cast:
   - {name: Balrog, side: gang}

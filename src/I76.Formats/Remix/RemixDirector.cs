@@ -36,7 +36,7 @@ public static class RemixDirector
     private static readonly string[] LeadCalled = ["milk truck", "milk truck", "van", "bus"];
 
     /// <summary>The templates in the order they are drawn from.</summary>
-    public static readonly string[] Templates = ["deliver", "tail", "intercept", "defend"];
+    public static readonly string[] Templates = ["deliver", "tail", "intercept", "defend", "escort", "raid"];
 
     /// <summary>The most cars a job sets on the player (the budget stops there).</summary>
     public const int MaxCars = 14;
@@ -47,14 +47,35 @@ public static class RemixDirector
         LastOfThem = "gdsgc32", Clean = "10sta06", TookLong = "11sta08", OhNo = "12sgc08", RightOn = "gdsgc16";
 
     /// <summary>A job's description from a seed, over the node tables (the built-in ones by default), at a challenge level.</summary>
-    public static RemixSpec Roll(int seed, IReadOnlyList<RemixNodes>? tables = null, string id = JobStem, int level = RemixChallenge.DefaultLevel)
+    public static RemixSpec Roll(int seed, IReadOnlyList<RemixNodes>? tables = null, string id = JobStem, int level = RemixChallenge.DefaultLevel) =>
+        Roll(seed, new JobAsk { Tables = tables, Id = id, Challenge = RemixChallenge.Levels[Math.Clamp(level, 0, RemixChallenge.Levels.Length - 1)] });
+
+    /// <summary>What a roll is asked for: the tables, the stem, the challenge (Back to Spanner's 1.0), and optionally the map and the template.</summary>
+    public sealed record JobAsk
     {
-        tables ??= RemixNodes.Builtin();
-        level = Math.Clamp(level, 0, RemixChallenge.Levels.Length - 1);
+        public IReadOnlyList<RemixNodes>? Tables { get; init; }
+        public string Id { get; init; } = JobStem;
+        public double Challenge { get; init; } = 1.0;
+        /// <summary>Only this map (its base), or any.</summary>
+        public string? Map { get; init; }
+        /// <summary>Only this template, or any the map allows.</summary>
+        public string? Template { get; init; }
+        /// <summary>Whether the Nitro Pack's maps may be used (its install is the game's).</summary>
+        public bool Nitro { get; init; }
+        /// <summary>What the first objective line and the notes call the job ("Job 637742"; a run's "Road trip 12, job 2").</summary>
+        public string? Label { get; init; }
+    }
+
+    /// <summary>A job's description from a seed and what is asked of it (a run picks the map, the template and the challenge).</summary>
+    public static RemixSpec Roll(int seed, JobAsk ask)
+    {
+        var tables = (ask.Tables ?? RemixNodes.Builtin()).Where(t => ask.Nitro || !t.Nitro).ToList();
+        string id = ask.Id;
         var r = new Rng(seed);
         // every (map, template) the tables allow, in table and template order; the seed picks one
-        var choices = tables.SelectMany(t => Templates.Where(k => Allows(t, k)).Select(k => (Table: t, Template: k))).ToList();
-        if (choices.Count == 0) throw new RemixError("no node table allows any template");
+        var choices = tables.Where(t => ask.Map is null || t.Base.Equals(ask.Map, StringComparison.OrdinalIgnoreCase))
+            .SelectMany(t => Templates.Where(k => (ask.Template is null || k == ask.Template) && Allows(t, k)).Select(k => (Table: t, Template: k))).ToList();
+        if (choices.Count == 0) throw new RemixError($"no node table allows {ask.Template ?? "any template"}{(ask.Map is null ? "" : " on " + ask.Map)}");
         var (map, template) = choices[r.Next(choices.Count)];
         int heat = r.Next(3);   // 0..2: the pools the cars come from
         string num = seed.ToString(CultureInfo.InvariantCulture);
@@ -96,7 +117,7 @@ public static class RemixDirector
         var o = spec.Objective;
         o.Template = template;
         o.Skill = 3 - heat;   // 3 (the lightest jobs) .. 1 (the best drivers)
-        string job = $"Job {num}";
+        string job = ask.Label ?? $"Job {num}";
         const string left = "You can't just leave.";
         string Where(double[] at, string called) => $"{called}, {Distance(start.At, at)} {Compass(start.At, at)} of the start";
         string Go(double[] at) => Math.Abs(Bearing(start.At, at)) < 35 && Dist(start.At, at) < 2500 ? GoNorth : GoThere;
@@ -242,9 +263,134 @@ public static class RemixDirector
                 spec.Text.Failures.AddRange([Deaths0, left, "They got away. Too late now."]);
                 break;
             }
+            case "escort":
+            {
+                // the escorted car waits at the route's start; the player starts 35 m behind it, facing the way it will go
+                var route = r.Quiet(map, map.Routes.Where(rt => rt.Escort && rt.Points.Count >= 3).ToList(), rt => rt.Points[^1]);
+                double[] p0 = route.Points[0], p1 = route.Points[1];
+                double hd = Bearing(p0, p1), hr = hd * Math.PI / 180;
+                int li = r.Next(Leads.Length);
+                string what = LeadCalled[li];
+                spec.Start = new PoseSpec { At = [p0[0] - 35 * Math.Sin(hr), p0[1] - 35 * Math.Cos(hr)], Heading = (hd + 360) % 360 };
+                start = new StartNode { Name = "escort", At = spec.Start.At, Heading = spec.Start.Heading, Called = $"behind the {what}" };
+                var van = $"car{++carNo}";
+                spec.Cars[van] = new CarSpec { Vcf = Leads[li], At = p0, Heading = (hd + 360) % 360 };
+                var mid = route.Points[route.Points.Count / 2];
+                var goal = route.Points[^1];
+                var ec = new EscortSpec
+                {
+                    Car = van, Route = Place("route", [.. route.Points]), Mid = new ZoneSpec { Place = Place("mid", mid), Radius = 60 },
+                    Goal = new ZoneSpec { Place = Place("goal", goal), Radius = 60 }, Speed = 13 + heat, Wait = 220, Resume = 110,
+                };
+                o.Escort = ec;
+                // a wingman alongside the player on the heavier jobs (the player's side, firing at the nearest enemy)
+                if (heat >= 1)
+                {
+                    var wing = $"car{++carNo}";
+                    spec.Cars[wing] = new CarSpec { Vcf = r.Pick(Heat[1]), At = [spec.Start.At[0] + 8 * Math.Cos(hr), spec.Start.At[1] - 8 * Math.Sin(hr)], Heading = spec.Start.Heading };
+                    ec.Wingmen.Add(wing);
+                }
+                // an ambush parked on the way, between the halfway point and the goal, woken as they come
+                var lie = route.Points[Math.Min(route.Points.Count - 1, route.Points.Count * 3 / 4)];
+                void Ambusher()
+                {
+                    double a = (r.Next(8) * 45) * Math.PI / 180, d = 8 + 6 * o.Sleepers.Count;
+                    var g = NewCar(Heat[heat], [lie[0] + d * Math.Sin(a), lie[1] + d * Math.Cos(a)], r.Next(360));
+                    o.Sleepers.Add(new SleeperSpec { Car = g, Wake = 260 });
+                }
+                Ambusher();
+                grow.Add(("ambush", () => o.Sleepers.Count, Ambusher));
+                // the twist: as the second leg opens, a crew comes in for the escorted car itself
+                var cut = NearestEntry(map, lie, 300, 1500, r);
+                var re = new ReinforceSpec { Entry = Entry(cut), AtStep = 2, Delay = 10, Speed = 25, Target = "escort" };
+                re.Cars.Add(NewCar(Heat[heat]));
+                o.Reinforce.Add(re);
+                grow.Add(("hit squad", () => re.Cars.Count, () => re.Cars.Add(NewCar(Heat[heat]))));
+                o.Finish = new ZoneSpec { Place = Place("home", goal), Radius = 100 };
+                o.FinishClear = 300;
+                o.FinishAfter = 10;
+                spec.Radio.Start.Add(Found);
+                spec.Radio.Steps.AddRange([[GoThere], [Problem], [GetThem]]);
+                spec.Radio.Trap.Add(GotIt);
+                spec.Radio.Reinforce.Add(Company);
+                spec.Radio.Win.Add(Clean);
+                string midWords = $"{Distance(start.At, mid)} {Compass(start.At, mid)} of the start";
+                spec.Text.Objectives.AddRange([$"{job}: see the {what} halfway, {midWords}. {gang} wants it.", $"(hidden)Get the {what} to {route.Called}.", "(hidden)See it in: nobody on its tail."]);
+                spec.Text.Notes.AddRange([$"The {what}: just ahead of you. It drives only while you stay with it.", $"Goal: {Where(goal, route.Called)}."]);
+                spec.Text.Deaths.AddRange([$"You were killed before the {what} got halfway.", $"You were killed with the {what} still on the road.", $"{Crew()} got you at the end of the road."]);
+                spec.Text.Failures.AddRange([Deaths0, left, $"The {what} is wrecked. The job's off."]);
+                break;
+            }
+            case "raid":
+            {
+                var targets = RaidTargets(map).Where(x => Far(x.At, start.At, 700, 3500)).ToList();
+                var tg = r.Quiet(map, targets, x => x.At);
+                string what;
+                if (tg.Cluster is { } cl)
+                {
+                    for (int i = 0; i < Math.Min(6, cl.Objects.Count); i++) { spec.Bind[$"t{i}"] = cl.Objects[i]; o.Targets.Add($"t{i}"); }
+                    what = cl.Called;
+                    o.Arrive = new ZoneSpec { Place = Place("target", cl.At), Radius = cl.Radius };
+                }
+                else
+                {
+                    // a convoy parked at the yard: three trucks in a row on the road there, never started
+                    var yard = tg.Node!;
+                    int li = r.Next(Leads.Length);
+                    double yh = r.Next(4) * 90, yr = yh * Math.PI / 180;
+                    for (int i = 0; i < 3; i++)
+                    {
+                        var t = $"car{++carNo}";
+                        spec.Cars[t] = new CarSpec { Vcf = Leads[(li + i) % Leads.Length], At = [yard.At[0] + (i - 1) * 14 * Math.Sin(yr), yard.At[1] + (i - 1) * 14 * Math.Cos(yr)], Heading = yh };
+                        o.Targets.Add(t);
+                    }
+                    what = $"trucks parked at {yard.Called}";
+                    o.Arrive = new ZoneSpec { Place = Place("target", yard.At), Radius = 150 };
+                }
+                // guards parked by the target on the road in, woken as he comes
+                var gate = NearestEntry(map, tg.At, 0, 700, r);
+                double[] gp = gate.At.Count > 0 ? gate.At[0] : tg.At;
+                void Guard()
+                {
+                    double a = (r.Next(8) * 45) * Math.PI / 180, d = 6 + 5 * o.Sleepers.Count;
+                    var g = NewCar(Heat[heat], [gp[0] + d * Math.Sin(a), gp[1] + d * Math.Cos(a)], r.Next(360));
+                    o.Sleepers.Add(new SleeperSpec { Car = g, Wake = 300 });
+                }
+                Guard();
+                grow.Add(("guards", () => o.Sleepers.Count, Guard));
+                // out: a home or hideout away from the target, else the start
+                var outs = map.Of("home").Concat(map.Of("hideout")).Where(n => Far(n.At, tg.At, 800, 3000)).Distinct().ToList();
+                var outNode = outs.Count > 0 ? r.Quiet(map, outs, n => n.At) : null;
+                double[] escAt = outNode?.At ?? start.At;
+                string escCalled = outNode is null ? $"where you started ({start.Called})" : Where(escAt, outNode.Called);
+                int secs = (int)Math.Round(Dist(tg.At, escAt) * 1.3 / 15 + 45);
+                o.Escape = new ZoneSpec { Place = Place("escape", escAt), Radius = 100, Seconds = secs };
+                // the alarm: a crew comes in as the hit starts; then they close the roads on the way out
+                var alarm = NearestEntry(map, tg.At, 400, 1500, r);
+                var re = new ReinforceSpec { Entry = Entry(alarm), AtStep = 2, Delay = 20, Speed = 25 };
+                re.Cars.Add(NewCar(Heat[heat]));
+                o.Reinforce.Add(re);
+                grow.Add(("alarm", () => re.Cars.Count, () => re.Cars.Add(NewCar(Heat[heat]))));
+                var close = NearestEntry(map, escAt, 300, 1500, r);
+                var re2 = new ReinforceSpec { Entry = Entry(close), AtStep = 3, Delay = Math.Max(10, secs / 3), Speed = 28 };
+                Roadblock(close);
+                re2.Cars.Add(NewCar(Heat[Math.Min(2, heat + 1)]));
+                o.Reinforce.Add(re2);
+                grow.Add(("roadblock", () => re2.Cars.Count, () => re2.Cars.Add(NewCar(Heat[Math.Min(2, heat + 1)]))));
+                spec.Radio.Start.Add(Found);
+                spec.Radio.Steps.AddRange([[Go(tg.At)], [GetThem], [GotAway]]);
+                spec.Radio.Trap.Add(RightOn);
+                spec.Radio.Reinforce.Add(Bandits);
+                spec.Radio.Win.Add(TookLong);
+                spec.Text.Objectives.AddRange([$"{job}: hit {gang}'s {what}.", $"(hidden)Take out every last one of them.", $"(hidden)Get out to {(outNode?.Called ?? "where you started")} before they close the roads."]);
+                spec.Text.Notes.AddRange([$"Target: {Where(tg.At, tg.Called)}.", $"Way out: {escCalled}; {secs} s once the last one falls."]);
+                spec.Text.Deaths.AddRange([$"You were killed on the way to {gang}'s {what}.", $"You were killed in the middle of the hit.", "You were killed on the way out."]);
+                spec.Text.Failures.AddRange([Deaths0, left, "Too slow. They closed the roads."]);
+                break;
+            }
             case "defend":
             {
-                var cl = r.Pick(map.Clusters);
+                var cl = r.Pick(map.Clusters.Where(x => x.Serves("defend")).ToList());
                 for (int i = 0; i < cl.Objects.Count; i++) { spec.Bind[$"s{i}"] = cl.Objects[i]; o.Defend.Add($"s{i}"); }
                 foreach (var en in cl.Entries) o.Entries.Add(Entry(map.Entries.First(e => e.Name == en)));
                 o.Arrive = new ZoneSpec { Place = Place("defend", cl.At), Radius = cl.Radius, Seconds = (int)Math.Round(Dist(start.At, cl.At) * 1.3 / 12 + 90) };
@@ -287,14 +433,14 @@ public static class RemixDirector
             }
         }
         // fill to the budget: the smallest group grows by a car until the score reaches the level's share of Back to Spanner's
-        double budget = RemixChallenge.Spanner * RemixChallenge.Levels[level];
+        double budget = RemixChallenge.Spanner * ask.Challenge;
         for (int guard = 0; guard < 40 && grow.Count > 0; guard++)
         {
             if (Score(spec) >= budget * 0.95 || RemixRoles.Hostiles(spec).Count >= MaxCars) break;
             var g = grow.OrderBy(x => x.Count()).ThenBy(x => grow.IndexOf(x)).First();
             g.Add();
         }
-        spec.Text.Notes.Add($"Job {num}: {map.Base.ToUpperInvariant()}, challenge {Score(spec) / RemixChallenge.Spanner:0.0} (Back to Spanner 1.0).");
+        spec.Text.Notes.Add($"{job}: {map.Base.ToUpperInvariant()}, challenge {Score(spec) / RemixChallenge.Spanner:0.0} (Back to Spanner 1.0).");
         return spec;
     }
 
@@ -312,6 +458,11 @@ public static class RemixDirector
         foreach (var w in o.Waves) { w.AtKills = k; k += w.Cars.Count; }
     }
 
+    /// <summary>What a raid can hit on a map: the clusters that serve one, and the yards where a convoy can be parked.</summary>
+    private sealed record RaidTarget(double[] At, string Called, ClusterNode? Cluster, PointNode? Node);
+    private static List<RaidTarget> RaidTargets(RemixNodes t) =>
+        [.. t.Clusters.Where(c => c.Serves("raid")).Select(c => new RaidTarget(c.At, c.Called, c, null)), .. t.Of("yard").Select(n => new RaidTarget(n.At, n.Called, null, n))];
+
     /// <summary>Whether a table has what a template needs.</summary>
     public static bool Allows(RemixNodes t, string template) => t.Lot.Length == 2 && t.Starts.Any(s => StartAllows(t, template, s));
 
@@ -322,7 +473,9 @@ public static class RemixDirector
         "tail" => t.Of("hideout").Any(h => Far(h.At, s.At, 1500, 99999) && t.Of("hideout").Concat(t.Of("home")).Any(n => n != h && Far(n.At, h.At, 700, 3000)))
             && t.Entries.Any(e => EntryNear(t, e, s.At, 250, 550)),
         "intercept" => t.Routes.Any(rt => Far(RouteStart(rt), s.At, 500, 2500)),
-        "defend" => t.Clusters.Count > 0,
+        "defend" => t.Clusters.Any(c => c.Serves("defend")),
+        "escort" => t.Routes.Any(rt => rt.Escort && rt.Points.Count >= 3),
+        "raid" => RaidTargets(t).Any(x => Far(x.At, s.At, 700, 3500)) && t.Entries.Any(e => e.At.Count > 0),
         _ => false,
     };
 

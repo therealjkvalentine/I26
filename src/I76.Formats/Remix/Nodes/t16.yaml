@@ -1,0 +1,35 @@
+# T16's map (Fort Davis: the valley road round the fort, the east road out): coordinates read off the map (i76 remix map t16) and
+# the atlas's unvisited areas, written by hand with the port's own words. T16's own action is the fort and the valley's west
+# end; jobs lean on the east road and the valley road's northwest reaches.
+base: t16
+name: Fort Davis
+neighbours: [t15, t17]
+lot: [4430, 48080]                  # the southeast corner, off the roads
+cast:
+  - {name: Malocchio, side: gang}
+  - {name: Cloaker, side: gang}
+stock_action: [[3135, 49010], [1630, 50100], [1680, 49665], [2985, 49650], [1905, 49305], [3550, 48780], [3140, 48690], [2870, 48265], [2870, 47680], [2400, 50580], [1935, 50605], [2665, 50065]]
+starts:
+  - {name: northwest, at: [1709, 50472], heading: 110, called: on the valley road northwest of the fort}
+  - {name: west, at: [2392, 48960], heading: 90, called: on the road west of the fort}
+  - {name: north, at: [3520, 49807], heading: 250, called: on the road north of the fort}
+  - {name: east, at: [3920, 49584], heading: 280, called: on the east road out of the valley}
+nodes:
+  - {name: east_road, kinds: [pickup, hideout], at: [3920, 49584], called: the east road out of the valley}
+  - {name: north, kinds: [pickup, home], at: [3520, 49807], called: the road north of the fort}
+  - {name: west, kinds: [home, hideout], at: [2392, 48960], called: the road west of the fort}
+  - {name: bend, kinds: [pickup, yard], at: [2538, 49645], called: the bend northwest of the fort}
+  - {name: far_northwest, kinds: [hideout, pickup], at: [1709, 50472], called: the far northwest of the valley road}
+  - {name: north_bend, kinds: [pickup], at: [2650, 50308], called: the valley road north of the bend}
+  - {name: west_end, kinds: [home, yard], at: [1630, 49879], called: the west end of the valley road}
+  - {name: northeast_slope, kinds: [hideout], at: [4230, 49780], called: the slope north of the east road}
+entries:
+  - {name: east, at: [[4021, 49554], [3899, 49592]]}
+  - {name: north, at: [[3585, 49814], [3461, 49783]]}
+  - {name: west, at: [[2392, 48960], [2519, 48960]]}
+  - {name: northwest, at: [[1709, 50472], [1814, 50547]]}
+  - {name: west_end, at: [[1630, 49879], [1630, 50002]]}
+  - {name: south, at: [[2924, 48534], [3001, 48638]]}
+routes:
+  - {name: out_east, heading: 110, exit: [4374, 49513], points: [[1709, 50472], [1954, 50608], [2232, 50600], [2505, 50466], [2679, 50239], [2606, 49924], [2538, 49645], [2818, 49570], [3106, 49570], [3367, 49655], [3606, 49812], [3843, 49625], [4151, 49532], [4374, 49513]]}
+  - {name: round_the_valley, escort: true, called: the east road out of the valley, heading: 0, points: [[1630, 49879], [1630, 50075], [1639, 50330], [1804, 50542], [2069, 50624], [2319, 50570], [2558, 50418], [2687, 50158], [2602, 49914], [2536, 49666], [2756, 49570], [3015, 49570], [3319, 49598], [3520, 49807], [3756, 49745], [3920, 49584]]}

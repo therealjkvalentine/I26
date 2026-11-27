@@ -48,6 +48,7 @@ public static class RemixCommand
     private static int Check(GameInstall install, List<string> argv)
     {
         string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        if (argv.Contains("--nodes")) return CheckNodes(install, argv);
         string outDir = Opt("--out") ?? Path.Combine(Path.GetTempPath(), "i26-remix-check-" + Environment.ProcessId);
         GameInstall.UserMissionDir = outDir;
         var jobs = new List<(string Name, RemixSpec Spec)>();
@@ -56,7 +57,7 @@ public static class RemixCommand
         {
             var ab = range.Split('-');
             int a = int.Parse(ab[0], System.Globalization.CultureInfo.InvariantCulture), b = ab.Length > 1 ? int.Parse(ab[1], System.Globalization.CultureInfo.InvariantCulture) : a;
-            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, id: "xchk")));
+            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, Ask(argv, "xchk", 1.0))));
         }
         int bad = 0, n = 0;
         var kinds = new Dictionary<string, int>();
@@ -84,6 +85,31 @@ public static class RemixCommand
     }
 
     /// <summary>
+    /// i76 remix check --nodes [BASE|FILE.yaml...] [--verbose]: each node table (the shipped ones, or those named: a base's shipped
+    /// table or a table file) held to its map (RemixNodeCheck: on the ground, on a road or drivable ground, clear of the exits,
+    /// reachable from the first start). Prints a line per problem (and per place with --verbose); exit 1 when any.
+    /// </summary>
+    private static int CheckNodes(GameInstall install, List<string> argv)
+    {
+        var named = argv.Skip(2).Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+        var tables = new List<RemixNodes>();
+        if (named.Count == 0) tables.AddRange(RemixNodes.Builtin().Where(t => install.FindMission(t.Base) is not null));
+        foreach (var n in named)
+            if (File.Exists(n)) tables.Add(RemixNodes.Parse(File.ReadAllText(n)));
+            else tables.AddRange(RemixNodes.Builtin().Where(t => t.Base.Equals(n, StringComparison.OrdinalIgnoreCase)));
+        int bad = 0;
+        foreach (var t in tables)
+        {
+            var (problems, places) = RemixNodeCheck.Run(install, t);
+            if (argv.Contains("--verbose")) foreach (var p in places) Console.WriteLine($"{t.Base}: {p}");
+            foreach (var p in problems) Console.WriteLine($"{t.Base}: PROBLEM {p}");
+            Console.WriteLine($"{t.Base}: {t.Starts.Count} starts, {t.Nodes.Count} nodes, {t.Entries.Count} entries, {t.Routes.Count} routes, {t.Clusters.Count} clusters: {(problems.Count == 0 ? "ok" : $"{problems.Count} problems")}");
+            if (problems.Count > 0) bad++;
+        }
+        return bad == 0 ? 0 : 1;
+    }
+
+    /// <summary>
     /// i76 remix score [--builtin] [--seeds A-B] [--level N]: each job's challenge (RemixChallenge) with its cars' measured
     /// strengths, against Back to Spanner's.
     /// </summary>
@@ -99,7 +125,7 @@ public static class RemixCommand
         {
             var ab = range.Split('-');
             int a = int.Parse(ab[0], System.Globalization.CultureInfo.InvariantCulture), b = ab.Length > 1 ? int.Parse(ab[1], System.Globalization.CultureInfo.InvariantCulture) : a;
-            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, id: "xsco", level: level)));
+            for (int seed = a; seed <= b; seed++) jobs.Add(($"seed {seed}", RemixDirector.Roll(seed, Ask(argv, "xsco", Opt("--challenge") is { } ch ? double.Parse(ch, System.Globalization.CultureInfo.InvariantCulture) : RemixChallenge.Levels[Math.Clamp(level, 0, RemixChallenge.Levels.Length - 1)]))));
         }
 
         var all = new List<double>();
@@ -116,6 +142,13 @@ public static class RemixCommand
         return 0;
     }
 
+    /// <summary>A roll's ask from the command line: --template T and --map BASE narrow it (a run's choice), --challenge the budget.</summary>
+    private static RemixDirector.JobAsk Ask(List<string> argv, string id, double challenge)
+    {
+        string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
+        return new RemixDirector.JobAsk { Id = id, Challenge = challenge, Template = Opt("--template"), Map = Opt("--map") };
+    }
+
     private static int Roll(GameInstall install, List<string> argv)
     {
         string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
@@ -125,7 +158,7 @@ public static class RemixCommand
             return 2;
         }
         RemixSpec spec;
-        try { spec = RemixDirector.Roll(seed, id: Opt("--id") ?? RemixDirector.JobStem); }
+        try { spec = RemixDirector.Roll(seed, Ask(argv, Opt("--id") ?? RemixDirector.JobStem, Opt("--challenge") is { } ch ? double.Parse(ch, System.Globalization.CultureInfo.InvariantCulture) : 1.0)); }
         catch (RemixError ex) { Console.Error.WriteLine($"seed {seed}: {ex.Message}"); return 1; }
         var yaml = RemixDirector.ToYaml(spec);
         if (Opt("--yaml") is { } file) { File.WriteAllText(file, yaml); Console.WriteLine($"wrote {file}"); }

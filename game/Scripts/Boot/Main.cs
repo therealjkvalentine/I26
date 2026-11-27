@@ -177,6 +177,8 @@ public partial class Main : Node3D
 	private static I76.Game.Shell.MissionResult _lastResult = I76.Game.Shell.MissionResult.FirstEntry;
 	private static I76.Game.Shell.TripResult? _lastTrip;
 	private static I76.Game.Shell.MeleeResult? _lastMelee;
+	/// <summary>What a road trip's job hands back to the shell: won, the kills, the car's damage (RoadTripScreen).</summary>
+	private static I76.Game.Shell.RunResult? _lastRun;
 	/// <summary>What a network melee hands back to the shell: the standings, or why it did not start.</summary>
 	private static I76.Game.Shell.NetResult? _lastNet;
 	/// <summary>Why a mission launched from the shell could not be built (a custom map without its terrain, say): the shell says it.</summary>
@@ -210,7 +212,7 @@ public partial class Main : Node3D
 	{
 		NextMission = null; DebugCar = null; DevCar = null;
 		_launch = null; _lastLaunch = null; _lastResult = I76.Game.Shell.MissionResult.FirstEntry;
-		_lastTrip = null; _lastMelee = null; _lastNet = null; _lastLoadError = null;
+		_lastTrip = null; _lastMelee = null; _lastNet = null; _lastLoadError = null; _lastRun = null;
 		I76.Game.Shell.CheatMarker.Clear(); _typer = new();
 		_menuShown = false; _backToMenu = false;
 		_cmdLine = false; _cmdLineKnown = false;
@@ -419,7 +421,7 @@ public partial class Main : Node3D
 			{
 				Install = install, Name = "Shell", Faithful = _opt.Mode1997,
 				Developer = _opt.Dev || System.Environment.GetEnvironmentVariable("I76_DEV") == "1",
-				LastResult = _lastResult, LastLaunch = _lastLaunch, LastTrip = _lastTrip, LastMelee = _lastMelee, LastNet = lastNet, LoadError = loadError,
+				LastResult = _lastResult, LastLaunch = _lastLaunch, LastTrip = _lastTrip, LastMelee = _lastMelee, LastNet = lastNet, LoadError = loadError, LastRun = _lastRun,
 				// the next mission known on a trip screen (salvage, garage, CHOOSE YOUR VEHICLE): its world built beside it (MissionPreload)
 				OnPreload = mission => { if (mission is null) MissionPreload.Cancel("the screen left"); else PreloadMission(mission); },
 				OnLaunch = l =>
@@ -767,6 +769,8 @@ public partial class Main : Node3D
 		var settings = I76.Game.Shell.ShellSettings.Load();
 		I76.Game.Shell.CheatMarker.Read(settings.PlayOptions);
 		if (o == MenuOutcome.Replay && (_opt.Mission ?? "").Equals("t17", System.StringComparison.OrdinalIgnoreCase)) o = MenuOutcome.Reconfigure;
+		// a road trip's job is played once: Replay leaves it as Abort does (the run counts it lost; docs/remix-missions.md "Road trip")
+		if (o == MenuOutcome.Replay && _launch is { RoadTrip: true }) o = MenuOutcome.Abort;
 		// a mission given on the command line: every outcome but resume and replay ends the program
 		if (_cmdLine && _launch is null && o is MenuOutcome.Abort or MenuOutcome.Reconfigure) o = MenuOutcome.Exit;
 		switch (o)
@@ -1155,6 +1159,13 @@ public partial class Main : Node3D
 			int deaths = game?.PlayerDestroyed == true || I76.Sim.Damage.DamageModel.IsDead(mp) ? 1 : 0;
 			_lastMelee = new I76.Game.Shell.MeleeResult(ml.Driver, ml.Model, deaths, game?.Kills ?? 0, game?.Score ?? 0, won, mp.P.Mass);
 		}
+		// a road trip's job: won or not, the player's kills, the car's damage to carry into the next (docs/remix-missions.md "Road trip")
+		_lastRun = null;
+		if (_launch is { RoadTrip: true } && _sim?.World.Player is { } rp)
+		{
+			int kills = _sim.Script?.Host.Entities.Count(e => e.Vehicle is not null && e.Vehicle != rp && e.Dead && e.KilledByPlayer) ?? 0;
+			_lastRun = new I76.Game.Shell.RunResult(won, kills, I76.Sim.Trip.RunCarry.Capture(rp));
+		}
 		_lastLaunch = _launch;
 		_launch = null;
 		_lastResult = won ? I76.Game.Shell.MissionResult.Won : I76.Game.Shell.MissionResult.Quit;
@@ -1306,6 +1317,8 @@ public partial class Main : Node3D
 			_salvage.Watch(setup.Damage, world.Player);
 			if (setup.Script is { } salvScript) { var pool = _salvage; salvScript.Host.Salvaged += f => pool.Add(f, -1, true); }
 		}
+		// a road trip's job: the car's damage carried from the last job (RunCarry: armour and chassis too, the port's)
+		if (_launch is { RoadTrip: true, Carry: { } carry } && world.Player is { } rtp) I76.Sim.Trip.RunCarry.Apply(carry, rtp);
 		MissionBuilder.Trace("spawn: session");
 		var ground = setup.Ground;
 		var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);

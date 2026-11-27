@@ -1,0 +1,52 @@
+# T15's map (the unexplored mesa south of the landslide: dirt roads among oil pumps): coordinates read off the map (i76 remix map
+# t15) and the atlas's unvisited areas, written by hand with the port's own words. T15's own action crosses the mesa from the north;
+# jobs lean on its south end, its east side and the pumps.
+base: t15
+name: the mesa
+neighbours: [t14, t16, t17]
+lot: [3765, 46620]                  # the northeast corner, off the roads
+cast:
+  - {name: Malocchio, side: gang}
+  - {name: Cloaker, side: gang}
+stock_action: [[3140, 42385], [1965, 46190], [2125, 41130], [3320, 43550], [2412, 45758], [2262, 44998], [2768, 45402], [3458, 44908], [3472, 44328], [2192, 44388], [2632, 43678], [4398, 43548], [2152, 43458], [2608, 43048], [3208, 42922], [3552, 42408]]
+starts:
+  - {name: south, at: [2860, 41776], heading: 86, called: on the dirt road at the south end of the mesa}
+  - {name: east, at: [3787, 43893], heading: 0, called: on the dirt road on the mesa's east side}
+  - {name: hut, at: [2665, 44640], heading: 180, called: on the mesa road by the hut}
+  - {name: west, at: [2126, 43926], heading: 0, called: on the dirt road on the mesa's west side}
+nodes:
+  - {name: pumps, kinds: [pickup, yard], at: [2999, 44062], called: the oil pumps in the middle of the mesa}
+  - {name: hut, kinds: [pickup, home], at: [2665, 44640], called: the hut on the mesa road}
+  - {name: east, kinds: [pickup, hideout], at: [3787, 43893], called: "the mesa's east side"}
+  - {name: south, kinds: [hideout, home], at: [2860, 41776], called: the south end of the mesa}
+  - {name: southeast, kinds: [pickup, hideout], at: [3482, 42730], called: the southeast bend of the mesa road}
+  - {name: southwest, kinds: [pickup, yard], at: [2277, 43140], called: the southwest bend of the mesa road}
+  - {name: northeast, kinds: [pickup, home], at: [3191, 45267], called: the northeast pumps}
+  - {name: west, kinds: [home, hideout], at: [2126, 43926], called: "the mesa's west side"}
+entries:
+  - {name: north, at: [[2357, 45991], [2421, 45884]]}
+  - {name: south, at: [[2903, 41778], [3023, 41816]]}
+  - {name: east, at: [[3787, 43893], [3754, 43770]]}
+  - {name: northeast, at: [[3191, 45267], [3258, 45159]]}
+  - {name: southwest, at: [[2277, 43140], [2382, 43066]]}
+  - {name: southeast, at: [[3482, 42730], [3362, 42763]]}
+  - {name: middle, at: [[2665, 44640], [2663, 44764]]}
+routes:
+  - {name: down_the_mesa, heading: 160, points: [[3191, 45267], [3318, 44995], [3532, 44803], [3490, 44516], [3461, 44232], [3200, 44087], [2912, 44060], [2655, 43877], [2757, 43725], [3061, 43751], [3345, 43659], [3310, 43377], [3310, 43073], [3334, 42781], [3581, 42655], [3491, 42394], [3283, 42186], [3111, 41956], [2882, 41777], [2860, 41776]]}
+  - {name: to_the_middle_pumps, escort: true, called: the pumps in the middle of the mesa, heading: 160, points: [[3191, 45267], [3318, 44995], [3532, 44803], [3490, 44516], [3461, 44232], [3200, 44087], [2912, 44060]]}
+  - {name: to_the_south_end, escort: true, called: the south end of the mesa, heading: 180, points: [[3310, 43470], [3310, 43195], [3310, 42901], [3452, 42734], [3608, 42556], [3432, 42350], [3234, 42131], [3087, 41869], [2860, 41776]]}   # not through the hairpin west of the pumps: a bus stuck there
+clusters:
+  - name: pumps
+    called: the pumps in the middle of the mesa
+    at: [2943, 44190]
+    radius: 200
+    objects: [{object: amoilpm2, nth: 8}, {object: amoilpm2, nth: 9}, {object: amoilpm2, nth: 10}, {object: amoilpm2, nth: 11}, {object: amoilpm2, nth: 12}, {object: amoilpm2, nth: 13}]
+    entries: [middle, east, southwest, northeast]
+    uses: [raid, defend]
+  - name: northeast_pumps
+    called: the northeast pumps
+    at: [2858, 45321]
+    radius: 200
+    objects: [{object: amoilpm2, nth: 1}, {object: amoilpm2, nth: 2}, {object: amoilpm2, nth: 3}, {object: amoilpm2, nth: 4}]
+    entries: [northeast, middle, north]
+    uses: [raid]

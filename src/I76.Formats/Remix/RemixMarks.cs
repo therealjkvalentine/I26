@@ -51,6 +51,17 @@ public sealed class RemixMarks
                 if (car(cv.Lead) is { } lead) m.Add("CONVOY", lead);
                 Zone(cv.Exit, "EXIT");
                 break;
+            case "escort" when o.Escort is { } es:
+                if (place(es.Route) is { Count: > 1 } eroute) m.Lines.Add(("ROUTE", [.. eroute]));
+                if (car(es.Car) is { } van) m.Add("ESCORT", van);
+                Zone(es.Mid, "HALFWAY");
+                Zone(es.Goal, "GOAL");
+                break;
+            case "raid":
+                if (o.Arrive is { } ra) Zone(ra, "TARGET");
+                else if (o.Targets.Count > 0 && car(o.Targets[0]) is { } t) m.Add("TARGET", t);
+                Zone(o.Escape, "ESCAPE");
+                break;
         }
         if (o.Finish is { } fin) Zone(fin, FinishLabel(spec));
         return m;

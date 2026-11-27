@@ -1,0 +1,36 @@
+# T13's map (285 south through Carlsbad's outskirts: the road east, the road west, a dirt road northeast): coordinates read off the
+# map (i76 remix map t13) and the atlas's unvisited areas, written by hand with the port's own words. T13's own action is 285 itself;
+# jobs lean on the dirt road northeast, the road east to its end and the road west.
+base: t13
+name: Carlsbad
+neighbours: [t12, t14]
+lot: [6935, 43595]                  # the southeast corner, off the roads
+cast:
+  - {name: Callisto, side: gang}
+  - {name: Cloaker, side: gang}
+  - {name: Union 12, side: police}
+stock_action: [[5385, 45000], [5295, 44130], [5295, 43600], [5270, 43190], [5270, 42295], [4950, 44755], [5405, 45330], [6120, 45030], [5225, 46615], [5510, 46855], [5205, 46225], [5695, 46460], [6075, 46025], [6100, 46475], [5235, 47670], [5762, 44942], [5368, 48572], [4488, 44638], [5358, 44652]]
+starts:
+  - {name: north, at: [5235, 47067], heading: 180, called: on 285 at the north end}
+  - {name: middle, at: [5290, 45754], heading: 165, called: on 285 halfway down the map}
+  - {name: south, at: [5295, 43867], heading: 0, called: on 285 at the south end}
+  - {name: northeast, at: [5927, 46681], heading: 130, called: at the end of the dirt road northeast of 285}
+nodes:
+  - {name: middle, kinds: [pickup], at: [5290, 45754], called: 285 halfway down the map}
+  - {name: dirt_road, kinds: [pickup, hideout, yard], at: [5872, 46229], called: the dirt road northeast of 285}
+  - {name: dirt_end, kinds: [hideout], at: [5927, 46681], called: the end of the dirt road northeast of 285}
+  - {name: east_road, kinds: [pickup, home], at: [5887, 45388], called: the road east off 285}
+  - {name: west_road, kinds: [pickup, hideout], at: [5094, 45163], called: the road west off 285}
+  - {name: south, kinds: [home, yard], at: [5316, 44378], called: 285 at the south end}
+  - {name: north, kinds: [home, hideout], at: [5235, 47067], called: 285 at the north end}
+entries:
+  - {name: east, at: [[6425, 45463], [6308, 45421]]}
+  - {name: middle, at: [[5290, 45754], [5322, 45630]]}
+  - {name: west, at: [[4824, 44705], [4941, 44757]]}
+  - {name: south, at: [[5280, 43363], [5291, 43489]]}
+  - {name: north, at: [[5235, 47572], [5235, 47448]]}
+  - {name: northeast, at: [[5872, 46229], [5802, 46339]]}
+routes:
+  - {name: south_on_285, heading: 180, points: [[5235, 47067], [5231, 46765], [5215, 46462], [5210, 46131], [5274, 45814], [5355, 45492], [5385, 45140], [5378, 44817], [5339, 44516], [5297, 44188], [5295, 43856], [5293, 43533], [5283, 43393]]}
+  - {name: to_the_east_road, escort: true, called: the road east off 285, heading: 180, points: [[5235, 47067], [5231, 46765], [5215, 46462], [5207, 46174], [5254, 45896], [5317, 45650], [5373, 45396], [5567, 45269], [5835, 45375], [5887, 45388]]}
+  - {name: up_to_the_dirt, escort: true, called: the dirt road northeast of 285, heading: 0, points: [[5316, 44378], [5358, 44630], [5382, 44893], [5385, 45181], [5362, 45459], [5301, 45712], [5239, 45959], [5250, 46198], [5390, 46340], [5605, 46465], [5826, 46302], [5872, 46229]]}

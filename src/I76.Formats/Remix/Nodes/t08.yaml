@@ -1,0 +1,43 @@
+# T08's map (Plains at 380 and 214, farms east of town): coordinates read off the map (i76 remix map t08), written by hand with
+# the port's own words. T08's own action is the town and 380's east end; jobs lean on 214 either side of town and the farm roads.
+base: t08
+name: Plains
+neighbours: [t01, t07, t09, t10]
+lot: [1810, 49665]                  # the north edge east of 214, off the roads
+cast:
+  - {name: Malocchio, side: gang}
+  - {name: Disco Cat, side: gang}
+stock_action: [[3975, 47655], [1490, 47670], [1405, 46520], [1395, 48120], [1915, 48150], [2145, 48430], [1430, 48800], [3020, 47770], [2120, 47700], [702, 48702]]
+starts:
+  - {name: east_380, at: [3461, 47661], heading: 270, called: on 380 east of Plains}
+  - {name: north_214, at: [1386, 48460], heading: 185, called: on 214 north of Plains}
+  - {name: south_214, at: [1408, 47190], heading: 0, called: on 214 south of Plains}
+  - {name: farm_road, at: [2949, 48084], heading: 280, called: on the farm road north of 380}
+nodes:
+  - {name: plains, kinds: [home], at: [1354, 47785], called: 'Plains, by the warehouses'}
+  - {name: west_380, kinds: [home, hideout], at: [1154, 47661], called: '380 west of the warehouses, by the Catch-E-Na Inn'}
+  - {name: north_214, kinds: [pickup, hideout], at: [1386, 48460], called: 214 north of Plains}
+  - {name: south_214, kinds: [pickup, hideout, yard], at: [1417, 46607], called: 214 south of Plains}
+  - {name: barn, kinds: [pickup, hideout], at: [2949, 48084], called: the barn on the farm road north of 380}
+  - {name: farmhouse, kinds: [pickup, yard], at: [2910, 47270], called: the farmhouse on the dirt road south of 380}
+  - {name: mid_380, kinds: [home], at: [2707, 47702], called: 380 halfway between Plains and the east end}
+  - {name: east_380, kinds: [home, hideout], at: [3461, 47661], called: 380 at the east end}
+entries:
+  - {name: east, at: [[4408, 47727], [4288, 47696]]}
+  - {name: west, at: [[624, 47787], [753, 47793]]}
+  - {name: north, at: [[1386, 48460], [1378, 48333]]}
+  - {name: south, at: [[1463, 45922], [1472, 46048]]}
+  - {name: mid, at: [[2707, 47702], [2584, 47720]]}
+  - {name: farm, at: [[2949, 48084], [2910, 47950]]}
+routes:
+  - {name: west_on_380, heading: 270, points: [[3461, 47661], [3163, 47573], [2825, 47593], [2551, 47719], [2218, 47701], [1880, 47731], [1531, 47672], [1220, 47664], [876, 47735], [624, 47787]]}
+  - {name: into_plains, escort: true, called: the warehouses in Plains, heading: 270, points: [[3461, 47661], [3195, 47572], [2910, 47574], [2647, 47715], [2353, 47709], [2058, 47713], [1777, 47726], [1500, 47671], [1354, 47785]]}
+  - {name: down_214, escort: true, called: 214 south of Plains, heading: 185, points: [[1386, 48460], [1383, 48179], [1458, 47916], [1455, 47665], [1427, 47354], [1406, 47072], [1442, 46809], [1417, 46607]]}
+clusters:
+  - name: plains
+    called: the warehouses in Plains
+    at: [1357, 47777]
+    radius: 250
+    objects: [{object: bcywhse2}, {object: bcwwhse1}, {object: bcwwhse1, nth: 1}, {object: bcwwhse1, nth: 3}, {object: bfsince1}, {object: bddonut1}, {object: bhhouse1}]
+    entries: [north, west, south, mid]
+    uses: [defend, raid]

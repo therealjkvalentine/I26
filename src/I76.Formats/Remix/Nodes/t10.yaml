@@ -2,6 +2,8 @@
 # t10), written by hand with the port's own words for the places. stock_action: where T10's own mission happens (its cars
 # and script paths, thinned), so jobs prefer the rest: the roads off 380 at the east end and out of Tatum.
 base: t10
+name: Tatum
+neighbours: [t08, t09, t11]
 hour: 21
 lot: [5690, 46790]                  # where T10 sends its tanks away to, south of the road
 gates: [gate]                       # T10's roadblock fence, opened at the start

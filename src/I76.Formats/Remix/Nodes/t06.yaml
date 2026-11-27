@@ -1,0 +1,33 @@
+# T06's map (the crossroads by Santana's in the southwest, the highway up to the Gas Parade, the wash track east): coordinates
+# read off the map (i76 remix map t06) and the atlas's unvisited areas, written by hand with the port's own words. T06's own
+# action is the highway and the Gas Parade road; jobs lean on the wash track east and the dirt tracks. (The crossroads by
+# Santana's in the southwest stand on ground of their own, cut off from the rest: i76 remix check --nodes; left out.)
+base: t06
+name: the Gas Parade
+neighbours: [t02, t05, t07]
+lot: [8840, 46005]                  # the north edge west of the north road, off the roads
+cast:
+  - {name: Gas Bandit, side: gang}
+  - {name: Balrog, side: gang}
+stock_action: [[7065, 40515], [7375, 40515], [7735, 40515], [9145, 44605], [8820, 45090], [8685, 45405], [8690, 45805], [9260, 41535], [8580, 44580], [7920, 44575], [9530, 44705], [10515, 44550], [11030, 44655], [8435, 42360], [7625, 42775], [7590, 43170], [7585, 43665], [9260, 41920], [8910, 42175], [7110, 43955], [8655, 43235], [9105, 43235], [9355, 43575], [7935, 42780], [8030, 43185], [9150, 44205], [7258, 43652], [7428, 44778], [7162, 45372]]
+starts:
+  - {name: wash_east, at: [10036, 44713], heading: 290, called: on the wash track east of the Gas Parade}
+  - {name: parade_west, at: [7650, 44629], heading: 100, called: at the west end of the Gas Parade road}
+  - {name: tracks, at: [8989, 43535], heading: 75, called: on the dirt tracks between the two roads}
+  - {name: south_road, at: [9384, 43903], heading: 0, called: on the road south of the Gas Parade}
+nodes:
+  - {name: parade, kinds: [home], at: [9145, 44605], called: the Gas Parade}
+  - {name: wash_east, kinds: [pickup, hideout], at: [10036, 44713], called: the wash track east of the Gas Parade}
+  - {name: far_east, kinds: [pickup, hideout, yard], at: [10777, 44569], called: the far end of the wash track}
+  - {name: bend, kinds: [pickup, yard], at: [9777, 43681], called: the bend in the road east of the dirt tracks}
+  - {name: tracks, kinds: [pickup, home], at: [8989, 43535], called: the dirt tracks between the two roads}
+  - {name: parade_west, kinds: [home, hideout], at: [7650, 44629], called: the west end of the Gas Parade road}
+  - {name: between, kinds: [hideout], at: [8241, 43935], called: the open ground between the dirt tracks and the Gas Parade road}
+entries:
+  - {name: wash_east, at: [[10777, 44569], [10654, 44555]]}
+  - {name: bend, at: [[9795, 43622], [9754, 43738]]}
+  - {name: tracks, at: [[8989, 43535], [9111, 43548]]}
+  - {name: parade_west, at: [[7650, 44629], [7771, 44591]]}
+routes:
+  - {name: parade_east, heading: 100, points: [[7650, 44629], [7964, 44569], [8245, 44585], [8523, 44608], [8849, 44629], [9145, 44690], [9288, 44727], [9579, 44712], [9901, 44729], [10182, 44637], [10506, 44551], [10777, 44569]]}
+  - {name: parade_south, escort: true, called: the road south of the Gas Parade, heading: 100, points: [[7650, 44629], [7901, 44575], [8175, 44561], [8453, 44643], [8712, 44583], [8986, 44697], [9145, 44606], [9145, 44345], [9172, 44056], [9364, 43906]]}   # not down to the tracks: a truck stuck on the bend below

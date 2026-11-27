@@ -2,6 +2,8 @@
 # written by hand with the port's own words for the places. stock_action: where T02's own mission happens (the whole road
 # north, the race track loops in the south), so jobs prefer the rest: the crossroad's far ends east and west.
 base: t02
+name: Brownfield to Levelland
+neighbours: [t01, t03, t06, t07]
 hour: 7
 lot: [8003, 41803]                  # the south end, where T02 starts: out of every job's way
 cast:
