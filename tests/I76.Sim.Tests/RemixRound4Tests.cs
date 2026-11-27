@@ -15,6 +15,7 @@ namespace I76.Sim.Tests;
 /// Round four of the remix missions (docs/remix-missions.md): the node tables held to their maps, the escort and raid templates
 /// and defence on the new maps played headless on every win and fail path, and a road trip's offers reproduced by its number.
 /// </summary>
+[Collection("remix")]
 public class RemixRound4Tests
 {
     private static readonly object Gate = new();
