@@ -4,9 +4,7 @@
 // its mean as its wavelength nears two pixels (trim_band), so nothing finer than the screen shows sparkles or swims; the albedo
 // keeps the face's own luminance on average (the holes' and seams' dark paid back across the rest), so the cabin is as dark as before.
 
-uniform int trim_part = 0;    // CockpitTrim.Part: 1 roof (the headliner), 2 pillar (header, A pillars, rails), 3 door
-uniform int trim_style = 0;   // CockpitTrim.Style: 1 perforated, 2 charcoal, 3 basket, 4 accent, 5 moulded
-uniform vec4 trim_knobs = vec4(1.0, -1.0, -1.0, 1.0);   // tuning (I76_TRIM_KNOBS): the relief's scale, a roughness and a specular over the style's (negative: the style's), the albedo's scale
+// trim_part, trim_style and trim_knobs are declared in object.gdshaderinc (the material library's parameters are its uniforms)
 
 const float TRIM_PI = 3.14159265;
 
@@ -189,3 +187,6 @@ void trim_surface(vec3 base, float base_rough, float base_spec, vec3 p, vec3 nl,
 	rough = clamp(rough, 0.2, 1.0);
 	dn = -(grad - n * dot(grad, n)) * trim_knobs.x;
 }
+
+// object.gdshaderinc's fragment, at the end of the flat faces' branch: the vinyl over the face's colour, its size a pixel in the mesh's metres
+#define TRIM_APPLY { vec3 trim_dn; trim_surface(c.rgb, base_roughness, base_specular, v_local, v_nlocal, max(length(dFdx(v_local)), length(dFdy(v_local))), ALBEDO, ROUGHNESS, SPECULAR, trim_dn); NORMAL = normalize(NORMAL + mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * trim_dn); }

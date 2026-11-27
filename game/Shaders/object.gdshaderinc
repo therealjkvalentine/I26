@@ -625,7 +625,12 @@ vec4 i76_cockpit_soft(vec2 uv) {
 #endif
 
 #ifdef TRIM
+uniform int trim_part = 0;    // CockpitTrim.Part: 1 roof (the headliner), 2 pillar (header, A pillars, rails), 3 door
+uniform int trim_style = 0;   // CockpitTrim.Style: 1 perforated, 2 charcoal, 3 basket, 4 accent, 5 moulded
+uniform vec4 trim_knobs = vec4(1.0, -1.0, -1.0, 1.0);   // tuning (I76_TRIM_KNOBS): the relief's scale, a roughness and a specular over the style's (negative: the style's), the albedo's scale
 #include "res://Shaders/cockpit_trim.gdshaderinc"
+#else
+#define TRIM_APPLY
 #endif
 void fragment() {
 	vec2 tuv = UV;
@@ -819,13 +824,7 @@ void fragment() {
 		METALLIC = base_metallic;
 		SPECULAR = base_specular;
 		CLEARCOAT = 0.0;
-#ifdef TRIM
-		// the cockpit trim's vinyl (cockpit_trim.gdshaderinc), its size a pixel in the mesh's metres
-		float trim_fw = max(length(dFdx(v_local)), length(dFdy(v_local)));
-		vec3 trim_dn;
-		trim_surface(c.rgb, base_roughness, base_specular, v_local, v_nlocal, trim_fw, ALBEDO, ROUGHNESS, SPECULAR, trim_dn);
-		NORMAL = normalize(NORMAL + mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * trim_dn);
-#endif
+		TRIM_APPLY;   // the cockpit trim's vinyl (cockpit_trim.gdshaderinc), nothing in any other shader
 	}
 	if (((car_paint && !wheel_face) || hood_surface > 0.5) && i76_hood_gloss < 1.0 && !prelit) {
 		// Hood Gloss below 100 (Gloss, the full coat): Satin (50) thins the clear coat and blurs the sheen, Matte (0) takes both off;
