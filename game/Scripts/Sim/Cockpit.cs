@@ -94,6 +94,7 @@ public partial class Cockpit : Node
         _glassRoundSetting = shellSettings.SideMirrorRound;
         _headTurned = shellSettings.SideMirrorHeadTurned;
         _faceProud = FaceHook is { } fh ? DoorFace.Proud(fh) : shellSettings.SideMirrorFaceProud;
+        _faceTurned = FaceHook is { } fh2 ? DoorFace.Turned(fh2) : shellSettings.SideMirrorFaceTurned;
         _faceOverSetting = [shellSettings.SideMirrorFaceOverLeft, shellSettings.SideMirrorFaceOverRight];
         _tiltSetting = MirrorAim.TiltOverride(TiltHook) is { } tilt ? [tilt.L, tilt.R] : [shellSettings.SideMirrorTiltLeft, shellSettings.SideMirrorTiltRight];
         yield return null;
@@ -2387,6 +2388,9 @@ public partial class Cockpit : Node
         /// <summary>The proud face (DoorFace, side_mirror_face=proud): its plane and the housing end's outline it covers; Grown is its mesh, made for GrownFor's reach and share.</summary>
         public FacePlate? Face { get; init; }
         public ArrayMesh? Grown;
+        /// <summary>The turned glass on the art's housing (side_mirror_face=turned): the node holding the glass turned as the turned head's, and whether it has been brought in front of the housing yet (TurnedClear).</summary>
+        public Node3D? Holder { get; init; }
+        public bool Cleared;
     }
     /// <summary>
     /// A proud face's plane (picture units as seen, u times Aspect and v, onto the head's frame: the end's plane, or the plane the face
@@ -2476,8 +2480,16 @@ public partial class Cockpit : Node
         {
             g.Mesh.Visible = on && MirrorBands.SideShown(_sideMirrors, g.Left);
             if (!g.Mesh.Visible) { g.Mesh.Mesh = g.Faces; continue; }
-            if (RoundGlass(g, share, rimOut) && _mirrorMode != 0)
+            // the turned glass keeps the turned head's rounded ring (at least GlassRound.RoundedRimOut of the moulding's widths past the housing)
+            var gRim = g.Holder is null ? rimOut : GlassRound.Out(RimOutHook, Math.Max(_rimOutSetting, GlassRound.RoundedRimOut));
+            if (RoundGlass(g, share, gRim) && _mirrorMode != 0 && g.Holder is null)
                 foreach (var (paint, left) in Node3D.MirrorPaint) if (left == g.Left) paint.Visible = false;
+            if (g.Holder is not null && _mirrorMode != 0)
+            {
+                // the art's painted glass behind the turned glass: the shell's dark inside where it shows past it
+                foreach (var (paint, left) in Node3D.MirrorPaint) if (left == g.Left) paint.MaterialOverride = ShellMaterial();
+                if (!g.Cleared) TurnedClear(g);
+            }
             if (g.Tilted && _mirrorMode != 0)
                 foreach (var (paint, left) in Node3D.MirrorPaint) if (left == g.Left) paint.MaterialOverride = ShellMaterial();
             g.Mat.SetShaderParameter("view", _mirrorView?.GetTexture());
@@ -2502,19 +2514,28 @@ public partial class Cockpit : Node
         {
             // under the door mirror's head, so the glass and its rim turn with it; the picture as the driver sees the turned glass
             Node3D host = Node3D.MirrorHeads.FirstOrDefault(h => h.Left == pane.Left).Mesh ?? cockpit;
-            if (_faceProud && !_headTurned && host != cockpit && FaceGlass(pane, _tilt[pane.Left ? 0 : 1]?.Q ?? System.Numerics.Quaternion.Identity, (MeshInstance3D)host, gameEye) is { } face)
+            Node3D? holder = null;
+            if (_faceTurned && !_headTurned && host != cockpit)
+            {
+                // the turned head's glass and ring, exactly as side_mirror_head=turned draws them, on a node of its own turned as that head
+                // is: the housing stays where the art puts it; TurnedClear later brings the glass in front of it along the eye's rays
+                holder = new Node3D { Name = "TurnedGlass" + (pane.Left ? "L" : "R"), Transform = _glassTurn[pane.Left ? 0 : 1] };
+                host.AddChild(holder);
+                host = holder;
+            }
+            else if (_faceProud && !_headTurned && host != cockpit && FaceGlass(pane, _tilt[pane.Left ? 0 : 1]?.Q ?? System.Numerics.Quaternion.Identity, (MeshInstance3D)host, gameEye) is { } face)
             {
                 _glass.Add(face);
                 continue;
             }
-            if (_tilt[pane.Left ? 0 : 1] is { } tilt && !_headTurned && host != cockpit && TiltedGlass(pane, tilt, (MeshInstance3D)host, gameEye) is { } tilted)
+            if (holder is null && _tilt[pane.Left ? 0 : 1] is { } tilt && !_headTurned && host != cockpit && TiltedGlass(pane, tilt, (MeshInstance3D)host, gameEye) is { } tilted)
             {
                 _glass.Add(tilted);
                 continue;
             }
             var (turn, pivot) = _aimTurn[pane.Left ? 0 : 1];
             var seen = pane with { Faces = pane.Faces.Select(f => f.Select(p => pivot + System.Numerics.Vector3.Transform(p - pivot, turn)).ToArray()).ToList() };
-            var near = _aim[pane.Left ? 0 : 1].Turn.AffineInverse() * eye;   // the eye in the head's frame
+            var near = (holder is not null ? _glassTurn[pane.Left ? 0 : 1] : _aim[pane.Left ? 0 : 1].Turn).AffineInverse() * eye;   // the eye in the head's (or the turned glass's) frame
             var (uvs, aspect) = I76.Formats.Assembly.MirrorGlass.Picture(seen, gameEye);
             var v = new List<Vector3>();
             var t = new List<Vector2>();
@@ -2544,7 +2565,7 @@ public partial class Cockpit : Node
             var plane = GlassRound.Plane([.. v.Zip(t, (p, uv) => (new Vector2(uv.X * aspect, uv.Y), p))]);
             var hull = GlassRound.Hull(uvs.SelectMany(f => f).Select(q => new Vector2(q.X * aspect, q.Y)));
             var cover = plane is { } hp ? GlassRound.Housing(hull, HeadPoints(pane.Left).Distinct().Select(q => GlassRound.Seen(near, hp, q)).OfType<(Vector2, float)>()) : hull;
-            _glass.Add(new GlassPane(mi, mat, pane.Left, aspect, centre, hull, mesh, plane, near, cover));
+            _glass.Add(new GlassPane(mi, mat, pane.Left, aspect, centre, hull, mesh, plane, near, cover) { Holder = holder });
             if (PointsHook && plane is { } pl) MarkPoints(host, v, pl, near, pane.Left, aspect, uvs);
             // the rim inside the pane's outline, a hair nearer the eye than the glass, the rear frame's colour (MirrorRim)
             _rimMat ??= RimMaterial();
@@ -2671,6 +2692,10 @@ public partial class Cockpit : Node
     private static readonly (int L, int R)? FaceOverHook = DoorFace.OverOverride(System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_FACE_OVER"));
     /// <summary>[port] side_mirror_face (DoorFace.Proud): the proud face, the default; read with the cockpit (the glass is made once). side_mirror_face_over_left / _right: the sides' reach, live.</summary>
     private bool _faceProud = true;
+    /// <summary>[port] side_mirror_face=turned (DoorFace.Turned): the turned head's glass and ring on the art's housing; read with the cockpit.</summary>
+    private bool _faceTurned;
+    /// <summary>Each side's turn of the turned head (MirrorAim.Turn about the glass's middle, Godot axes, the cockpit's frame), for side_mirror_face=turned; left first.</summary>
+    private readonly Transform3D[] _glassTurn = [Transform3D.Identity, Transform3D.Identity];
     private int[] _faceOverSetting = [DoorFace.DefaultOverLeft, DoorFace.DefaultOverRight];
     /// <summary>How far proud of the end's plane the face's nearest point stands, metres (I76_SIDE_MIRROR_FACE_CLEAR=mm for a review sheet).</summary>
     private static readonly float FaceClear = float.TryParse(System.Environment.GetEnvironmentVariable("I76_SIDE_MIRROR_FACE_CLEAR"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float fc) ? Math.Clamp(fc, 0f, 100f) / 1000f : 0.003f;
@@ -2754,6 +2779,59 @@ public partial class Cockpit : Node
             if (TiltLog) GD.Print($"mirror-face: {(g.Left ? "L" : "R")} {shape.Width:0.000} heights wide, {shape.Height * 100:0.0} cm tall, corners {shape.R:0.00}, slid {slide * 100:0.0} cm out, reach {over} %, its top {MathF.Asin(MathF.Min(1f, MathF.Abs(shape.X.Dot(up.Normalized())))) * 180f / MathF.PI:0.0} degrees off level");
         }
         g.Mesh.Mesh = g.Grown;
+    }
+
+    /// <summary>
+    /// The turned glass (side_mirror_face=turned) brought in front of the art's housing without changing what the driver sees: its
+    /// node scaled about the eye by the least share of its distance that puts every point of it (its mesh, sampled) FaceClear in front
+    /// of the housing and its painted glass along the eye's ray, and every corner of the housing seen through it behind it. Scaling
+    /// about the eye keeps its outline, picture and ring on screen exactly the turned head's.
+    /// </summary>
+    private void TurnedClear(GlassPane g)
+    {
+        if (g.Holder is not { } holder || g.Mesh.Mesh is not ArrayMesh gm || gm.GetSurfaceCount() == 0) return;
+        g.Cleared = true;
+        var head = Node3D.MirrorHeads.FirstOrDefault(h => h.Left == g.Left).Mesh;
+        if (head?.Mesh is null) return;
+        var eye = Node3D.Eye;   // the head at the art's place: its frame is the cockpit's
+        var turn = _glassTurn[g.Left ? 0 : 1];
+        var tris = new List<(Vector3 A, Vector3 B, Vector3 C)>();
+        foreach (var hm in new[] { head.Mesh }.Concat(Node3D.MirrorPaint.Where(p => p.Left == g.Left).Select(p => p.Mesh.Mesh)).OfType<Mesh>())
+            for (int si = 0; si < hm.GetSurfaceCount(); si++)
+            {
+                var arr = hm.SurfaceGetArrays(si);
+                var verts = arr[(int)Mesh.ArrayType.Vertex].AsVector3Array();
+                var idx = arr[(int)Mesh.ArrayType.Index].VariantType == Variant.Type.Nil ? null : arr[(int)Mesh.ArrayType.Index].AsInt32Array();
+                int count = idx?.Length ?? verts.Length;
+                for (int k = 0; k + 2 < count; k += 3) tris.Add((verts[idx?[k] ?? k], verts[idx?[k + 1] ?? k + 1], verts[idx?[k + 2] ?? k + 2]));
+            }
+        var gv = gm.SurfaceGetArrays(0)[(int)Mesh.ArrayType.Vertex].AsVector3Array().Select(p => turn * p).ToArray();
+        var glassTris = new List<(Vector3 A, Vector3 B, Vector3 C)>();
+        for (int k = 0; k + 2 < gv.Length; k += 3) glassTris.Add((gv[k], gv[k + 1], gv[k + 2]));
+        float share = 1f;
+        const int N = 12;
+        foreach (var (a, b, c) in glassTris)
+            for (int i = 0; i <= N; i++)
+                for (int j = 0; i + j <= N; j++)
+                {
+                    var x = a + (b - a) * (i / (float)N) + (c - a) * (j / (float)N);
+                    var d = x - eye; float len = d.Length(); if (len < 1e-5f) continue; d /= len;
+                    foreach (var (ta, tb, tc) in tris)
+                        if (DoorFace.Hit(eye, d, ta, tb, tc) is { } t && t < len + 0.5f) share = MathF.Min(share, (t - FaceClear) / len);
+                }
+        foreach (var v in tris.SelectMany(t => new[] { t.A, t.B, t.C }).Distinct())
+        {
+            var d = v - eye; float len = d.Length(); if (len < 1e-5f) continue; d /= len;
+            foreach (var (ta, tb, tc) in glassTris)
+                if (DoorFace.Hit(eye, d, ta, tb, tc) is { } t) share = MathF.Min(share, (len - FaceClear) / t);
+        }
+        share = Math.Clamp(share, 0.2f, 1f);
+        holder.Transform = new Transform3D(Basis.Identity.Scaled(new Vector3(share, share, share)), eye * (1 - share)) * turn;
+        if (TiltLog)
+        {
+            var mid = turn * g.Centre;
+            GD.Print($"mirror-turned: {(g.Left ? "L" : "R")} scaled {share:0.000} about the eye: its middle {(mid - eye).Length() * (1 - share) * 100:0.0} cm nearer the eye ({(mid - eye).Length() * 100:0.0} cm away)");
+        }
     }
 
     /// <summary>How far the face's mesh reaches past its rounded outline, in its heights: room for the edge's one-pixel blend.</summary>
@@ -2937,11 +3015,12 @@ public partial class Cockpit : Node
                 var centre = all.Aggregate(System.Numerics.Vector3.Zero, (a, b) => a + b) / all.Length;
                 var gamePivot = centre;
                 var q = MirrorAim.Turn(gameEye, centre, pane.Normal, gamePivot, MirrorAim.Axis(left, yaw, OwnAim.Pitch));
-                if (_headTurned)
+                if (_headTurned || _faceTurned)
                 {
                     var pivot = Coords.ToGodot(gamePivot);
                     var basis = new Basis(MirrorAim.ToGodot(q));
-                    turn = new Transform3D(basis, pivot - basis * pivot);
+                    _glassTurn[i] = new Transform3D(basis, pivot - basis * pivot);
+                    if (_headTurned) turn = _glassTurn[i];
                     _aimTurn[i] = (q, gamePivot);
                 }
                 else if (MirrorAim.GlassTilt(_headTurned, _tiltSetting[i]) is > 0 and var degrees)

@@ -16,7 +16,10 @@ namespace I76.Game.Sim;
 public static class DoorFace
 {
     /// <summary>[port] side_mirror_face: "inset" the glass inside the housing (the look before); anything else, or none, the proud face.</summary>
-    public static bool Proud(string? word) => !string.Equals(word?.Trim(), "inset", StringComparison.OrdinalIgnoreCase);
+    public static bool Proud(string? word) => !string.Equals(word?.Trim(), "inset", StringComparison.OrdinalIgnoreCase) && !Turned(word);
+
+    /// <summary>[port] side_mirror_face: "turned" the turned head's glass and its rounded ring (side_mirror_head=turned's) on the housing where the art places it.</summary>
+    public static bool Turned(string? word) => string.Equals(word?.Trim(), "turned", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// [port] side_mirror_face_over_left / _right: how far each rounded side stands past the least that covers the end's corners,
