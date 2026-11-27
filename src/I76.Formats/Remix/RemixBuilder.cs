@@ -222,7 +222,7 @@ public static class RemixBuilder
     /// <summary>The stamp a build of this description on this base file carries: a build is current while it matches.</summary>
     public static string Stamp(RemixSpec spec, byte[] baseFile)
     {
-        var yaml = new YamlDotNet.Serialization.SerializerBuilder().Build().Serialize(spec);
+        var yaml = new YamlDotNet.Serialization.SerializerBuilder().DisableAliases().Build().Serialize(spec);   // no anchors: a description and its parsed copy stamp alike
         return $"remix {Version} spec {Hash(Encoding.UTF8.GetBytes(yaml))} base {spec.Base.ToLowerInvariant()} {Hash(baseFile)}";
     }
 
