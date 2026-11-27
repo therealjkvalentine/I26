@@ -109,6 +109,7 @@ public static class RemixDirector
             start = new StartNode { Name = sp.Name, At = sp.At, Heading = hd, Called = sp.Called };
             spec.Start = new PoseSpec { At = sp.At, Heading = hd, Out = sp.Node?.Out };
             Inside(sp.Node);
+            Friend(sp.Node);   // a start in a hideout: Skeeter's van parked beside the player
         }
         // a place inside or under a structure the job uses: its doors off, its wall section out, checked by driving out of it
         void Inside(PointNode? n)

@@ -5158,7 +5158,8 @@ public partial class Main : Node3D
 			// each key is down for one frame, so held-key checks see it too
 			foreach (var (f, u, k, m) in _keys.Where(e => e.Until == _n - 1)) Post(k, m, false);
 			foreach (var (f, u, k, m) in _keys.Where(e => e.Frame == _n)) Post(k, m, true);
-			foreach (var (f, path) in _shots.Where(e => e.Frame == _n)) { GetViewport().GetTexture().GetImage().SavePng(path); GD.Print($"game shot {path} at frame {_n}"); }
+			// ({L} in a path: the run's mission load, so a road trip's jobs keep their own pictures)
+			foreach (var (f, p0) in _shots.Where(e => e.Frame == _n)) { var path = p0.Replace("{L}", _missionLoads.ToString(System.Globalization.CultureInfo.InvariantCulture)); GetViewport().GetTexture().GetImage().SavePng(path); GD.Print($"game shot {path} at frame {_n}"); }
 			if (!GetTree().Paused || (Owner._menu is null && Owner._picture is null && Owner._dev is null)) return;
 			var o = Owner._opt;
 			if (o.Screenshot is not null && ++Owner._frames == System.Math.Max(o.QuitAfter, 10) - 2) GetViewport().GetTexture().GetImage().SavePng(o.Screenshot);
@@ -5369,17 +5370,20 @@ public partial class Main : Node3D
 		if (_script is not null && System.Environment.GetEnvironmentVariable("I76_SCRIPT_MOVIE") is { } sm && sm.Split('@') is [var smName, var smAt]
 			&& int.TryParse(smAt, out int smFrame) && _frames == smFrame)
 			_script.Host.PlayMovie(smName);
-		// test hook: I76_END_MISSION=win@frame (or fail@frame) ends the mission as the script would
+		// test hook: I76_END_MISSION=win@frame (or fail@frame, or fail:K@frame on failure line K) ends the mission as the script would
 		// (at "Ns": once the mission has run N seconds of its own time, whatever the frames its load took)
-		if ((_launch is not null || _script is not null) && System.Environment.GetEnvironmentVariable("I76_END_MISSION") is { } end && end.Split('@') is [var how, var at]
+		// (a comma list ends each mission load in turn: "win@20s,fail:3@20s,fail@20s" wins the first, fails the second on line 3...)
+		if ((_launch is not null || _script is not null) && System.Environment.GetEnvironmentVariable("I76_END_MISSION") is { } endAll
+			&& endAll.Split(',') is { Length: > 0 } ends && ends[System.Math.Clamp(_missionLoads - 1, 0, ends.Length - 1)] is var end && end.Split('@') is [var how, var at]
 			&& (int.TryParse(at, out int endFrame) && _frames == endFrame
 				|| at.EndsWith('s') && double.TryParse(at[..^1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double endS)
 					&& !_endedByHook && _sim?.Session.World is { } endWorld && endWorld.Time >= endS && (_endedByHook = true)))
 		{
 			// through the script's own end where there is one (a failure with its first message), so the end menu comes up as it would;
 			// a network co-op mission's is the listen server's script (a client's comes as the server's end)
-			if (NetCoop) _net!.Server?.Invoke(h => h.Setup.Script!.Host.EndMission(how == "win", 0, how == "win" ? -2 : 0));
-			else if (_script is { Melee: null } es) es.Host.EndMission(how == "win", 0, how == "win" ? -2 : 0);
+			int failLine = how.StartsWith("fail:", System.StringComparison.Ordinal) && int.TryParse(how[5..], out int fk) && fk > 0 ? fk - 1 : 0;
+			if (NetCoop) _net!.Server?.Invoke(h => h.Setup.Script!.Host.EndMission(how == "win", 0, how == "win" ? -2 : failLine));
+			else if (_script is { Melee: null } es) es.Host.EndMission(how == "win", 0, how == "win" ? -2 : failLine);
 			else EndMission(how == "win");
 		}
 		// test hook: I76_NET_TEST holds the capture's frame count through a network game (MainNet.cs)

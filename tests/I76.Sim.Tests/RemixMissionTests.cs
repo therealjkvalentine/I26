@@ -692,14 +692,20 @@ public class RemixMissionTests
         Assert.True(Mean(0) < Mean(2) && Mean(2) < Mean(4), "the levels scale the challenge");
     }
 
-    /// <summary>The director prefers the corners the stock mission never visits: its starts sit further from the stock action than the tables' starts do.</summary>
+    /// <summary>
+    /// The director prefers the corners the stock mission never visits: the places its jobs send the player (the first and later
+    /// places; round five puts the start near the first of them, docs/remix-missions.md "Pacing") sit further from the stock action
+    /// than the tables' nodes do on average.
+    /// </summary>
     [Fact]
     public void TheDirectorPrefersTheQuietCorners()
     {
         var tables = RemixNodes.Builtin();
-        double picked = Enumerable.Range(1, 400).Select(seed => RemixDirector.Roll(seed, tables)).Average(spec => tables.First(t => t.Base == spec.Base).Quiet(spec.Start!.At));
-        double all = tables.SelectMany(t => t.Starts.Select(st => t.Quiet(st.At))).Average();
-        Assert.True(picked > all * 1.1, $"picked starts {picked:0} m from the stock action, the tables' {all:0} m");
+        var places = Enumerable.Range(1, 400).Select(seed => RemixDirector.Roll(seed, tables))
+            .SelectMany(spec => spec.Places.Values.Where(p => p.Count == 1).Select(p => tables.First(t => t.Base == spec.Base).Quiet(p[0]))).ToList();
+        double picked = places.Average();
+        double all = tables.SelectMany(t => t.Nodes.Select(n => t.Quiet(n.At))).Average();
+        Assert.True(picked > all * 1.05, $"the jobs' places {picked:0} m from the stock action, the tables' nodes {all:0} m");
     }
 
     /// <summary>A rolled job's map follows the job: the build's stamp (the map picture's key with the stem) differs between two rolls built as xjob.</summary>
