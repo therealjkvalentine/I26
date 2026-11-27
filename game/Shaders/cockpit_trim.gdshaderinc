@@ -86,41 +86,43 @@ vec3 trim_tint(vec3 base, vec3 tint) {
 
 // p and nl the fragment's point and normal in the mesh's frame, fw its size in metres a pixel; out the albedo, roughness, specular and
 // the normal's change in the mesh's frame (added to the normal)
-void trim_surface(vec3 base, vec3 p, vec3 nl, float fw, out vec3 alb, out float rough, out float spec, out vec3 dn) {
+void trim_surface(vec3 base, float base_rough, float base_spec, vec3 p, vec3 nl, float fw, out vec3 alb, out float rough, out float spec, out vec3 dn) {
 	vec3 n = normalize(nl);
 	vec3 t1 = abs(n.y) < 0.9 ? normalize(cross(vec3(0.0, 1.0, 0.0), n)) : normalize(cross(n, vec3(0.0, 0.0, 1.0)));
 	vec3 t2 = cross(n, t1);
 	bool roof = trim_part == 1, pillar = trim_part == 2;
-	// the styles: tints (linear, at the grey's luminance), grain, sheen
+	// the styles: tints (linear, at the grey's luminance), grain, and the sheen over the flat face's own (the material's base_roughness
+	// and base_specular, as ForColour weighs that grey): a roughness taken off and a specular's factor
 	vec3 tint = vec3(1.0);
 	float cell = 0.0022, grain_k = 0.08, grain_a = 0.07;
-	rough = 0.82;
-	spec = 0.3;
+	float dr = 0.0, ks = 1.0;
 	if (trim_style == 1) {          // B: black vinyl: neutral, a hair cool
 		tint = vec3(0.96, 1.0, 1.06);
-		rough = roof ? 0.86 : 0.66;
-		spec = roof ? 0.28 : 0.34;
+		dr = roof ? 0.0 : 0.2;
+		ks = roof ? 1.0 : 1.1;
 	} else if (trim_style == 2) {   // C: dark charcoal, a touch warmer and shinier
 		tint = vec3(1.05, 1.0, 0.95);
-		rough = roof ? 0.66 : 0.5;
-		spec = roof ? 0.36 : 0.42;
+		dr = roof ? 0.15 : 0.32;
+		ks = roof ? 1.15 : 1.3;
 		grain_a = 0.06;
 	} else if (trim_style == 3) {   // D: basket-weave headliner
 		tint = vec3(0.98, 1.0, 1.03);
-		rough = roof ? 0.88 : 0.66;
-		spec = roof ? 0.26 : 0.34;
+		dr = roof ? 0.0 : 0.2;
+		ks = roof ? 1.0 : 1.1;
 	} else if (trim_style == 4) {   // E: a muted colour-keyed headliner (a desaturated saddle), black pillars and doors
 		tint = roof ? vec3(1.28, 1.0, 0.72) : vec3(0.97, 1.0, 1.04);
-		rough = roof ? 0.86 : 0.62;
-		spec = roof ? 0.28 : 0.36;
+		dr = roof ? 0.0 : 0.24;
+		ks = roof ? 1.0 : 1.15;
 	} else if (trim_style == 5) {   // F: moulded: satin pillars with a faint fine grain, a soft perforated liner
 		tint = vec3(1.0, 1.0, 1.03);
 		cell = 0.0016;
 		grain_k = 0.06;
 		grain_a = roof ? 0.06 : 0.05;
-		rough = roof ? 0.84 : 0.48;
-		spec = roof ? 0.28 : 0.4;
+		dr = roof ? 0.0 : 0.36;
+		ks = roof ? 1.0 : 1.3;
 	}
+	rough = base_rough - dr;
+	spec = base_spec * ks;
 	alb = trim_tint(base, tint);
 	// E's pillars and doors in black vinyl: a little darker than the grey, the headliner's colour about the grey's luminance
 	if (trim_style == 4 && !roof) alb *= 0.82;

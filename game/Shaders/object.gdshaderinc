@@ -823,7 +823,7 @@ void fragment() {
 		// the cockpit trim's vinyl (cockpit_trim.gdshaderinc), its size a pixel in the mesh's metres
 		float trim_fw = max(length(dFdx(v_local)), length(dFdy(v_local)));
 		vec3 trim_dn;
-		trim_surface(c.rgb, v_local, v_nlocal, trim_fw, ALBEDO, ROUGHNESS, SPECULAR, trim_dn);
+		trim_surface(c.rgb, base_roughness, base_specular, v_local, v_nlocal, trim_fw, ALBEDO, ROUGHNESS, SPECULAR, trim_dn);
 		NORMAL = normalize(NORMAL + mat3(VIEW_MATRIX) * mat3(MODEL_MATRIX) * trim_dn);
 #endif
 	}

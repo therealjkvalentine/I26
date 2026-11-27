@@ -232,7 +232,7 @@ public sealed class MeshBuilder(TextureResolver resolver, MaterialLibrary materi
                     // the modern look's cockpit trim (CockpitTrim): the roof and side parts' flat grey faces, by their facing
                     var trimPart = trim != I76.Game.Sim.CockpitTrim.Style.Off && I76.Game.Sim.CockpitTrim.TrimGrey(f.R, f.G, f.B)
                         ? I76.Game.Sim.CockpitTrim.Classify(part.NodeName, faceN) : I76.Game.Sim.CockpitTrim.Part.None;
-                    mat = trimPart != I76.Game.Sim.CockpitTrim.Part.None ? materials.ForTrim(f.R, f.G, f.B, trimPart, trim) : materials.ForColour(f.R, f.G, f.B, prop: partPaint is null, partFamily, bothSides, oneSided: plates.Contains((partIndex, f)),
+                    mat = trimPart != I76.Game.Sim.CockpitTrim.Part.None ? materials.ForTrim(f.R, f.G, f.B, trimPart, trim, prop: partPaint is null, partFamily) : materials.ForColour(f.R, f.G, f.B, prop: partPaint is null, partFamily, bothSides, oneSided: plates.Contains((partIndex, f)),
                         unlit: partPaint is null && I76.Formats.Geo.FaceLight.Unlit(f), selfLit: shines, retro: sheeting);
                 }
                 if (!surfaces.TryGetValue(mat, out var s)) surfaces[mat] = s = new Surface();
