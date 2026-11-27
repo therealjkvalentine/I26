@@ -187,6 +187,7 @@ void trim_surface(vec3 base, float base_rough, float base_spec, vec3 p, vec3 nl,
 	// the sheen and the relief's lit facets brighten the face as seen; the albedo pays it back (measured from the seat, 3440x1440, the
 	// region's mean displayed luma within a few percent of the flat grey's: tools of the comps' sheet)
 	float comp = trim_style == 2 ? 0.86 : trim_style == 4 ? 1.0 : 0.89;
+	if (trim_part == 3) comp *= 0.93;   // the doors, lit by the side windows: still +4 to +8 % luma at half the sheen
 	alb *= m / mod_mean * comp * trim_knobs.w;
 	if (trim_knobs.y >= 0.0) rough = trim_knobs.y;
 	if (trim_knobs.z >= 0.0) spec = trim_knobs.z;
