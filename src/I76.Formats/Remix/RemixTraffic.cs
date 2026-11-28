@@ -46,11 +46,14 @@ public static class RemixTraffic
     /// </summary>
     public static readonly Dictionary<string, string[]> Paved = new(StringComparer.OrdinalIgnoreCase)
     {
+        ["t01"] = ["highway_north"],
         ["t02"] = ["crossroad_west"],
         ["t03"] = ["highway_down"],
         ["t05"] = ["road_380"],
+        ["t07"] = ["west_380"],
         ["t08"] = ["into_plains", "down_214"],
         ["t10"] = ["east_380", "north_road_down"],
+        ["t11"] = ["west_on_380", "east_on_380"],
         ["t13"] = ["south_on_285", "to_the_east_road"],
         ["t14"] = ["west_to_north"],
     };
@@ -73,7 +76,7 @@ public static class RemixTraffic
     {
         if (!Paved.TryGetValue(map.Base, out var names)) return;
         var r = new Mix(unchecked(seed * 0x2545F4914F6CDD1DL + 0x5DEECE66DL));
-        var avoid = spec.Places.Values.Where(p => p.Count is 1 or 2).Select(p => p[0]).Concat(spec.Start is { } st ? [st.At] : []).ToList();
+        var avoid = Avoid(spec).Select(a => a.At).ToList();
         bool Far(double[] p) => avoid.All(a => Dist(a, p) >= Clear);
         var routes = new List<List<double[]>>();
         var roads = new List<string>();
@@ -121,8 +124,7 @@ public static class RemixTraffic
         if (spec.Traffic is not { Count: > 0 } traffic) return bad;
         if (traffic.Count > MaxCars) bad.Add($"traffic: {traffic.Count} cars, at most {MaxCars}");
         if (traffic.Count + RemixRoles.Hostiles(spec).Count > MaxTotal) bad.Add($"traffic: {traffic.Count} civilians and {RemixRoles.Hostiles(spec).Count} hostile cars, at most {MaxTotal}");
-        var avoid = spec.Places.Where(p => !p.Key.StartsWith("civ_", StringComparison.Ordinal) && p.Value.Count is 1 or 2).Select(p => (p.Key, At: p.Value[0]))
-            .Concat(spec.Start is { } st ? [("start", st.At)] : []).ToList();
+        var avoid = Avoid(spec);
         var roads = Roads(msn);
         foreach (var t in traffic)
         {
@@ -138,6 +140,20 @@ public static class RemixTraffic
             if (t.Speed is < 15 or > 40) bad.Add($"traffic {t.Car}: speed {t.Speed}");
         }
         return bad;
+    }
+
+    /// <summary>
+    /// What a civilian's route must keep its ends <see cref="Clear"/> of: the job's marks (the start, every place the player must reach, a
+    /// convoy's lead: RemixSpacing.Marks) and every entry its cars come in at (a pursuit's, the reinforcements', a defence's waves'), where the cars of a job
+    /// meet the player or come on.
+    /// </summary>
+    public static List<(string Key, double[] At)> Avoid(RemixSpec spec)
+    {
+        var o = RemixSpacing.Marks(spec).Select(m => (m.Label, m.At)).ToList();
+        var entries = spec.Objective.Reinforce.Select(r => r.Entry).Append(spec.Objective.Pursuit?.Entry ?? "").Concat(spec.Objective.Entries);
+        foreach (var e in entries.Where(e => e.Length > 0).Distinct())
+            if (spec.Places.TryGetValue(e, out var p) && p.Count > 0) o.Add((e, p[0]));
+        return o;
     }
 
     /// <summary>The roads' centre lines every 10 m, with each sample's kind (the segment's kind mod 3: 0 paved, 1 dirt, 2 a wash or planks).</summary>
