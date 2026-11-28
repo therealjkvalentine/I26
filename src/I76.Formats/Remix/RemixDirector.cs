@@ -180,6 +180,41 @@ public static class RemixDirector
         string Go(double[] at) => Math.Abs(Bearing(start.At, at)) < 35 && Dist(start.At, at) < 2500 ? GoNorth : GoThere;
         // the groups the budget grows, each a way to add one more car of the right kind
         var grow = new List<(string Name, Func<int> Count, Action Add)>();
+        // the spoken lines' moments (docs/remix-missions.md "Spoken lines"): made after the budget's fill, when the groups' sizes
+        // are final; each says what is true of the job at that moment, and where the line chosen goes
+        var voice = new List<Func<IEnumerable<RemixVoice.Slot>>>();
+        IReadOnlyCollection<string> F(params object?[] parts)
+        {
+            var o = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var p in parts)
+                if (p is string s) o.Add(s);
+                else if (p is IEnumerable<string> l) o.UnionWith(l);
+            return o;
+        }
+        IEnumerable<string> Is(string? place) => RemixVoice.Tags(map.Base, place).Select(t => "place:" + t);
+        IEnumerable<string> Home(PointNode? n, string startName) => n is null
+            ? Is(startName).Append("home")
+            : Is(n.Name).Append("home").Concat(Dist(n.At, start.At) > 150 ? ["place:rendezvous"] : []).Concat(n.Kinds.Contains("hideout") ? ["place:hideout"] : []);
+        string? Plural(int n) => n >= 2 ? "plural" : null;
+        RemixVoice.Slot Reinforced(ReinforceSpec re, EntryNode entry, double[]? from) =>
+            new("reinforce", F(Plural(re.Cars.Count), from is not null && entry.At.Count > 0 && RemixVoice.EastWest(from, entry.At[0]) is { } d ? "from:" + d : null), c => re.Say = c);
+        // the clock nearly out: two minutes left (when there were three or more), then 45 s (when there were 90 or more)
+        IEnumerable<RemixVoice.Slot> Hurry(int from, int until, int seconds)
+        {
+            if (seconds >= 180) yield return new("hurry", F("left:120"), c => spec.Radio.Hurry.Add(new HurryCue { From = from, Until = until, At = seconds - 120, Clip = c }));
+            if (seconds >= 90) yield return new("hurry", F("left:45"), c => spec.Radio.Hurry.Add(new HurryCue { From = from, Until = until, At = seconds - 45, Clip = c }));
+        }
+        IEnumerable<RemixVoice.Slot> Counted(int n) =>
+            RemixVoice.Counts(n).Select(k => new RemixVoice.Slot("count", F($"count:{k}/{n}"), c => spec.Radio.Counts.Add(new CountCue { Dead = k, Clip = c })));
+        // the facts of a convoy: its lead, a milk truck, running west on 380, its way out
+        IEnumerable<string> Convoy(int li, RouteNode? rt, IReadOnlyList<double[]> pts, double[] exitAt)
+        {
+            yield return "convoy"; yield return "lead";
+            if (LeadCalled[li] == "milk truck") yield return "lead:truck";
+            if (rt is not null && RemixVoice.Tags(map.Base, rt.Name).Contains("on 380") && pts.Count > 1 && RemixVoice.EastWest(pts[0], pts[^1]) == "west") yield return "road:380:west";
+            foreach (var (name, at) in map.Nodes.Select(n => (n.Name, n.At)).Concat(map.Starts.Select(s => (s.Name, s.At))))
+                if (Dist(at, exitAt) < 400) foreach (var t in RemixVoice.Tags(map.Base, name)) yield return "exit:" + t;
+        }
         switch (template)
         {
             case "deliver":
@@ -224,6 +259,14 @@ public static class RemixDirector
                 o.Reinforce.Add(re);
                 grow.Add(("cut-off", () => re.Cars.Count, () => re.Cars.Add(NewCar(Heat[heat]))));
                 spec.Radio.Steps.AddRange([[Go(pickup.At)], [GotIt], []]);
+                voice.Add(() => [
+                    new("go", F(Is(pickup.Name), "guarded"), c => spec.Radio.Steps[0] = [c]),
+                    new("contact", F(Plural(o.Pursuit.Cars.Count)), c => spec.Radio.Wave[0] = c),
+                    new("return", F(Home(homeNode, start.Name), o.Deadline > 0 ? "deadline" : null), c => spec.Radio.Steps[1] = [c]),
+                    Reinforced(re, cut, pickup.At),
+                    .. Hurry(2, 2, o.Deadline),
+                    new("done", F("clear", "drove"), c => spec.Radio.Win = [c]),
+                ]);
                 spec.Radio.Wave.Add(Company);
                 spec.Radio.Reinforce.Add(Problem);
                 spec.Radio.Win.Add(TookLong);
@@ -273,6 +316,16 @@ public static class RemixDirector
                 o.FinishAfter = re2.Delay + 20;
                 spec.Radio.Start.Add(UhOh);
                 spec.Radio.Steps.AddRange([[], [GotAway, Rendezvous], [Problem]]);
+                voice.Add(() => [
+                    new("police", F("police"), c => spec.Radio.Start = [c]),
+                    new("contact", F(Plural(o.Pursuit.Cars.Count), "police"), c => spec.Radio.Wave = [c]),
+                    new("lost", F(Is(hide.Name), "place:hideout", "clear", "police", "more", o.Deadline > 0 ? "deadline" : null), c => spec.Radio.Steps[1] = [c]),
+                    Reinforced(re, block, null),
+                    new("next", F(Is(safe.Name), Dist(safe.At, start.At) > 150 ? "place:rendezvous" : null, "drove"), c => spec.Radio.Steps[2] = [c]),
+                    Reinforced(re2, stake, hide.At),
+                    .. Hurry(1, 2, o.Deadline),
+                    new("done", F("clear", "drove"), c => spec.Radio.Win = [c]),
+                ]);
                 spec.Radio.Reinforce.Add(OhNo);
                 spec.Radio.Win.Add(Clean);
                 string sc = $"{safe.Called}, {Distance(hide.At, safe.At)} {Compass(hide.At, safe.At)} of the hideout";
@@ -329,6 +382,17 @@ public static class RemixDirector
                 string toward = near is not null && Dist(near.At, exit) < 600 ? $"toward {near.Called}" : $"{Compass(park, exit)}";
                 spec.Radio.Start.Add(Found);
                 spec.Radio.Steps.AddRange([[Go(park)], [GetThem], [Rendezvous]]);
+                voice.Add(() => [
+                    new("go", F(Convoy(li, route, route.Points, exit)), c => spec.Radio.Steps[0] = [c]),
+                    new("contact", F(Convoy(li, route, route.Points, exit), Plural(escorts.Count + 1)), c => spec.Radio.Wave = [c]),
+                    new("getaway", F(Convoy(li, route, route.Points, exit)), c => spec.Radio.Getaway = [c]),
+                    new("kill", F(), c => spec.Radio.Trap = [c]),
+                    new("fight", F(Plural(escorts.Count)), c => spec.Radio.Steps[1] = [c]),
+                    .. Counted(escorts.Count),
+                    Reinforced(re, back, null),
+                    new("return", F(Home(backNode, start.Name), "fought"), c => spec.Radio.Steps[2] = [c]),
+                    new("done", F("clear", "fought"), c => spec.Radio.Win = [c]),
+                ]);
                 spec.Radio.Wave.Add(OhNo);
                 spec.Radio.Trap.Add(RightOn);
                 spec.Radio.Reinforce.Add(Bandits);
@@ -391,10 +455,21 @@ public static class RemixDirector
                 string awayWords = away is null ? "where you waited" : away.Called;
                 spec.Radio.Start.Add(Found);
                 spec.Radio.Steps.AddRange([[], [GetThem], [GotAway]]);
+                voice.Add(() => [
+                    new("hold", F(Is(start.Name)), c => spec.Radio.Start = [c]),
+                    new("contact", F(Convoy(li, spot.Route, route, exit), Plural(escorts.Count + 1)), c => spec.Radio.Wave = [c]),
+                    new("getaway", F(Convoy(li, spot.Route, route, exit)), c => spec.Radio.Getaway = [c]),
+                    new("kill", F(), c => spec.Radio.Trap = [c]),
+                    new("fight", F(Plural(escorts.Count)), c => spec.Radio.Steps[1] = [c]),
+                    .. Counted(escorts.Count),
+                    Reinforced(re, back, pts[iA]),
+                    new("return", F(Home(away, start.Name), "fought"), c => spec.Radio.Steps[2] = [c]),
+                    new("done", F("clear", "fought"), c => spec.Radio.Win = [c]),
+                ]);
                 spec.Radio.Trap.Add(RightOn);
                 spec.Radio.Reinforce.Add(Bandits);
                 spec.Radio.Win.Add(LastOfThem);
-                spec.Text.Objectives.AddRange([$"{job}: {gang}'s {what} comes along the road below you; it'll pass in about {(passIn < 75 ? "a minute" : $"{(int)Math.Round(passIn / 60.0)} minutes")}. Hit it before it gets through.", "(hidden)Take out its escorts.", $"(hidden)Get away to {awayWords}, with nobody on your tail."]);
+                spec.Text.Objectives.AddRange([$"{job}: {gang}'s {what} comes along the road below you; it'll pass in about {(passIn < 90 ? "a minute" : $"{(int)Math.Round(passIn / 60.0)} minutes")}. Hit it before it gets through.", "(hidden)Take out its escorts.", $"(hidden)Get away to {awayWords}, with nobody on your tail."]);
                 spec.Text.Notes.AddRange([$"You wait at {start.Called}. The {what} comes from the {Compass(pts[iA], park)}, {Distance(pts[iA], park)} up the road, and runs on {Compass(pts[iA], exit)}.", $"Away: {(away is null ? "where you waited" : Where(away.At, away.Called))}."]);
                 spec.Text.Deaths.AddRange([$"You were killed before you could stop the {what}.", $"{gang}'s escorts got you.", "You were killed getting away."]);
                 spec.Text.Failures.AddRange([Deaths0, left, "They got through. The ambush is blown."]);
@@ -405,6 +480,7 @@ public static class RemixDirector
                 // the escorted car waits at the route's start; the player starts 35 m behind it, facing the way it will go
                 var route = r.Quiet(map, map.Routes.Where(rt => rt.Escort && rt.Points.Count >= 3).ToList(), rt => rt.Points[^1]);
                 // (a long route is cut where the drive to the goal would pass about four minutes at the escorted car's pace)
+                var fullEnd = route.Points[^1];
                 route = Shortened(route, 12.0 * 240 / 1.2);
                 double[] p0 = route.Points[0], p1 = route.Points[1];
                 double hd = Bearing(p0, p1), hr = hd * Math.PI / 180;
@@ -451,6 +527,11 @@ public static class RemixDirector
                 o.FinishAfter = 10;
                 spec.Radio.Start.Add(Found);
                 spec.Radio.Steps.AddRange([[GoThere], [Problem], [GetThem]]);
+                voice.Add(() => [
+                    new("next", F(Is(Dist(goal, fullEnd) < 1 ? route.Name : null), "drove"), c => spec.Radio.Steps[1] = [c]),
+                    Reinforced(re, cut, mid),
+                    new("done", F("clear", "drove"), c => spec.Radio.Win = [c]),
+                ]);
                 spec.Radio.Trap.Add(GotIt);
                 spec.Radio.Reinforce.Add(Company);
                 spec.Radio.Win.Add(Clean);
@@ -522,6 +603,18 @@ public static class RemixDirector
                 grow.Add(("roadblock", () => re2.Cars.Count, () => re2.Cars.Add(NewCar(Heat[Math.Min(2, heat + 1)]))));
                 spec.Radio.Start.Add(Found);
                 spec.Radio.Steps.AddRange([[Go(tg.At)], [GetThem], [GotAway]]);
+                voice.Add(() => [
+                    new("go", F(Is(tg.Cluster?.Name ?? tg.Node?.Name), "guarded"), c => spec.Radio.Steps[0] = [c]),
+                    new("contact", F(Plural(o.Sleepers.Count)), c => spec.Radio.Trap = [c]),
+                    new("fight", F(Plural(o.Targets.Count)), c => spec.Radio.Steps[1] = [c]),
+                    .. Counted(o.Targets.Count),
+                    Reinforced(re, alarm, tg.At),
+                    new("targetsdown", F(), c => spec.Radio.Steps[2] = [c, .. spec.Radio.Steps[2].Where(x => x != GotAway)]),
+                    new("return", F(Home(outNode, start.Name), "fought"), c => spec.Radio.Steps[2] = [.. spec.Radio.Steps[2].Where(x => x != GotAway), c]),
+                    Reinforced(re2, close, tg.At),
+                    .. Hurry(3, 3, secs),
+                    new("done", F("fought"), c => spec.Radio.Win = [c]),
+                ]);
                 spec.Radio.Trap.Add(RightOn);
                 spec.Radio.Reinforce.Add(Bandits);
                 spec.Radio.Win.Add(TookLong);
@@ -564,7 +657,16 @@ public static class RemixDirector
                 grow.Add(("late crew", () => late.Cars.Count, () => late.Cars.Add(NewCar(Heat[Math.Min(2, heat + 1)]))));
                 o.Retarget = 20;
                 spec.Radio.Steps.AddRange([[Go(cl.At)], [GetThem], []]);
-                spec.Radio.Trap.Add("gdsta14");
+                voice.Add(() => [
+                    new("go", F(Is(cl.Name), RemixVoice.Tags(map.Base, cl.Name).Select(t => "defended:" + t)), c => spec.Radio.Steps[0] = [c]),
+                    new("arrive", F(RemixVoice.Tags(map.Base, cl.Name).Select(t => "defended:" + t)), c => spec.Radio.Trap = [c]),
+                    new("fight", F("plural"), c => spec.Radio.Steps[1] = [c]),
+                    new("reinforce", F(o.Waves.Skip(1).All(w => w.Cars.Count >= 2) ? "plural" : null), c => spec.Radio.Wave = [c]),
+                    Reinforced(late, map.Entries.FirstOrDefault(e => Entry(e) == late.Entry) ?? new EntryNode(), cl.At),
+                    .. (cl.Objects.Count >= 3 ? [new RemixVoice.Slot("wiped", F(), c => spec.Radio.Wiped = [c])] : Array.Empty<RemixVoice.Slot>()),
+                    .. Hurry(1, 1, o.Arrive?.Seconds ?? 0),
+                    new("done", F("fought"), c => spec.Radio.Win = [c]),
+                ]);
                 spec.Radio.Wave.AddRange([Bandits, UhOh]);
                 spec.Radio.Reinforce.Add(Company);
                 spec.Radio.Win.AddRange([LastOfThem, Clean]);
@@ -586,6 +688,12 @@ public static class RemixDirector
         }
         spec.Text.Notes.Add($"{job}: {map.Base.ToUpperInvariant()}, challenge {Score(spec) / RemixChallenge.Spanner:0.0} (Back to Spanner 1.0).");
         spec.Landmarks.AddRange(Landmarks(map, spec));
+        // the spoken lines, on a stream of their own (the rest of the roll is as it was)
+        foreach (var (slot, line) in RemixVoice.Plan(voice.SelectMany(v => v()), seed))
+        {
+            spec.Voice.Add(new VoiceChoice(slot.Moment, slot.Facts, line?.Id));
+            if (line is not null) spec.Radio.Words[line.Sound] = line.Text;   // the marks file lists the job's lines (the game builds them as it loads)
+        }
         foreach (var clip in spec.Radio.All) if (Words.TryGetValue(clip, out var w)) spec.Radio.Words[clip] = w;
         return spec;
     }

@@ -53,7 +53,7 @@ public sealed partial class CbRadio(Func<string, float?> lengthSeconds, Func<obj
             if (prio == 6 && head.Priority < 5) return;
             if (prio == 1 || (prio < 5 && head.Priority > 4)) Kill();
         }
-        var node = new Line(name.Length > 15 ? name[..15] : name, speaker, prio, NowMs);
+        var node = new Line(Queued(name), speaker, prio, NowMs);
         if (_q.Count > 0)
         {
             if (prio != 2) { _q.Add(node); return; }
@@ -71,9 +71,15 @@ public sealed partial class CbRadio(Func<string, float?> lengthSeconds, Func<obj
     public void Play(string name, object? speaker, int prio)
     {
         Kill();
-        _q.Add(new Line(name.Length > 15 ? name[..15] : name, speaker, prio, NowMs));
+        _q.Add(new Line(Queued(name), speaker, prio, NowMs));
         StartHead();
     }
+
+    /// <summary>
+    /// The name a line is queued under: the original's queue node holds 15 characters; a cut of a clip (the port's
+    /// STEM@START-END, docs/remix-missions.md "The radio") is kept whole, as its span would otherwise be cut off.
+    /// </summary>
+    public static string Queued(string name) => name.Length > 15 && name.IndexOf('@') < 0 ? name[..15] : name;
 
     /// <summary>killCB: flush the whole queue, stopping the current line.</summary>
     public void Kill()

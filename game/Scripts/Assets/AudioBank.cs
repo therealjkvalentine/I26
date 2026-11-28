@@ -17,6 +17,8 @@ public sealed class AudioBank(AssetVfs vfs)
 
     public AudioStream? Get(string name, bool loop = false)
     {
+        // a generated job's spoken line: rebuilt from the clips as the job loads (RemixVoiceBank), never cached here
+        if (I76.Formats.Remix.RemixVoice.Of(name) is not null) return RemixVoiceBank.Stream(name);
         bool hifi = HiFiAudio.Enabled && HiFiAudio.Installed;
         var key = name + (loop ? "#loop" : "") + (hifi ? "#hifi" : "");
         if (_cache.TryGetValue(key, out var s)) return s;

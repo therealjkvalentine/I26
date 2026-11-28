@@ -14,6 +14,7 @@ public static class RemixCommand
     {
         if (argv.Count >= 3 && argv[1] == "map") return RemixMapDump.Run(install, argv);
         if (argv.Count >= 2 && argv[1] == "roll") return Roll(install, argv);
+        if (argv.Count >= 2 && argv[1] is "lines" or "say" or "voices") return RemixVoiceCommand.Run(install, argv);
         if (argv.Count >= 2 && argv[1] == "check") return Check(install, argv);
         if (argv.Count >= 2 && argv[1] == "score") return Score(install, argv);
         if (argv.Count >= 2 && argv[1] == "pace") return Pace(install, argv);

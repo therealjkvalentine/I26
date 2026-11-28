@@ -196,7 +196,7 @@ public static class ArenaSketches
     /// (lx, ly) the legend's left and foot, both in the sketch box's own pixels; the box's top left goes at (bx, by).
     /// </summary>
     public static void DrawScrap(ShellFrame frame, byte[] art, (int X, int Y) paperAt, string stem, ArenaSketch s, int bx, int by,
-        Rect2I scrap, string legend, int lx, int ly, int cap, Color legendInk)
+        Rect2I scrap, string legend, int lx, int ly, int cap, Color legendInk, Func<int, bool, byte[]>? inks = null)
     {
         bool modern = frame.Modern;
         int k = modern ? Scale : 1;
@@ -209,7 +209,8 @@ public static class ArenaSketches
             return;
         }
         int W = canvas.Size.X * k, H = canvas.Size.Y * k;
-        var ink = InkLayer(s, stem, k, !modern);
+        // (a caller's own ink layer, k texels a pixel and the sketch's box in size: the roguetrip's job map with its marks)
+        var ink = inks?.Invoke(k, !modern) ?? InkLayer(s, stem, k, !modern);
         int iw = s.BoxWidth * k, ih = s.BoxHeight * k;
         var lg = PrintedType.Coverage(legend, cap, PrintedType.Face.Hand, k, modern);
         // a degree or two either way, the same for an arena every time

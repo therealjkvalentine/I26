@@ -10,6 +10,8 @@
     <EmbeddedResource Include="Remix/Scenarios/*.yaml" LogicalName="remix/%(Filename)%(Extension)" />
     <EmbeddedResource Include="Remix/Nodes/*.yaml" LogicalName="remix-nodes/%(Filename)%(Extension)" />
     <EmbeddedResource Include="Remix/Region/*.yaml" LogicalName="remix-region/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Remix/Voice/lines.json" LogicalName="remix-voice/lines.json" />
+    <EmbeddedResource Include="Remix/Voice/places.yaml" LogicalName="remix-voice/places.yaml" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="I76.Formats.Tests" />

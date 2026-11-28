@@ -1,0 +1,14 @@
+# What a node table's place is, in the words a spoken line can say (docs/remix-missions.md "Spoken lines"), written by hand
+# from the tables' own descriptions: a place is tagged only when it IS that kind of place ("the Pecos bridge on 380"), never
+# when it is beside or near one ("the riverbed north of the bridge"). Keys are a table's start, node, cluster or route names
+# (a route's tag is its end's). "on 380": on that road.
+t01: {barn: [water tower]}
+t05: {canyon_floor: [bridge]}
+t07: {on_380: [on 380], east: [on 380], roadside: [on 380]}
+t08: {east_380: [on 380], west_380: [on 380], mid_380: [on 380], plains: [warehouse], into_plains: [warehouse]}
+t09: {east_pumps: [oil field], northeast: [oil field], east_track: [oil field], west_pumps: [oil field], round_the_south: [oil field]}
+t10: {east_380: [on 380], before_roadblock: [on 380], tatum_road: [on 380], billboard: [on 380], east_end: [on 380], tatum: [tatum]}
+t11: {east_380: [on 380], west_380: [on 380], bridge: [bridge, on 380], under_bridge: [bridge], east_on_380: [on 380]}
+t14: {truckstop: [truck stop], county_line: [county line]}
+t15: {pumps: [oil field], northeast: [oil field], northeast_pumps: [oil field], to_the_middle_pumps: [oil field]}
+t17: {north_pumps: [oil field], middle: [oil field], east_pumps: [oil field], south: [oil field]}

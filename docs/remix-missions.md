@@ -475,6 +475,48 @@ towns, the trip maps' places, all typed by hand from real geography) with the of
 pencil, and beside it the offers and the chosen one's own map (its whole-map sketch and marks) and notes. Up, Down, 1-3 or a click on
 a ring or a box choose; Enter or a second click takes the job.
 
+Its layout (`RoguetripLayout`, game/Scripts/Shell; held by `RoguetripLayoutTests` over rolled runs on every map, each offer chosen):
+
+- **Words placed, none on another.** Each town's name, highway number and state name is printed beside its mark as the stock forms print
+  their labels (Arial Bold capitals, 6 px high; the cell the small sans's measure scaled by 0.86): the four sides of the dot, then the
+  corners, then further out, the first place
+  that lies inside the region's box, on no word, offer ring or other mark, crossing the fewest lines. The named towns, the through
+  highways' numbers and the states are always placed; a quiet town's name (SEAGRAVES, TAHOKA...) only where it touches no line, and a
+  short spur's number (82) only where there is room. A town under an offer's ring loses its dot, not its name (the ring's number is there).
+- **Drawn at the screen's resolution.** In the modern look the lines, dots and rings are a layer of their own (`RoguetripMapLayer`),
+  antialiased at any window size (3440 x 1440 included), and the printed words go to the text layer; the highways a lighter brown.
+  The 1997 look draws the same plan into the 640 x 480 pixels.
+- **Written by hand, printed by type.** What a person wrote on the form is in its hand (font 0x44, as the stock forms' entries): the run
+  line, each offer's title and words, the chosen job's notes. What is printed is in the forms' printed lettering: the title, the buttons,
+  the map's words, the scrap's marks.
+- **The offers wrapped whole.** An offer's first line (number, map, job, challenge) wraps at spaces, so the challenge stands whole; its
+  words follow, every line of them; the chosen job's notes sit whole at the column's foot, and the job's map takes the room between (93
+  px high at the least over the test's runs). The region is as wide as its map (268 px), the column the rest (306 px).
+- **The job's map on a scrap of paper**, laid on the sheet as the melee host form lays its arena's (`ArenaSketches.DrawScrap`: the
+  sheet's paper lightened, torn edges, turned a degree or two, a shadow; the map's name in the hand under it). Its marks are red rings;
+  marks within a ring's width share one ring and its words ("START / HOME"; three or more, or a long pair, each word on its own beside
+  it); every word is placed clear of the others' rings and words, as little on the sketch's ink as it can, inside the scrap.
+- **The stock forms' lettering.** The title (ROGUETRIP, JOB WON...) is set as the scenario form's AUTO MELEE · DRIVER ENTRY FORM is
+  (Arial Bold at its height, `ArtButtons.Letter`), and the buttons are that form's ENTER AREA button, resized, lettered as its label is,
+  in both looks.
+
+**The car pick** (the scenario form) says what it is: the list's header SCENARIOS is lettered ROGUETRIP on its bar, and "Lightest car to
+win:" (a scenario's record) is "Drives every job of the run:", with "its damage carries / from job to job" in the form's hand under it,
+each word lettered as the art's own (no new art).
+
+**A road atlas under the region (optional).** The drawn map stands alone; a player who has a scanned road map of the country may lay it
+under the region: put the picture in the user folder's `remix` folder as `roguetrip-atlas.png` (or `.jpg`, `.webp`) with
+`roguetrip-atlas.txt` beside it, the picture's control points, one a line: `latitude longitude x y` (degrees, north and east positive;
+the picture's pixels from its top left; `#` starts a comment), three or more, towns whose dots are easy to find. The game fits an affine
+map from latitude and longitude to the picture by least squares (`RoguetripLayout.AtlasFit`; the game log says how near the fit comes
+to its own points), resamples the region box's part of it off the main thread (4 texels a pixel; a 7000 px scan takes a second or
+two), takes its paper (the brightest tenth's level) to white and fades its edges over 6 px, and keeps the result beside it
+(`roguetrip-atlas.fit-*.png`, named by the picture's size and time and the points), so a later session reads that at once. It is laid
+on the sheet multiplied, as print on paper (the sheet's paper shows through; the 1997 look matches the product to the palette), under
+the trip's maps, the run's road and the offers, which get a halo of paper (the rings' insides cleared) so they read over its roads;
+the region's own lines, towns and words are then left to the atlas. Until the atlas is ready (being read), and without it or when it
+cannot be read, the drawn map shows; the screen draws itself again the moment it is ready. Nothing of an atlas ships.
+
 ### Template `ambush`
 
 The owner: "there are some opportunities for us to be the ones ambushing instead of the creepers". The player starts at a place
@@ -549,3 +591,63 @@ server's `NetMeleeServer.Roguetrip.cs`; the game's `MainNetRoguetrip.cs`, `Rogue
   hash (113 jobs: 12 runs, the first two jobs' offers, crews of 1, 2 and 4); another build refused naming both; a build without the bit turned
   away; two players through two jobs with the guest's damage carried; a leaver mid-job, one killed then the whole crew killed ending the
   run and a new run; a run saved after a bust resumed by one player with the host's carried car.
+
+## Spoken lines
+
+The owner: "Eventually we could try to remix the audio files to say different things", "would prefer to use audio recorded from the
+same game when possible", lines short and mostly nameless. A generated job's radio moments say new lines recombined from the game's
+own recorded dialogue (Taurus, Jade, and Groove where the stock game has the player speak), rebuilt at run time from the player's
+install. The splice work (outside the repository) cut and joined the takes and the owner rated them over five rounds; 116 lines are
+in the table (its round-five set): 104 the owner heard and rated good, 11 rebuilt or reworded since from heard pieces but not heard
+whole ("unheard"), 1 okay.
+
+**What is in the repository** (`src/I76.Formats/Remix/Voice/lines.json`, embedded; `RemixVoice`): each line's text (ours: the
+sentence we composed, lettered on screen), its voice and rating, the radio moments it may be said at and what must be true of the job
+for it (its needs), and its recipe in numbers only: per piece the source clip's stem and game (`i76`, `nitro`), the cut's start and
+end in samples at 11025 Hz, where it lands, its gain, fades, an optional high shelf at 1 kHz (the tilt), an optional pitch-keeping
+stretch (WSOLA) and an optional EQ match of a Nitro Pack take toward the 1997 session ([Hz, dB] points, a level, a seeded noise
+floor); per line its length and level; once, the CB treatment (320-3200 Hz, a 3:1 compressor, tanh drive, the static bed and the
+squelch bursts as cuts of clips) and the CRC-32 of every source clip's 8-bit PCM. No audio, no transcript of an original line, no
+ratings. Two recipe options replay a line exactly as it was first heard: the fades before the match filter, and silence from a
+sample on. `tools/remix-voice-table.py APPROVED.json` writes the table from the splice work's approved set; the moments and needs of
+each line are written in that script by hand (a line it does not list stays unused).
+
+**Rebuilt as the job loads** (`game/Scripts/Assets/RemixVoiceBank.cs`, the DSP in `src/I76.Formats/Audio/SpliceRender.cs`): the
+lines the job names are rendered on a worker (their clips read first on the main thread), about 0.1 s for a job's nine; the radio
+plays them by sound name (`rxvt108`: rxv, the voice's letter, the number). A clip whose checksum differs (another release or
+language) or that this machine lacks makes its line silent: its text is lettered all the same. Lines of a Nitro Pack voice play only
+with the Nitro Pack beside the base game (`I76_NITRO_INSTALL` or the places the game looks for the other game); 69 of the 116 build
+from the base game alone. The squelch bursts and two of the three static-bed cuts are Nitro Pack clips: without it the bursts are
+left out and the base game's bed cut loops alone. The renderer is held to the splice work's reference renderer (`RemixVoiceTests`):
+the plain line sample for sample, the radio within 1.5 dB in every 50 ms (its hiss and the match's noise floor are our own seeded
+stream).
+
+**The simulation** sees a line only by its name and its length, the table's (both bursts and their pads counted, whatever this
+machine built), so a job plays the same with or without the audio. Network and co-op games never run generated jobs.
+
+**On screen**: as a line goes on the air, its speaker and words are lettered under the objective's line at the top of the screen
+("Taurus: Get over to the oil field.") for its length and two seconds more; Groove's own lines are said from the player's car, so the
+CB handset comes up as for the stock lines he speaks.
+
+**Which line where** (`RemixVoice.Plan`, called by the director after a job is filled, on a stream of its own from the job's seed: the
+rest of the roll is unchanged). Each template's radio moments (start, contact, each step, reinforcements one by one, counts, the clock,
+the convoy's getaway, a defence's last structure, the win) state what is true of the job then: the place's kind (`place:oil field`,
+from `Voice/places.yaml`: a node table's start, node, cluster or route end tagged by hand only when it IS that kind of place, "the
+Pecos bridge on 380" but not "the riverbed north of the bridge"), `rendezvous` (a home or hideout node away from the start), `clear`
+(a tail lost, a finish with nobody near), `plural` (two cars or more), `police`, `convoy`, `lead:truck` (a milk truck), `count:2/3`,
+`left:120` (two minutes on a clock of three or more), `from:east` (a reinforcement's entry east of where the player is then), and
+so on. A line is said only where its moment is one of its own and every need is a fact; the owner's good lines first, then the
+unheard ones, an okay one only where neither fits; never one line twice in a job; a moment no line fits keeps its stock clip of that intent, or none.
+New radio moments the templates gained for it: a reinforcement's own line (its first car says it), a count as the group reaches it
+("Two down, one to go": a raid's targets, a convoy's escorts after the lead; three or five), the clock (two minutes and 45 seconds
+before a deadline, an escape's or an arrival's time runs out, while that step is open), the convoy's lead alive within 600 m of its
+way out, a defence one structure from lost; none after the win.
+
+**Checked**: `i76 remix voices --seeds 1-300` rolls 300 jobs across the sixteen maps and holds each chosen line to the built
+description itself (`RemixVoiceCheck`: the moment's zone near a place of that kind, the group's real size, the lead's car, the
+clocks), and scans each line's words (a place, a road, a direction, a count, a name) for a need that makes it true: 0 problems.
+About nine in ten radio moments get a spoken line; place lines are rare, as few places are a kind a voice can name. Lines never said
+(they name what no job has: an airfield, Skeeter, civilians, a tanker, 385) are listed with the reason by `i76 remix lines`.
+
+The round-five radio cut (`06sgc15@1625-2895`) never reached the player: the CB queue cut every name at 15 characters, its span
+with it. A cut's name is now kept whole (`CbRadio.Queued`).
