@@ -238,6 +238,12 @@ public enum MsgType : byte
     LobbyName = 65,
     /// <summary>Server → client, reliable ordered (<see cref="PeerFeatures.Roguetrip"/>): the co-op roguetrip's run, route map, job and its hash (<see cref="I76.Net.RoguetripState"/>).</summary>
     RoguetripState = 66,
+    /// <summary>Server → client, reliable ordered (<see cref="PeerFeatures.Roguetrip"/>): a co-op roguetrip's salvage draft and garage step, and this player's garage (<see cref="I76.Net.RoguetripSalvage"/>).</summary>
+    RoguetripSalvage = 67,
+    /// <summary>Client → server, reliable (<see cref="PeerFeatures.Roguetrip"/>): a salvage move: take, pass, done (<see cref="I76.Net.RoguetripMoves"/>).</summary>
+    RoguetripPick = 68,
+    /// <summary>Client → server, reliable (<see cref="PeerFeatures.Roguetrip"/>): the garage done, the player's inventory (<see cref="I76.Net.RoguetripMoves"/>).</summary>
+    RoguetripGarage = 69,
 }
 
 /// <summary>A dead player's new car for the next respawn: a car file, and its .vcf when the server's install may lack it (as a join's configuration).</summary>

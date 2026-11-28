@@ -1451,7 +1451,11 @@ run, builder, job index, map, template, seed, challenge as a double, crew size) 
 job's objectives and the crew's cars (armour, chassis and ammunition left, killed or not). It goes out on every change of the run, with
 every `LobbyState` of the lobby, and before every join accept, so a client has built the job (and checked its hash) before it reads the
 accept, whose mission fingerprint is then checked as for any mission. The host's choices (the pick, CONTINUE, a new run) are in-process
-calls of the listen host (`RoguetripSelect`, `RoguetripContinue`, `RoguetripNewRun`): no message carries them. A joiner without the bit
+calls of the listen host (`RoguetripSelect`, `RoguetripContinue`, `RoguetripNewRun`): no message carries them. Between jobs the salvage
+draft and the garages (`RoguetripDraft`) add three: `RoguetripSalvage` (67, server to each lobby player, reliable ordered: the field with
+each part's id, stem, health and taker, the crew's turns and marks, whose turn and its seconds, the garages' clock, and that player's own
+garage as the host keeps it), `RoguetripPick` (68, client to server: take an id, pass, done) and `RoguetripGarage` (69, client to
+server: the garage, checked as a join's car and made the player's lobby car). A joiner without the bit
 is turned away (`Protocol.RoguetripNeeded`). The seats' respawn delay is `Protocol.CoopNoRespawn` (a killed player is out of the job),
 sent as the accept's own respawn delay; the HUD's death card says so. After a job the plan is always the lobby (`CoopPlan` Lobby): no
 Replay, no Next Mission; the host's Back to Lobby during a job is a bust. Host migration is off for such a game. Protocol 26 and the

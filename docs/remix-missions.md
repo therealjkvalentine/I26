@@ -686,7 +686,7 @@ server's `NetMeleeServer.Roguetrip.cs`; the game's `MainNetRoguetrip.cs`, `Rogue
   BROADCAST GAME hosts it as a co-op game with a lobby (`--host-listen --coop xcoop --coop-lobby` on the command line). The host's run is
   `user://remix/coop-run.yaml` (the run, the crew's cars by name, the route map's pick, the last debrief), apart from the single
   player's `run.yaml`: a run in progress goes on when ROGUETRIP is hosted again, else a new run number (`I76_RUN_NUMBER` for a capture).
-  Host migration is off for it (the run is the host's). A dedicated server does not host one.
+  Host migration is off for it (the run is the host's). A dedicated server does not host one (a design for it: "A dedicated ROGUETRIP").
 - **The route map.** In the lobby the GAME SETUP button is ROUTE MAP (everyone's; R): the run's choice sheet (the region, the offers,
   the chosen offer's own map) drawn from the host's run. The host's Up, Down, 1-3 or a click highlight an offer for everyone; Enter or
   TAKE THE JOB goes back to the lobby, where START plays the highlighted one. A guest's sheet follows the host's highlight and says the
@@ -714,10 +714,30 @@ server's `NetMeleeServer.Roguetrip.cs`; the game's `MainNetRoguetrip.cs`, `Rogue
   1.75, three 2.5, four 3.25); the director's fill adds cars to its groups (14 at most). Measured at challenge 1.0, one job of each
   template: 5 to 9 hostile cars for one, 7 to 11 for two, 11 to 14 for four (run 4242's first offer, an ambush at 0.8: 5 and 10).
   Co-op Scaling (EXTRA ENEMIES) still copies on top when the host sets it.
-- **Between jobs.** No field salvage or garage in co-op (the trip's screens are one player's inventory): after a won job each car still
-  running has 30 % of its full armour patched on (the weakest side first, `RemixRun.Patch`'s way) and its guns reloaded; a bust carries
-  the damage as it is. After each job everyone goes back to the lobby (`CoopPlan` Lobby after the hold), where the debrief shows: how it
+- **Between jobs: the salvage.** A won job's wrecks are one shared field (the server's `SalvagePool.Roguetrip` from the job's dead
+  cars, the players' own left out, plus the template's prize; each part's condition rolled once on the host, so every machine sees the
+  same part at the same health). Past the debrief (the host's CONTINUE) every game opens the FIELD SALVAGE screen, the single
+  player's, on the player's own garage with the field laid in (`NetMeleeServer.RoguetripSalvage.cs`, `GarageScreens.Coop.cs`). Picks go
+  in turns round the crew (`RoguetripDraft`): the turn is the player with the fewest turns had who is still picking, the host first on a
+  tie; a click on a field part on your turn takes it (into your van, on the host), and it is gone from everyone's list at once; 20 s a
+  turn, then it passes; ACCEPT SALVAGE ends your picking. The line under the lists says whose pick it is and the seconds left. The car's
+  own parts cannot be scrapped in co-op. When everyone is done (or the field is empty) each player's GARAGE (the single player's) fits
+  and repairs their own car; DONE sends the garage to the host, which checks it as a join's car and makes it the player's lobby car (a
+  configuration served by its content). 150 s for the garages together, then the route map. What nobody took is scrap: each surviving
+  car gets the plate of an equal share of it (`CoopRun.Plate`: a tenth of full armour a part, `RemixRun.Patch`'s way), or 30 % of its
+  full armour if that is more (the pass-one patch, kept as the floor), and its guns reloaded. A bust has no salvage and carries the
+  damage as it is. After each job everyone goes back to the lobby (`CoopPlan` Lobby after the hold), where the debrief shows: how it
   ended, the objectives as they stood, the crew's cars.
+- **Garages by name.** The host keeps each player's garage (the trip's `TripInventory`) in `coop-run.yaml` (`inventory`, and the
+  install car it was made from, `model`). At each job's end it takes the car's parts as the job left them (a car killed keeps its garage
+  and comes back at the floor). The next job seats a player in their garage's car, its parts as the garage left them, then the armour
+  carried. A player who chooses another car in the lobby starts a new garage; a resumed player (by name) gets their garage's car back as
+  their lobby car when they join; a player new to the run starts in their own car as built. A game closed during a salvage loses its
+  field (the resumed run goes to the choice); the garages are kept.
+- **The wire.** Behind `PeerFeatures.Roguetrip` (protocol still 26): 67 `RoguetripSalvage` (server to each lobby player: the field
+  with each part's taker, the crew's turns and marks, whose turn and its seconds, the garages' clock, that player's own garage), 68
+  `RoguetripPick` (take, pass, done), 69 `RoguetripGarage` (the garage). Host and guest builds must both have them; a build without the
+  bit is already turned away from a ROGUETRIP game.
 - **Coming and going.** A player who leaves mid-job does not end it (co-op's `CoopLeave`); their car keeps what it carried into the job.
   Joining between jobs is joining the lobby; mid-job, a late joiner comes in as in any co-op mission, in a fresh car, having built the
   job from the state sent before its accept.
@@ -729,8 +749,21 @@ server's `NetMeleeServer.Roguetrip.cs`; the game's `MainNetRoguetrip.cs`, `Rogue
   deaths, one of two killed goes on and both killed is a death.
 - **Tests.** `RoguetripCoopTests` (Net): the state's round trip; the host's and a client's builds of every job equal byte for byte and by
   hash (113 jobs: 12 runs, the first two jobs' offers, crews of 1, 2 and 4); another build refused naming both; a build without the bit turned
-  away; two players through two jobs with the guest's damage carried; a leaver mid-job, one killed then the whole crew killed ending the
+  away; two players through two jobs with the guest's damage carried and a salvage draft between them (the field equal on the host and
+  both clients after every pick, a pick out of turn refused, the plate); the draft's turns, timer, READY and leaver (`TheDraftGoesRoundTheCrew`);
+  a run resumed after a salvage with both garages and an engine fitted; a leaver mid-job, one killed then the whole crew killed ending the
   run and a new run; a run saved after a bust resumed by one player with the host's carried car.
+
+### A dedicated ROGUETRIP (designed, not built)
+
+The rule: on a dedicated server the **lead** chooses: the first player in the lobby (the earliest join still there; when the lead
+leaves, the next earliest). The lead's route map is the listen host's (highlight, TAKE THE JOB, CONTINUE, DONE for a new run) and the
+lead's START starts the job; the salvage draft's tie-break is the lead first. What it needs: `i26-server --coop xcoop --roguetrip DIR`
+(the run file in DIR, `PrepareRoguetrip` as now); a client-to-server `RoguetripChoose` (select K, continue, new run, start) honoured
+only from the lead, behind the same bit; `LobbyState`'s host byte (or a new field) naming the lead so the lead's game shows the host's
+controls and the lobby's START, while kicking and the game's settings stay off for the lead; and the ROGUETRIP row's capture hooks on
+the lead instead of a listen host. Not built in this pass: the lobby's START and the host's buttons are tied to the listen host in
+several places of the lobby screen and the server's lobby, and a stand-in for the host there is a change of its own.
 
 ## Spoken lines
 

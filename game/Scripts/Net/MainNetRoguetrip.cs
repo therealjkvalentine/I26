@@ -167,3 +167,46 @@ public partial class Main
         RoguetripShot($"lobby-job{st.Legs.Count + (st.Phase == "choose" ? 1 : 0)}-{st.Phase}");
     }
 }
+
+public partial class Main
+{
+    private I76.Game.Shell.CoopSalvage? _coopSalvage;
+
+    /// <summary>The salvage draft's screens' view for this player (one per draft: a new one after the last closed), or null outside a draft.</summary>
+    private I76.Game.Shell.CoopSalvage? RoguetripSalvageFlow(MeleeClient c)
+    {
+        if (c.Salvage is null) { _coopSalvage = null; return null; }
+        return _coopSalvage ??= new I76.Game.Shell.CoopSalvage
+        {
+            State = () => c.Salvage,
+            Me = () => c.Lobby?.Me?.Name ?? _opt.PlayerName ?? "",
+            Car = () => c.Lobby?.Me?.Car is { } car && car != Protocol.MissionCar ? car : c.Lobby?.OwnCar ?? "",
+            Send = (k, id) => { GD.Print($"network: roguetrip salvage: {k} {id}"); c.SendPick(k, id); },
+            SendGarage = json => { GD.Print($"network: roguetrip: the garage done ({json.Length} bytes)"); c.SendGarage(json); },
+        };
+    }
+}
+
+public partial class Main
+{
+    /// <summary>
+    /// I76_ROGUE_WRECK=F (a capture hook, on a listen host of a co-op roguetrip): at frame F of each job (as I76_END_MISSION counts), up to four of the job's
+    /// cars die the damage model's death (their wrecks feed the salvage, as the crew's kills would).
+    /// </summary>
+    private static readonly int RogueWreck = int.TryParse(System.Environment.GetEnvironmentVariable("I76_ROGUE_WRECK"), out int rw) ? rw : 0;
+    private object? _rogueWrecked;
+
+    private void RoguetripWreck()
+    {
+        if (RogueWreck == 0 || _net?.Server is not { Roguetrip: { Run.Phase: "playing" } } server) return;
+        server.Invoke(h =>
+        {
+            if (ReferenceEquals(_rogueWrecked, h) || _frames < RogueWreck) return 0;
+            _rogueWrecked = h;
+            var cars = h.Setup.Entities.Where(e => e.Vehicle is { } v && !h.Setup.World.IsHuman(v) && !v.IsHeli && !v.IsEmplacement && !I76.Sim.Damage.DamageModel.IsDead(v)).Take(4).ToList();
+            foreach (var e in cars) h.Setup.Damage.Die(e.Vehicle!, true);
+            GD.Print($"network: I76_ROGUE_WRECK: {cars.Count} cars wrecked at frame {_frames}, tick {h.Tick}");
+            return cars.Count;
+        });
+    }
+}

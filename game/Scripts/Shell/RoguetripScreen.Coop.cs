@@ -32,7 +32,7 @@ public sealed partial class RoguetripScreen
         : v.Host ? "You choose for everyone. Enter: back to the lobby, then START."
         : "The host chooses (the red ring). Esc: back to the lobby.";
 
-    private static string CoopWonNext => "Next: every car still running gets 30 % armour patched on and its guns reloaded; then the route map.";
+    private static string CoopWonNext => "Next: the salvage. Take parts from the wrecks in turns, then fit your car; what nobody takes is scrap plate (30 % at least).";
 
     /// <summary>The co-op sheet's entry: drawn from the host's run (true), or the single player's (false).</summary>
     private bool CoopEnter()
@@ -62,6 +62,8 @@ public sealed partial class RoguetripScreen
     {
         if (CoopView is not { } v) return false;
         CoopSync(false);
+        // a won job's salvage has begun: back to the lobby, which opens the salvage screens
+        if (Run.Phase == "salvage") { v.Close(); return true; }
         foreach (var k in Shell.Keys)
         {
             if (k is Key.Escape) { Shell.Sound(82); v.Close(); return true; }

@@ -600,6 +600,7 @@ public sealed partial class NetMeleeServer : IDisposable
             Send();
             MigrationTick();
             CoopEndTick();
+            RoguetripSalvageTick();
             if (Host.Over && CarriesOn && OverAt is { } over && (_skipPause || Now - over >= Options.RoundPause)) StartNextRound();
             PumpMaps();
             _net.TriggerUpdate();

@@ -140,6 +140,25 @@ internal static class SpawnSpace
     }
 
 
+
+    /// <summary>The solid-parts test a co-op seat is held to (<see cref="InsideStructure"/>).</summary>
+    internal static bool InsideSolid(SimWorld world, System.Numerics.Vector3 at, float r) => InsideStructure(world, at, r);
+
+    /// <summary>Whether a point stands under a placement: within the ground-plane bounds of its boxes and faces (its footprint).</summary>
+    internal static bool Under(Collision.StaticObject o, System.Numerics.Vector3 at)
+    {
+        float minX = float.MaxValue, maxX = float.MinValue, minZ = float.MaxValue, maxZ = float.MinValue;
+        foreach (var poly in o.Polys.Concat(o.Surfaces))
+            foreach (var q in poly.V) { minX = System.MathF.Min(minX, q.X); maxX = System.MathF.Max(maxX, q.X); minZ = System.MathF.Min(minZ, q.Z); maxZ = System.MathF.Max(maxZ, q.Z); }
+        foreach (var b in o.Boxes)
+            foreach (var cx in new[] { b.Min.X, b.Max.X })
+                foreach (var cz in new[] { b.Min.Z, b.Max.Z })
+                {
+                    var w = b.Origin + b.Rot.ToWorld(new System.Numerics.Vector3(cx, 0, cz));
+                    minX = System.MathF.Min(minX, w.X); maxX = System.MathF.Max(maxX, w.X); minZ = System.MathF.Min(minZ, w.Z); maxZ = System.MathF.Max(maxZ, w.Z);
+                }
+        return at.X >= minX && at.X <= maxX && at.Z >= minZ && at.Z <= maxZ;
+    }
     /// <summary>
     /// Co-op's formation (docs/multiplayer.md "Co-op"): slots in the anchor car's frame, in steps of a car's clearance
     /// (2r + 1, as the spawn spread), about the nearest first: straight behind it, behind it to either side, beside it,
@@ -228,6 +247,17 @@ internal static class SpawnSpace
         right = System.Numerics.Vector3.Normalize(right);
         fwd = System.Numerics.Vector3.Normalize(fwd);
         var centre = new System.Numerics.Vector3((float)a.X, h0, (float)a.Z);
+        // a start inside or under a structure (a barn, a canopy, a yard: a generated job's place of note): the crew lines up in file
+        // behind the lead on the structure's own floor where it has room (the formation keeps out of structures, so it put them outside)
+        if (world.Ground is Collision.IHasStatics shs && shs.World.Objects.Any(o => o.Solid && Under(o, centre)))
+            foreach (var (i, j) in Sheltered)
+            {
+                var at = centre + right * (i * step) + fwd * (j * step);
+                if (!OpenFloor(shs.World, centre, at, i == 0 ? right : fwd, r)) continue;   // a wall or a pump island between: not there
+                var on = OnGround(world, new Double3(at.X, h0, at.Z));
+                if (System.MathF.Abs(on.Y - h0) > SpreadRise || !Clear(world, on, r, v)) continue;
+                return new Double3(on.X, on.Y, on.Z);
+            }
         var ways = Ways(world, anchor, paths);
         System.Numerics.Vector3? best = null;
         float bestRoom = float.MinValue;
@@ -242,8 +272,74 @@ internal static class SpawnSpace
             if (room > bestRoom) { bestRoom = room; best = on; }
         }
         if (best is { } b) return new Double3(b.X, b.Y, b.Z);
-        var spot = SpreadFrom(world, anchor.Rot, a, v) ?? new Double3(centre.X - fwd.X * 2 * step, h0, centre.Z - fwd.Z * 2 * step);
-        spot.Y = world.Ground.Query(spot.X, spot.Y + 2, spot.Z).Height;
-        return spot;
+        if (SpreadFrom(world, anchor.Rot, a, v) is { } spread) { spread.Y = world.Ground.Query(spread.X, spread.Y + 2, spread.Z).Height; return spread; }
+        // nothing standable: the first formation slot clear of the other cars (never two cars on one spot: a crew of four under T06's
+        // awning was put down on one point), else further back in file until one is
+        foreach (var (i, j) in Formation)
+        {
+            var at = centre + right * (i * step) + fwd * (j * step);
+            if (world.Ground.Impassable(at.X, at.Z)) continue;
+            var on = OnGround(world, new Double3(at.X, h0, at.Z));
+            if (Clear(world, on, r, v)) return new Double3(on.X, on.Y, on.Z);
+        }
+        for (int k = 7; ; k++)
+        {
+            var on = OnGround(world, new Double3(centre.X - fwd.X * k * step, h0, centre.Z - fwd.Z * k * step));
+            if (Clear(world, on, r, v) || k > 40) return new Double3(on.X, on.Y, on.Z);
+        }
+    }
+
+
+    /// <summary>The slots tried under a structure, in the lead's frame: in file behind it, then abreast, then behind abreast.</summary>
+    private static readonly (int Right, int Ahead)[] Sheltered = [(0, -1), (0, -2), (0, -3), (1, 0), (-1, 0), (1, -1), (-1, -1), (1, -2), (-1, -2)];
+
+    /// <summary>
+    /// The nearest solid part a ray at a car's height meets (the front of a face, a box it enters, a sphere), or null; a box the ray starts in
+    /// is no wall in its way (Fort Davis's yard stands inside the one box over the fort).
+    /// </summary>
+    private static float? RayFloor(Collision.StaticWorld statics, System.Numerics.Vector3 o, System.Numerics.Vector3 d, float max)
+    {
+        float best = float.MaxValue;
+        foreach (var s in statics.Objects)
+        {
+            if (!s.Solid) continue;
+            float reach = System.MathF.Max(s.BoundRadius, s.Radius) + 2;
+            var rel = s.Centre - o;
+            float along = System.Numerics.Vector3.Dot(rel, d);
+            if (along < -reach || along - reach > max || (rel - d * along).LengthSquared() > reach * reach) continue;
+            foreach (var p in s.Polys)
+            {
+                float den = System.Numerics.Vector3.Dot(p.N, d);
+                if (den > -1e-5f) continue;
+                float t = -(System.Numerics.Vector3.Dot(p.N, o) + p.D) / den;
+                if (t < 0 || t > best || t > max) continue;
+                if (Collision.StaticWorld.Inside(p, o + d * t)) best = t;
+            }
+            if (Collision.StaticWorld.RayBoxes(s.Boxes, o, d, max) is { } hb && hb.T < best) best = hb.T;
+            if (s.Type == 4 && s.SphereRadius > 0 && Collision.StaticWorld.RaySphere(s.Centre, s.SphereRadius, o, d, max) is { } hs && hs.T < best) best = hs.T;
+        }
+        return best < float.MaxValue ? best : null;
+    }
+    /// <summary>
+    /// Whether the floor from <paramref name="from"/> to <paramref name="to"/> is open at a car's height under a structure: no solid part across
+    /// the file between them (its middle and its sides a car's half-width out), nor within a car's length past it.
+    /// </summary>
+    internal static bool OpenFloor(Collision.StaticWorld statics, System.Numerics.Vector3 from, System.Numerics.Vector3 to, System.Numerics.Vector3 right, float r)
+    {
+        var d = to - from;
+        float len = d.Length();
+        if (len < 1e-3f) return true;
+        d /= len;
+        foreach (float side in new[] { 0f, -r * 0.8f, r * 0.8f })
+            foreach (float hgt in new[] { 0.7f, 1.5f })
+            {
+                var o = from + right * side + new System.Numerics.Vector3(0, hgt, 0);
+                if (RayFloor(statics, o, d, len + r) is not null) return false;
+            }
+        // and across the slot itself, side to side
+        var c = to + new System.Numerics.Vector3(0, 1f, 0) - right * r;
+        // (a lead itself "inside" a collider, as in Fort Davis's yard, which one box covers: only the rays say there is floor)
+        bool leadInside = Terrain.PlaytestSpawn.Inside(statics, from + new System.Numerics.Vector3(0, 1f, 0));
+        return RayFloor(statics, c, right, 2 * r) is null && (leadInside || !Terrain.PlaytestSpawn.Inside(statics, to + new System.Numerics.Vector3(0, 1f, 0)));
     }
 }

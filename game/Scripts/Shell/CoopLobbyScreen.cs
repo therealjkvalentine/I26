@@ -48,6 +48,8 @@ public sealed class CoopLobbyScreen : ShellScreen
     public Func<RoguetripState?>? Roguetrip { get; init; }
     /// <summary>The route map's view of the run for this player (the host's choices to its server), opened by ROUTE MAP.</summary>
     public Func<RoguetripCoopView?>? RouteMap { get; init; }
+    /// <summary>A co-op roguetrip's salvage draft and garage for this player (null until the host's draft has come).</summary>
+    public Func<CoopSalvage?>? SalvageFlow { get; init; }
     public override bool EscapeOpensOptions => false;
 
     // the join form's hotspots (MeleeScreen's table): the list's arrows and rows, MAKE / MODEL, VARIANT, CONFIGURE CHASSIS, JOIN GAME, CANCEL and
@@ -247,12 +249,24 @@ public sealed class CoopLobbyScreen : ShellScreen
         Shell.Go(new RoguetripScreen { Run = st.ToRun(view.Me()), CoopView = view });
     }
 
+
+    /// <summary>A won job's salvage: the field salvage screen over the lobby, this player's garage after it; back to the lobby when it closes.</summary>
+    internal void OpenSalvage(CoopSalvage co)
+    {
+        _routePhase = "salvage";
+        co.Close = Back;
+        Shell.Overlay(null);
+        co.Changed();
+        Shell.Go(new FieldSalvageScreen { Own = co.Inventory(Shell), Coop = co });
+    }
     /// <summary>The debrief, or the run's end, has come since the sheet was last opened: it opens by itself on every game.</summary>
     private bool RouteDue()
     {
         if (!CanRoute || Roguetrip!.Invoke() is not { } st) return false;
         if (st.Phase == _routePhase) return false;
         if (st.Phase is "debrief" or "over" or "done") return true;
+        // a won job's salvage: the draft's screens open on every game once the host's draft has come
+        if (st.Phase == "salvage") return SalvageFlow?.Invoke() is not null;
         _routePhase = st.Phase;
         return false;
     }
@@ -379,7 +393,7 @@ public sealed class CoopLobbyScreen : ShellScreen
         if (Shell.Keys.Contains(Key.Escape)) { Quit(); return; }
         if (Shell.Keys.Contains(Key.S) && CanSetUp) { Shell.Sound(82); OpenSetup(); return; }
         if (Shell.Keys.Contains(Key.R) && CanRoute) { Shell.Sound(82); OpenRoute(); return; }
-        if (RouteDue()) { OpenRoute(); return; }
+        if (RouteDue()) { if (Roguetrip!.Invoke() is { Phase: "salvage" } && SalvageFlow?.Invoke() is { } sco) OpenSalvage(sco); else OpenRoute(); return; }
         if (Shell.Keys.Contains(Key.Enter) || Shell.Keys.Contains(Key.KpEnter)) { _typing = true; _line = ""; Draw(); return; }
         if (Shell.Keys.Contains(Key.Down)) { Select(s, 1); redraw = true; }
         if (Shell.Keys.Contains(Key.Up)) { Select(s, -1); redraw = true; }
