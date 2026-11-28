@@ -130,7 +130,8 @@ public partial class StaticFire : Node3D
         if (!on) return;
         float t = (float)Time.GetTicksMsec() / 1000f + _phase;
         float flick = 0.72f + 0.12f * Mathf.Sin(t * 13.1f) + 0.09f * Mathf.Sin(t * 7.3f + 1.3f) + 0.07f * Mathf.Sin(t * 23.7f + 4.1f);
-        _light.LightEnergy = 3.4f * flick;
+        _light.LightEnergy = 3.4f * flick * ThrownLight.EffectNow;   // Graphic Detail's Thrown Light
+        _light.LightCullMask = ThrownLight.MaskNow();
         _light.Visible = lit;
     }
 }

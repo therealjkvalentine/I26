@@ -66,7 +66,8 @@ public partial class DamageSmoke : Node3D
     // Haze: past its life under Smoke Linger Long (SmokeHaze): S its size, K its growth (area a second), Mass its smoke (density times
     // area), Into the puff it is handing its smoke to (-1 none) and Mass0 what it had when it began to; an adopted one (Adopt) Waits
     // that long in the haze, unseen and still, then shows over FadeIn
-    private struct MPuff { public bool Live, Far, Haze; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Dark, Seed, Lift, S, K, Mass, Mass0, Wait, FadeIn; public int Into; }
+    private struct MPuff { public bool Live, Far, Haze; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Dark, Seed, Lift, S, K, Mass, Mass0, Wait, FadeIn, Gone; public int Into; }
+    // Gone: seconds left of its fade when the pool takes it back (SmokeFade.Retire; 0 none)
     private readonly MPuff[] _mp = new MPuff[CapM];
     private int _mnext;
     private readonly Dictionary<CarNode, (float Level, double Carry)> _lvl = [];
@@ -92,16 +93,26 @@ public partial class DamageSmoke : Node3D
             var at = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
             float lf, size, dens;
             if (p.Haze) { lf = SmokeHaze.ShaderAge(p.Age - p.Life, p.Life); size = p.S; dens = SmokeHaze.Visible(p.Dens, threshold) * SmokeHaze.In(p.Age - p.Life - p.Wait, p.FadeIn); }
-            else { lf = p.Age / p.Life; size = SmokeHaze.PuffSize(0.8f, p.End, lf); dens = p.Dens; }
+            else (lf, size, dens) = Young(p);
+            dens *= SmokeFade.Retire(p.Gone);
             if (SmokeLayer.MirrorPuff(_mirrorBuf, n * 16, at, size, lf, dens, p.Dark, p.Seed, p.Haze, p.Far ? SmokeWindow.WreckFar : SmokeWindow.ModernTrailFar, eye)) n++;
         }
         return n;
+    }
+    /// <summary>
+    /// A puff within its life as drawn: its shader age, size and density. Under Normal it ends with its life, so it swells and fades out
+    /// over the last of it (SmokeFade); under Long it lives on as haze from where it is, so it is drawn as it is.
+    /// </summary>
+    private static (float Life, float Size, float Dens) Young(in MPuff p)
+    {
+        float lf = p.Age / p.Life, size = SmokeHaze.PuffSize(0.8f, p.End, lf);
+        return SmokeHaze.On ? (lf, size, p.Dens) : (lf, size * SmokeFade.Swell(lf), p.Dens * SmokeFade.Out(lf));
     }
     private readonly MultiMesh[] _slabMm = new MultiMesh[SlabFar.Length];
     private readonly float[][] _slabBuf = new float[SlabFar.Length][];
     private ShaderMaterial _matM = null!;
     private DirectionalLight3D? _sun;
-    private readonly float[] _keyM = new float[CapM], _shown = new float[CapM];
+    private readonly float[] _keyM = new float[CapM], _shown = new float[CapM], _edge = new float[CapM];
     private static readonly bool Stats = System.Environment.GetEnvironmentVariable("I76_SMOKE_STATS") == "1";
     /// <summary>I76_SMOKE_HAZE_AB=1: the haze is drawn in alternate 1.5 s spans of the stopwatch (FrameProfiler's clock), for its cost measured within one run.</summary>
     private static readonly bool HazeAb = System.Environment.GetEnvironmentVariable("I76_SMOKE_HAZE_AB") == "1";
@@ -370,6 +381,8 @@ public partial class DamageSmoke : Node3D
         {
             ref var p = ref _mp[i];
             if (!p.Live) continue;
+            // taken back by the pool: faded out over SmokeFade.RetireSeconds, then gone
+            if (p.Gone > 0f && (p.Gone -= (float)dt) <= 0f) { p.Live = false; continue; }
             if ((p.Age += (float)dt) >= p.Life)
             {
                 // Smoke Linger Long: past its life the puff spreads on as a thinning haze (SmokeHaze), and goes only once it is faint
@@ -390,6 +403,11 @@ public partial class DamageSmoke : Node3D
         }
         _liveM = liveM;
         _hazeLive = haze;
+        // the pool near full: the puffs the ring reaches next fade out now, so no puff is cut short while it shows
+        int pool = hazeOn ? CapM : SmokeLinger.Pool(CapBase);
+        if (SmokeFade.Crowded(liveM, pool))
+            for (int k = 0, at = _mnext % pool; k < SmokeFade.RetireAhead(pool); k++, at = (at + 1) % pool)
+                if (_mp[at].Live && _mp[at].Gone <= 0f) _mp[at].Gone = SmokeFade.RetireSeconds;
         if (hazeOn && haze > 1) Merge();
         DrawModern();
     }
@@ -559,6 +577,9 @@ public partial class DamageSmoke : Node3D
         int pool = CapM;
         s._mnext %= pool;
         for (int tries = 0; tries < 64 && s._mp[s._mnext].Live && s._mp[s._mnext].Haze; tries++) s._mnext = (s._mnext + 1) % pool;
+        // as EmitModern: never a slot still showing
+        for (int tries = 0; tries < 256 && s._mp[s._mnext].Live; tries++) s._mnext = (s._mnext + 1) % pool;
+        if (s._mp[s._mnext].Live) return;
         ref var p = ref s._mp[s._mnext];
         s._mnext = (s._mnext + 1) % pool;
         life = MathF.Max(life, 0.5f);
@@ -600,6 +621,9 @@ public partial class DamageSmoke : Node3D
         // under Smoke Linger Long the ring passes over the haze (a haze puff is not cut short for a new one; the merging keeps them few)
         _mnext %= pool;
         for (int tries = 0; tries < 64 && _mp[_mnext].Live && _mp[_mnext].Haze; tries++) _mnext = (_mnext + 1) % pool;
+        // a slot still showing is never taken: the next free one, else the puff is not made (the pool retires its oldest ahead of the ring)
+        for (int tries = 0; tries < 256 && _mp[_mnext].Live; tries++) _mnext = (_mnext + 1) % pool;
+        if (_mp[_mnext].Live) return;
         ref var p = ref _mp[_mnext];
         _mnext = (_mnext + 1) % pool;   // the oldest recycled once the linger's share of the pool is full
         // only a little of the car's velocity: the rest it leaves behind. Spawned along the frame's travel
@@ -653,6 +677,7 @@ public partial class DamageSmoke : Node3D
                 _shown[i] = shown;
                 cover += SmokeHaze.Cover(p.S, depth, tanHalf, aspect);
             }
+            else _edge[i] = SmokeFade.Edge(depth, far);   // a young puff thins toward the end of its draw distance too
             _keyM[cnt] = -depth; _idxM[cnt++] = i;   // ascending -depth: far to near
         }
         // the budget: over it the threshold rises, eased, so the faintest haze fades out first
@@ -665,7 +690,8 @@ public partial class DamageSmoke : Node3D
             ref var p = ref _mp[_idxM[j]];
             float lf, size, dens;
             if (p.Haze) { lf = SmokeHaze.ShaderAge(p.Age - p.Life, p.Life); size = p.S; dens = _shown[_idxM[j]]; }
-            else { lf = p.Age / p.Life; size = SmokeHaze.PuffSize(0.8f, p.End, lf); dens = p.Dens; }
+            else (lf, size, dens) = Young(p);
+            dens *= SmokeFade.Retire(p.Gone) * (p.Haze ? 1f : _edge[_idxM[j]]);
             int o = j * 16;
             _layerBuf[o] = size; _layerBuf[o + 3] = (float)(p.X - org.X);
             _layerBuf[o + 7] = (float)(p.Y - org.Y); _layerBuf[o + 11] = -(float)(p.Z - org.Z);

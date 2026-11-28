@@ -33,7 +33,8 @@ namespace I76.Game.Boot;
 /// and over the player's car looking dyaw degrees from the sun's bearing: 0 into the sun, 180 away), or empty (as the step before; the
 /// cockpit at the start; rear:back,height,pitch[,side]: behind the player's car along its heading, looking along it). mood: as I76_MOOD,
 /// on top of it, and for a step: hide=1 (the player's car hidden, nothing else changed), glow=0|1 (Glow, as I76_GLOW), brake=0|1 (the brake held, as I76_HOLD_BRAKE), lampfix=0 (the
-/// lamps' exposure rule off, LampStrength.ExposureRule: their strength as before it).
+/// lamps' exposure rule off, LampStrength.ExposureRule: their strength as before it), lights=0|1 (the player's headlamps switched, by day too), tl=original|bright
+/// (the thrown light, ThrownLight).
 /// </summary>
 public partial class Main
 {
@@ -293,12 +294,17 @@ public partial class Main
             if (_mood.TryGetValue("glow", out var gv)) System.Environment.SetEnvironmentVariable("I76_GLOW", gv);
             I76.Game.Sim.LampStrength.ExposureRule = !(_mood.TryGetValue("lampfix", out var lf) && lf == "0");
             if (_mood.TryGetValue("brake", out var bv)) I76.Game.Sim.SimDriver.HoldBrake = bv == "1";
+            // tl=original|bright: Graphic Detail's Thrown Light for the step (ThrownLight)
+            if (_mood.TryGetValue("tl", out var tlv)) I76.Game.Sim.ThrownLight.Bright = tlv == "bright";
+            // lights=0|1: the player's headlamps switched for the step (by day too: a capture of the lamps' light by day)
+            if (_mood.TryGetValue("lights", out var lv) && _sim?.World.Player is { } lp)
+                lp.Flags = lv == "1" ? lp.Flags | I76.Sim.Vehicles.VehicleFlags.Lights : lp.Flags & ~I76.Sim.Vehicles.VehicleFlags.Lights;
             // (and the palette grade off for it, which would move the magenta toward the palette)
             System.Environment.SetEnvironmentVariable("I76_PALETTE_GRADE", mk is "1" or "2" ? "0" : PaletteGradeEnv0);
             MoodLightingChoice();
             ApplyLightingCalibration();
             if (!_mode1997 && _modernEnv is not null) EnvExtras.Apply(_modernEnv, _glow, _reflections, IsCard(_lighting) ? (float)I76.Formats.Imaging.LightingCalibration.Headroom : 1f);
-            GD.Print($"shot seq: step {k} {name} cam {cam}");
+            GD.Print($"shot seq: step {k} {name} cam {cam} fov {ActiveCamera.Fov:0.##} daylight {I76.Game.Sim.Daylight.Current:0.###} exposure {I76.Game.Sim.LampStrength.Exposure:0.###} lamp gain {I76.Game.Sim.LampStrength.Gain:0.###}");
         }
         // a rear: camera follows the car every frame (a car still rolling, or turning, stays where it was in the frame)
         if (_seqRear is not null && _car is not null && RearCam(_seqRear, -_car.GlobalBasis.Z) is { } rc) System.Environment.SetEnvironmentVariable("I76_CAP_CAM", rc);
@@ -306,7 +312,7 @@ public partial class Main
         {
             var path = _opt.Screenshot.Replace(".png", $"_{name}.png");
             GetViewport().GetTexture().GetImage().SavePng(path);
-            GD.Print($"shot seq: saved {path}");
+            GD.Print($"shot seq: saved {path} at tick {_sim?.Ticks}");
         }
     }
 }

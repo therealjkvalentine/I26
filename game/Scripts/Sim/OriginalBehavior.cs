@@ -59,6 +59,7 @@ public static class OriginalBehavior
         s.ApplySmokeStart();
         OwnSmoke.EngineOnly = s.OwnSmokeEngine;
         SmokeHaze.Long = s.SmokeHaze;
+        ThrownLight.Bright = s.ThrownLightBright;
         DamageView.MovieIgnition = s.MovieIgnition;
     }
 

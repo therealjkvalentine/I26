@@ -84,12 +84,12 @@ public static class MuzzleReach
     /// <paramref name="percent"/>: each figure from <see cref="Before"/> (0) to the table's (100), on past it to 200. The daylight
     /// scales the table's energies only, so 0 is the light before the key, day and night.
     /// </summary>
-    public static Flash For(Gun g, float daylight, int percent)
+    public static Flash For(Gun g, float daylight, int percent, float? dayShare = null)
     {
         float t = Math.Clamp(percent, 0, 200) / 100f;
         var n = Night(g);
         var b = Before;
-        float day = Daylight.Scale(daylight, DayFloor);
+        float day = dayShare ?? Daylight.Scale(daylight, DayFloor);   // (Graphic Detail's Thrown Light: ThrownLight.Muzzle)
         static float Lerp(float a, float z, float k) => a * (1 - k) + z * k;
         Lamp L(Lamp a, Lamp z) => new(
             Math.Max(0.5f, Lerp(a.Range, z.Range, t)),
@@ -106,6 +106,6 @@ public static class MuzzleReach
             Math.Max(0f, Lerp(b.Cabin, n.Cabin, t)));
     }
 
-    /// <summary>The light now: the setting (or the hook) at the mission's daylight.</summary>
-    public static Flash Current(Gun g) => For(g, Daylight.Current, Setting);
+    /// <summary>The light now: the setting (or the hook) at the mission's daylight, by day as Thrown Light says (ThrownLight.Muzzle).</summary>
+    public static Flash Current(Gun g) => For(g, Daylight.Current, Setting, ThrownLight.Muzzle(Daylight.Current, DayFloor, LampStrength.Exposure, ThrownLight.BrightNow));
 }

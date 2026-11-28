@@ -353,7 +353,8 @@ public partial class ModernFx : Node3D
 
     public void Light(Vector3 at, float energy, float range, double life, Color color)
     {
-        var l = new OmniLight3D { LightColor = color, LightEnergy = energy, OmniRange = range, ShadowEnabled = false };
+        var l = new OmniLight3D { LightColor = color, OmniRange = range, ShadowEnabled = false };
+        ThrownLight.Set(l, energy);   // Graphic Detail's Thrown Light: a trace by day, no ground under Original
         AddChild(l);
         l.GlobalPosition = at;
         _expiring.Add((l, _t + life));
@@ -541,7 +542,8 @@ public partial class ModernFx : Node3D
                     DamageSmoke.Adopt(g, Coords.ToGame(sm.Velocity), size * Mathf.Lerp(1.3f, 3.2f, 0.4f), SmokeHaze.StartDens(0.32f), SmokeHaze.StartDark(Mathf.Clamp(1f - lum, 0.15f, 0.8f)), GD.Randf(), lifeS, seen, 0.6f * lifeS);
                 }
             }
-        var l = new OmniLight3D { LightColor = new Color(1f, 0.65f, 0.3f), LightEnergy = 6f * fire, OmniRange = size * 5f, ShadowEnabled = false };
+        var l = new OmniLight3D { LightColor = new Color(1f, 0.65f, 0.3f), OmniRange = size * 5f, ShadowEnabled = false };
+        ThrownLight.Set(l, 6f * fire);
         AddChild(l);
         l.GlobalPosition = at + Vector3.Up * size * 0.5f;
         _flashes.Add((l, _t, 0.45 + size * 0.04, l.LightEnergy));
@@ -650,6 +652,7 @@ public partial class ModernFx : Node3D
             if (_balls.Values.Count(o => o.Light is not null) < MaxBallLights)
             {
                 light = new OmniLight3D { LightColor = new Color(1f, 0.55f, 0.22f), OmniRange = 11f, OmniAttenuation = 1.4f, ShadowEnabled = false };
+                light.LightCullMask = ThrownLight.MaskNow();
                 AddChild(light);
             }
             b = new Ball { Cards = cards, Light = light, Embers = embers, Flames = NewTail(), Last = at, Seed = GD.Randf() * 100f, Born = _t };
@@ -674,7 +677,7 @@ public partial class ModernFx : Node3D
         if (b.Light is { } l)
         {
             l.GlobalPosition = at;
-            l.LightEnergy = 3.2f + 2.2f * flick;
+            l.LightEnergy = (3.2f + 2.2f * flick) * ThrownLight.EffectNow;
         }
     }
 
@@ -692,7 +695,8 @@ public partial class ModernFx : Node3D
             sp.Node.SetInstanceShaderParameter("tint", new Color(1.1f, 0.75f, 0.45f));
         }
         Burst(_sparkProc, _sparkMesh, 20, 0.7, at + Vector3.Up * 0.4f, Vector3.Up);
-        var l = new OmniLight3D { LightColor = new Color(1f, 0.55f, 0.22f), LightEnergy = 5f, OmniRange = 12f, ShadowEnabled = false };
+        var l = new OmniLight3D { LightColor = new Color(1f, 0.55f, 0.22f), OmniRange = 12f, ShadowEnabled = false };
+        ThrownLight.Set(l, 5f);
         AddChild(l);
         l.GlobalPosition = at + Vector3.Up;
         _flashes.Add((l, _t, 0.6, l.LightEnergy));

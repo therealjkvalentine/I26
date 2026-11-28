@@ -4,7 +4,7 @@ namespace I76.Game.Sim;
 /// How long the modern look's smoke hangs in the air ([port] smoke_linger, in percent of each smoke's own life): the cars' damage
 /// smoke and the burning wrecks' (DamageSmoke, WreckFire), the rockets' and the Ball O'Flame's trails (RocketSmoke) and the
 /// explosions' smoke (ModernFx). 100 is each smoke's life as it was (the 1997 look always draws the original's: 20 ticks a puff, the
-/// contrails' 23 sections); the default, 150, lets it linger half as long again. A puff's whole life stretches, so it swells and
+/// contrails' 23 sections); the default, 200, lets it linger twice as long (150 until the fade rule, SmokeFade, eased each puff out over the last part of its life). A puff's whole life stretches, so it swells and
 /// erodes away over the longer time (the shaders thin it by its age over its life) rather than holding and then going at once; the
 /// pools that hold the puffs grow with it, so a melee's trails are as dense as before, only longer. Purely visual: nothing goes back
 /// into the simulation or onto the wire. Not the Nitro chemical mortar's cloud, whose puffs mark where the round still harms, nor the
@@ -12,7 +12,7 @@ namespace I76.Game.Sim;
 /// </summary>
 public static class SmokeLinger
 {
-    public const int Default = 150, Min = 100, Max = 300;
+    public const int Default = 200, Min = 100, Max = 300;
     /// <summary>The steps the Developer panel offers.</summary>
     public static readonly int[] Steps = [100, 125, 150, 200, 300];
     public static int Percent = Default;

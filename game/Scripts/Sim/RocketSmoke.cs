@@ -26,7 +26,7 @@ public partial class RocketSmoke : Node3D
     private const float Spacing = 0.4f, Life = 1.9f, Start = 0.5f, End = 2.2f;
     private const int MaxPerFrame = 160;   // a stalled frame does not flood the pool
 
-    private struct Puff { public bool Live; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Seed; }
+    private struct Puff { public bool Live; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Seed, Gone; }   // Gone: seconds left of its fade when the pool takes it back
     private struct Emitter { public System.Numerics.Vector3 Last; public float Carry; public bool Has; }
     private readonly Puff[] _pool = new Puff[Cap];
     private readonly Dictionary<object, Emitter> _emitters = [];
@@ -47,14 +47,25 @@ public partial class RocketSmoke : Node3D
         {
             ref var p = ref _pool[i];
             if (!p.Live) continue;
-            float lf = p.Age / p.Life, e = 1f - (1f - lf) * (1f - lf);
+            var (lf, size, dens) = Drawn(p);
             var at = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
-            if (SmokeLayer.MirrorPuff(_mirrorBuf, n * 16, at, Mathf.Lerp(Start, p.End, e), lf, p.Dens, SmokeHaze.StartDark(0.08f), p.Seed, false, SmokeWindow.ModernTrailFar, eye)) n++;
+            if (SmokeLayer.MirrorPuff(_mirrorBuf, n * 16, at, size, lf, dens, SmokeHaze.StartDark(0.08f), p.Seed, false, SmokeWindow.ModernTrailFar, eye)) n++;
         }
         return n;
     }
+    /// <summary>
+    /// A puff as drawn: its shader age, size and density. Under Normal it ends with its life, so it swells and fades out over the last
+    /// of it (SmokeFade); under Long the haze takes it on from there (DamageSmoke.Adopt), so it is drawn as it is. A puff the pool is
+    /// taking back fades out either way.
+    /// </summary>
+    private static (float Life, float Size, float Dens) Drawn(in Puff p)
+    {
+        float lf = p.Age / p.Life, e = 1f - (1f - lf) * (1f - lf), size = Mathf.Lerp(Start, p.End, e), dens = p.Dens * SmokeFade.Retire(p.Gone);
+        return SmokeHaze.On ? (lf, size, dens) : (lf, size * SmokeFade.Swell(lf), dens * SmokeFade.Out(lf));
+    }
     private readonly float[] _key = new float[Cap];
     private readonly int[] _idx = new int[Cap];
+    private readonly float[] _edge = new float[Cap];
     private static readonly System.Numerics.Vector3 Wind = new(I76.Formats.Vegetation.Wind.Direction.X * I76.Formats.Vegetation.Wind.Breeze, 0f, I76.Formats.Vegetation.Wind.Direction.Y * I76.Formats.Vegetation.Wind.Breeze);
 
     public override void _Ready()
@@ -109,8 +120,13 @@ public partial class RocketSmoke : Node3D
     private void Spawn(System.Numerics.Vector3 g, System.Numerics.Vector3 vel, float scale, float dens, float age)
     {
         float r1 = (float)_rng.NextDouble(), r2 = (float)_rng.NextDouble(), r3 = (float)_rng.NextDouble(), r4 = (float)_rng.NextDouble();
+        int pool = SmokeLinger.Pool(CapBase);
+        // a slot still showing is never taken: the next free one, else the puff is not made (the pool retires its oldest ahead of the ring)
+        _next %= pool;
+        for (int tries = 0; tries < 256 && _pool[_next].Live; tries++) _next = (_next + 1) % pool;
+        if (_pool[_next].Live) return;
         ref var p = ref _pool[_next];
-        _next = (_next + 1) % SmokeLinger.Pool(CapBase);
+        _next = (_next + 1) % pool;
         // [port] smoke_linger stretches the whole life: the puff swells and thins over the longer time
         float linger = SmokeLinger.Factor;
         p = new Puff
@@ -133,6 +149,7 @@ public partial class RocketSmoke : Node3D
         {
             ref var p = ref _pool[i];
             if (!p.Live) continue;
+            if (p.Gone > 0f && (p.Gone -= dt) <= 0f) { p.Live = false; continue; }   // taken back by the pool, faded out
             if ((p.Age += dt) >= p.Life)
             {
                 // Smoke Linger Long: the trail hangs on in the damage smoke's haze, which spreads, merges and thins it (SmokeHaze)
@@ -143,6 +160,11 @@ public partial class RocketSmoke : Node3D
             live++;
         }
         _live = live;
+        // the pool near full: the puffs the ring reaches next fade out now, so none is cut short while it shows
+        int poolNow = SmokeLinger.Pool(CapBase);
+        if (SmokeFade.Crowded(live, poolNow))
+            for (int k = 0, at = _next % poolNow; k < SmokeFade.RetireAhead(poolNow); k++, at = (at + 1) % poolNow)
+                if (_pool[at].Live && _pool[at].Gone <= 0f) _pool[at].Gone = SmokeFade.RetireSeconds;
         if (cam is null || live == 0) { _mm.VisibleInstanceCount = 0; SmokeLayer.Submit(this, _buf, 0, Tint); return; }
         var ct = cam.GlobalTransform;
         var org = Origin();
@@ -156,7 +178,8 @@ public partial class RocketSmoke : Node3D
             if (!p.Live) continue;
             var gp = new Vector3((float)(p.X - org.X), (float)(p.Y - org.Y), -(float)(p.Z - org.Z));
             float depth = -ct.Basis.Z.Dot(gp - ct.Origin);
-            if (depth < cam.Near || depth > 150) continue;
+            if (!SmokeWindow.Drawn(depth, cam.Near, SmokeWindow.ModernTrailFar)) continue;
+            _edge[i] = SmokeFade.Edge(depth, SmokeWindow.ModernTrailFar);   // thinning toward the end of its draw distance, not cut at it
             _key[cnt] = -depth; _idx[cnt++] = i;   // far to near
         }
         Array.Sort(_key, _idx, 0, cnt);
@@ -164,13 +187,13 @@ public partial class RocketSmoke : Node3D
         for (int j = 0; j < cnt; j++)
         {
             ref var p = ref _pool[_idx[j]];
-            float lf = p.Age / p.Life, e = 1f - (1f - lf) * (1f - lf);
-            float size = Mathf.Lerp(Start, p.End, e);
+            var (lf, size, dens) = Drawn(p);
+            dens *= _edge[_idx[j]];
             int o = j * 16;
             buf[o] = size; buf[o + 1] = 0; buf[o + 2] = 0; buf[o + 3] = (float)(p.X - org.X);
             buf[o + 4] = 0; buf[o + 5] = size; buf[o + 6] = 0; buf[o + 7] = (float)(p.Y - org.Y);
             buf[o + 8] = 0; buf[o + 9] = 0; buf[o + 10] = size; buf[o + 11] = -(float)(p.Z - org.Z);
-            buf[o + 12] = lf; buf[o + 13] = p.Dens; buf[o + 14] = SmokeHaze.StartDark(0.08f); buf[o + 15] = p.Seed;
+            buf[o + 12] = lf; buf[o + 13] = dens; buf[o + 14] = SmokeHaze.StartDark(0.08f); buf[o + 15] = p.Seed;
         }
         if (SmokeLayer.Active)
         {

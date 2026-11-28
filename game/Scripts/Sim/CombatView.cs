@@ -667,6 +667,8 @@ public partial class CombatView : Node3D
             ml.Far = new SpotLight3D { LightColor = MuzzleColour, ShadowEnabled = false, Visible = false, Name = "MuzzleFarLight", LightCullMask = 0xFFFFFu & ~CarNode.CockpitLayer };
             AddChild(ml.Far);
         }
+        // Thrown Light: Original's lights no ground (the original's light list reaches objects alone)
+        ml.Light.LightCullMask = ml.Far.LightCullMask = ThrownLight.MaskNow(0xFFFFFu & ~CarNode.CockpitLayer);
         var fwd = G(s.Muzzle + s.Forward) - G(s.Muzzle);
         var level = new Vector3(fwd.X, 0, fwd.Z);
         var at = G(s.Muzzle + s.Forward * f.Ahead);
@@ -711,7 +713,8 @@ public partial class CombatView : Node3D
     private void Flash(System.Numerics.Vector3 at, float size, double life)
     {
         var m = new MeshInstance3D { Mesh = _ball, MaterialOverride = _flash, Position = G(at), Scale = Vector3.One * size * 0.3f };
-        var light = new OmniLight3D { LightColor = new Color(1f, 0.7f, 0.3f), LightEnergy = 2f, OmniRange = size * 4 };
+        var light = new OmniLight3D { LightColor = new Color(1f, 0.7f, 0.3f), OmniRange = size * 4 };
+        ThrownLight.Set(light, 2f);
         m.AddChild(light);
         AddChild(m);
         _flashes.Add((m, _t + life, _t, size));

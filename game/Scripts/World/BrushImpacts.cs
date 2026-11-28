@@ -525,7 +525,8 @@ public partial class BrushImpacts : Node3D
             if (f.Light is not null)
             {
                 float fl = burning ? Mathf.Clamp((float)(age - f.FlameFrom) * 2f, 0, 1) * Mathf.Clamp((float)(f.FlameTo - age), 0, 1) : 0;
-                f.Light.LightEnergy = fl * f.Look.LightEnergy * ModernFx.FxBright * (0.75f + 0.25f * MathF.Sin((float)_t * 23f + i) * MathF.Sin((float)_t * 7f));
+                f.Light.LightCullMask = I76.Game.Sim.ThrownLight.MaskNow();   // Graphic Detail's Thrown Light
+                f.Light.LightEnergy = I76.Game.Sim.ThrownLight.EffectNow * fl * f.Look.LightEnergy * ModernFx.FxBright * (0.75f + 0.25f * MathF.Sin((float)_t * 23f + i) * MathF.Sin((float)_t * 7f));
             }
             // the plant scorches as it smoulders; where it burns it chars, its leaves burn away and it sinks into a charred
             // remnant where it stands (the vegetation shader, from the field's scorch)
