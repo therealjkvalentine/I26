@@ -78,7 +78,7 @@ public static class DevTips
         "smoke_linger" => "How long the modern look's smoke hangs in the air (damaged cars, burning wrecks, rocket trails, explosions), in percent of its life; 100 as before, 400 (the default) four times as long, growing slowly and fading out rather than vanishing. The 1997 look keeps the original's.",
         "smoke_start_dark" => "Smoke Linger Long: how much blacker fresh soot (a burning wreck's, a badly damaged car's) is drawn at its birth, easing back to its own colour as it rises; light smoke hardly changes. 0 as before, 85 the default.",
         "smoke_start_density" => "Smoke Linger Long: how dense fresh smoke starts, in percent of Normal's; the cap on a column rises with it. 135 as before, 200 the default.",
-        "smoke_start_width" => "Smoke Linger Long: how narrow fresh smoke starts at the fire, in percent of Normal's size; it widens to its full size as it rises. 100 as before, 55 the default.",
+        "smoke_start_width" => "Smoke Linger Long: how close together fresh puffs start at the fire, in percent of Normal's spread (each puff is Normal's size). 100 as before, 55 the default.",
         "smoke_fade" => "Smoke Linger Long: the seconds a lone haze puff takes to thin away after its life (merged ones last longer). 150 as before and the default.",
         "dash_light" =>"The modern look at night: the speedometer's and tachometer's needles lit as by dash lamps, in percent: 100 as light as by day; 0 leaves them dark, as the original. Off by day.",
         "headlamp_throw" => "How far down the road the modern look's headlamps reach, every car's, in percent; 75 is the reach before the key. The road near the car keeps its light.",

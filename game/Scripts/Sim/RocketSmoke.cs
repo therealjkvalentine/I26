@@ -60,8 +60,9 @@ public partial class RocketSmoke : Node3D
     /// </summary>
     private static (float Life, float Size, float Dens) Drawn(in Puff p)
     {
-        float lf = p.Age / p.Life, e = 1f - (1f - lf) * (1f - lf), size = Mathf.Lerp(Start, p.End, e), dens = p.Dens * SmokeFade.Retire(p.Gone);
-        return SmokeHaze.On ? (lf, size, dens) : (lf, SmokeFade.Size(Start, p.End, lf), dens * SmokeFade.Out(lf));
+        // Long: Normal's size at every age until the haze takes it on (SmokeHaze.HandAt), unfaded
+        float lf = p.Age / p.Life, size = SmokeFade.Size(Start, p.End, lf), dens = p.Dens * SmokeFade.Retire(p.Gone);
+        return SmokeHaze.On ? (lf, size, dens) : (lf, size, dens * SmokeFade.Out(lf));
     }
     private readonly float[] _key = new float[Cap];
     private readonly int[] _idx = new int[Cap];
@@ -128,7 +129,7 @@ public partial class RocketSmoke : Node3D
         ref var p = ref _pool[_next];
         _next = (_next + 1) % pool;
         // [port] smoke_linger stretches the whole life: the puff swells and thins over the longer time
-        float linger = SmokeLinger.LifeFactor;
+        float linger = SmokeLinger.Factor;
         p = new Puff
         {
             Live = true, X = g.X + (r1 - 0.5f) * 0.12f, Y = g.Y + (r2 - 0.5f) * 0.12f, Z = g.Z + (r3 - 0.5f) * 0.12f,
@@ -150,10 +151,17 @@ public partial class RocketSmoke : Node3D
             ref var p = ref _pool[i];
             if (!p.Live) continue;
             if (p.Gone > 0f && (p.Gone -= dt) <= 0f) { p.Live = false; continue; }   // taken back by the pool, faded out
-            if ((p.Age += dt) >= p.Life)
+            bool on = SmokeHaze.On;
+            if ((p.Age += dt) >= (on ? p.Life * SmokeHaze.HandAt : p.Life))
             {
-                // Smoke Linger Long: the trail hangs on in the damage smoke's haze, which spreads, merges and thins it (SmokeHaze)
-                if (SmokeHaze.On) DamageSmoke.Adopt(new System.Numerics.Vector3((float)p.X, (float)p.Y, (float)p.Z), new System.Numerics.Vector3(p.Vx, p.Vy, p.Vz), p.End, p.Dens, SmokeHaze.StartDark(Dark), p.Seed, p.Life);
+                // Smoke Linger Long: where Normal's puff would begin to fade the trail hangs on in the damage smoke's haze, taken on with
+                // no step in its size or growth (SmokeHaze.SlowSize), which spreads, merges and thins it
+                if (on)
+                {
+                    float hand = p.Life * SmokeHaze.HandAt, lf = SmokeHaze.HandAt;
+                    DamageSmoke.Adopt(new System.Numerics.Vector3((float)p.X, (float)p.Y, (float)p.Z), new System.Numerics.Vector3(p.Vx, p.Vy, p.Vz), SmokeFade.Size(Start, p.End, lf), p.Dens,
+                        SmokeHaze.StartDark(Dark), p.Seed, hand, rate: SmokeFade.Rate(Start, p.End, lf, p.Life), span: p.Life);
+                }
                 p.Live = false; continue;
             }
             p.X += dt * p.Vx; p.Y += dt * p.Vy; p.Z += dt * p.Vz;

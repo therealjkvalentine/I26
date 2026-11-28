@@ -31,7 +31,7 @@ namespace I76.Game.Boot;
 /// from frame I76_SHOT_SEQ_START (90) each step holds I76_SHOT_SEQ_HOLD (45) frames and its last is saved as OUT_name.png; then the
 /// game quits. cam: free:x,y,z,yaw,pitch[,fov] (I76_FREECAM), car:dx,dy,dz,yaw,pitch (I76_CAP_CAM), sun:dyaw,height,back,pitch (behind
 /// and over the player's car looking dyaw degrees from the sun's bearing: 0 into the sun, 180 away), or empty (as the step before; the
-/// cockpit at the start; rear:back,height,pitch[,side]: behind the player's car along its heading, looking along it). mood: as I76_MOOD,
+/// cockpit at the start; rear:back,height,pitch[,side[,turn]]: behind the player's car along its heading, looking along it or turn degrees off it). mood: as I76_MOOD,
 /// on top of it, and for a step: hide=1 (the player's car hidden, nothing else changed), glow=0|1 (Glow, as I76_GLOW), brake=0|1 (the brake held, as I76_HOLD_BRAKE), lampfix=0 (the
 /// lamps' exposure rule off, LampStrength.ExposureRule: their strength as before it), lights=0|1 (the player's headlamps switched, by day too), tl=original|bright
 /// (the thrown light, ThrownLight).
@@ -244,21 +244,21 @@ public partial class Main
         return string.Join(",", new[] { back * Mathf.Sin(r), h, back * Mathf.Cos(r), yaw, pitch }.Select(x => x.ToString("0.###", CultureInfo.InvariantCulture)));
     }
     /// <summary>
-    /// A sequence step's rear: camera ("back,height,pitch[,side]") as I76_CAP_CAM's text: <paramref name="back"/> behind the player's car
+    /// A sequence step's rear: camera ("back,height,pitch[,side[,turn]]") as I76_CAP_CAM's text: <paramref name="back"/> behind the player's car
     /// along its heading (<paramref name="forward"/>, Godot frame), height over it and side to its right, looking along the heading.
     /// </summary>
     public static string? RearCam(string args, Vector3 forward)
     {
         var v = args.Split(',');
-        if (v.Length is not (3 or 4)) return null;
-        float back = MoodF(v[0]), h = MoodF(v[1]), pitch = MoodF(v[2]), side = v.Length == 4 ? MoodF(v[3]) : 0f;
+        if (v.Length is not (3 or 4 or 5)) return null;
+        float back = MoodF(v[0]), h = MoodF(v[1]), pitch = MoodF(v[2]), side = v.Length >= 4 ? MoodF(v[3]) : 0f, turn = v.Length == 5 ? MoodF(v[4]) : 0f;
         var f = new Vector3(forward.X, 0, forward.Z);
         if (f.LengthSquared() < 1e-6f) return null;
         f = f.Normalized();
         var right = new Vector3(-f.Z, 0, f.X);
         var at = -f * back + right * side;
         // SetYawPitch(yaw): the view along (-sin yaw, -cos yaw)
-        float yaw = Mathf.RadToDeg(Mathf.Atan2(-f.X, -f.Z));
+        float yaw = Mathf.RadToDeg(Mathf.Atan2(-f.X, -f.Z)) + turn;   // turn: degrees off the heading (180: looking back)
         return string.Join(",", new[] { at.X, h, at.Z, yaw, pitch }.Select(x => x.ToString("0.###", CultureInfo.InvariantCulture)));
     }
 

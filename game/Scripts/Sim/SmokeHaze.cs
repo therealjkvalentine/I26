@@ -157,4 +157,53 @@ public static class SmokeHaze
 
     /// <summary>A size class for merging (puffs of a size merge; a wide one does not swallow a young one whole).</summary>
     public static int Level(float size) => (int)MathF.Floor(MathF.Log2(MathF.Max(size, 0.25f)));
+
+    // ---- the slow hand-over (Long's own puffs and rocket trails): Normal's growth, then the haze, with no step ----
+
+    /// <summary>
+    /// Where in a puff's life (the share of Normal's, SmokeFade's curve) Long's haze takes it on: where Normal's puff begins to fade. Until
+    /// then a Long puff is drawn as Normal's (its size on SmokeFade.Size at every age, its density at least Normal's), so Long never
+    /// shows less smoke than Normal; from there it hangs on as haze instead of fading.
+    /// </summary>
+    public static float HandAt => SmokeFade.OutFrom;
+
+    /// <summary>
+    /// The haze's first stage, for the rest of Normal's life after the hand-over: its size grows on at the rate the puff had, easing off
+    /// with this time constant (seconds; at least 2.5 times the puff's life, so it never falls behind Normal's puff, whose growth eases to
+    /// nothing at its end); then <see cref="LateSpread"/>.
+    /// </summary>
+    public static float EarlySpread(float span) => MathF.Max(40f, 2.5f * span);
+
+    /// <summary>The haze's later growth easing (seconds): it slows to a stop, some eight times its end size in all, as large as the haze grew before.</summary>
+    public const float LateSpread = 25f;
+
+    /// <summary>
+    /// A slow haze puff's size <paramref name="since"/> s after the hand-over, from size <paramref name="size"/> and growth
+    /// <paramref name="rate"/> (m/s) there, its first stage <paramref name="stage1"/> s long at easing <paramref name="early"/>.
+    /// </summary>
+    public static float SlowSize(float size, float rate, float since, float stage1, float early)
+    {
+        if (since <= stage1) return size + rate * early * (1f - MathF.Exp(-since / early));
+        float r1 = rate * MathF.Exp(-stage1 / early);
+        return size + rate * early * (1f - MathF.Exp(-stage1 / early)) + r1 * LateSpread * (1f - MathF.Exp(-(since - stage1) / LateSpread));
+    }
+
+    /// <summary>Its growth rate then (m/s).</summary>
+    public static float SlowRate(float rate, float since, float stage1, float early) =>
+        since <= stage1 ? rate * MathF.Exp(-since / early) : rate * MathF.Exp(-stage1 / early) * MathF.Exp(-(since - stage1) / LateSpread);
+
+    /// <summary>
+    /// The share of its smoke a slow haze puff loses a second (its mass's decay rate), so that a lone puff thins to the
+    /// <see cref="Threshold"/> <see cref="HazeSeconds"/> after the hand-over, its size then given by <see cref="SlowSize"/>: none when its
+    /// spreading alone thins it that fast.
+    /// </summary>
+    public static float SlowLoss(float mass, float size, float rate, float stage1, float early)
+    {
+        float f = HazeSeconds, sf = SlowSize(size, rate, f, stage1, early);
+        float k = MathF.Log(MathF.Max(mass, 1e-6f) / (Threshold * sf * sf)) / f;
+        return MathF.Max(k, 0f);
+    }
+
+    /// <summary>The shader's age of a slow haze puff of age <paramref name="age"/> over Normal's life <paramref name="span"/>: Normal's (age over life) until that life's end, then on slowly past 1, with no step.</summary>
+    public static float SlowShaderAge(float age, float span) => age < span ? age / MathF.Max(span, 0.1f) : 1f + 0.3f * (age - span) / MathF.Max(span, 0.1f);
 }
