@@ -50,7 +50,7 @@ public static class RemixTraffic
         ["t03"] = ["highway_down"],
         ["t05"] = ["road_380"],
         ["t08"] = ["into_plains", "down_214"],
-        ["t10"] = ["east_380", "north_road_down", "through_tatum"],
+        ["t10"] = ["east_380", "north_road_down"],
         ["t13"] = ["south_on_285", "to_the_east_road"],
         ["t14"] = ["west_to_north"],
     };

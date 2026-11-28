@@ -24,7 +24,7 @@ nodes:
   - {name: east_track, kinds: [pickup, yard], at: [2892, 48465], called: the track east of the middle pumps}
   # places of note: the hilltop on the field's middle track, the dead end of the west dirt road
   - {name: hilltop, kinds: [start, hideout, home], at: [1632, 48480], sort: overlook, called: 'the hilltop on the middle track'}
-  - {name: west_spur, kinds: [start, pickup, hideout], at: [1025, 49365], sort: spur, called: 'the dead end of the west dirt road'}
+  - {name: west_spur, kinds: [start, pickup, hideout], at: [1040, 49365], sort: spur, called: 'the dead end of the west dirt road'}
 entries:
   - {name: west, at: [[824, 49234], [908, 49324]]}
   - {name: southwest, at: [[1181, 48561], [1182, 48687]]}
@@ -34,7 +34,7 @@ entries:
   - {name: southeast, at: [[3575, 48619], [3550, 48741]]}
   - {name: field_north, at: [[1984, 49016], [1856, 48991]]}
 routes:
-  - {name: field_west, heading: 330, points: [[3575, 48619], [3490, 48895], [3256, 49048], [2967, 49081], [2743, 49269], [2452, 49177], [2155, 49055], [1877, 48995], [1683, 48809], [1462, 48778], [1304, 48936], [1258, 49231], [1057, 49367], [824, 49234]]}
+  - {name: field_west, heading: 330, points: [[3575, 48619], [3490, 48895], [3256, 49048], [2967, 49081], [2743, 49269], [2452, 49177], [2155, 49055], [1877, 48995], [1683, 48809], [1462, 48778], [1304, 48936], [1258, 49231], [1057, 49367]]}
   - {name: round_the_south, escort: true, called: the track through the middle of the oil field, heading: 170, points: [[1145, 48109], [1201, 47821], [1417, 47632], [1671, 47713], [1956, 47620], [2085, 47759], [1922, 48010], [1721, 48177], [1447, 48173], [1481, 48400], [1713, 48499], [1936, 48418], [2158, 48296], [2311, 48485], [2433, 48754]]}
 clusters:
   - name: west_pumps

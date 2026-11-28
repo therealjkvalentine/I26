@@ -118,12 +118,14 @@ public class RemixRosterTests(ITestOutputHelper output)
             var stock = RemixDirector.Roll(seed, new RemixDirector.JobAsk { Id = "xrost", Challenge = 1.2 });
             var geared = RemixDirector.Roll(seed, new RemixDirector.JobAsk { Id = "xrost", Challenge = 1.2, Gear = OwnersGear, Job = 3 });
             Assert.Null(stock.Prize);
-            Assert.All(stock.Cars.Values.Where(c => c.Team == 0), c => Assert.Contains(c.Vcf, pools));
+            Assert.All(stock.Cars.Values.Where(c => c.Team is null), c => Assert.Contains(c.Vcf, pools));
             Assert.Equal(stock.Base, geared.Base);
             Assert.Equal(stock.Objective.Template, geared.Objective.Template);
             Assert.Equal(stock.Start!.At, geared.Start!.At);
-            Assert.Equal(stock.Places.Keys.Order(), geared.Places.Keys.Order());
-            foreach (var (k, v) in stock.Places) Assert.Equal(v.SelectMany(p => p), geared.Places[k].SelectMany(p => p));
+            // (civilian traffic's routes, builder v9, depend on how many cars the job has)
+            var own = stock.Places.Keys.Where(k => !k.StartsWith("civ_", StringComparison.Ordinal)).Order().ToList();
+            Assert.Equal(own, geared.Places.Keys.Where(k => !k.StartsWith("civ_", StringComparison.Ordinal)).Order());
+            foreach (var k in own) Assert.Equal(stock.Places[k].SelectMany(p => p), geared.Places[k].SelectMany(p => p));
             Assert.Equal(RemixDirector.ToYaml(geared), RemixDirector.ToYaml(RemixDirector.Roll(seed, new RemixDirector.JobAsk { Id = "xrost", Challenge = 1.2, Gear = OwnersGear, Job = 3 })));
         }
     }

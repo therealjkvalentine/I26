@@ -145,7 +145,7 @@ public static class RemixDirector
             bool Fits(Spot sp) => sp.Node is null || sp.Node != not;
             var near = spots.Where(sp => Fits(sp) && Far(sp.At, target, min, max) && (ok is null || ok(sp))).ToList();
             if (near.Count == 0) near = spots.Where(sp => Fits(sp) && Far(sp.At, target, min, max)).ToList();
-            if (near.Count == 0) near = [spots.Where(sp => Fits(sp) && Dist(sp.At, target) >= 300).OrderBy(sp => Dist(sp.At, target)).FirstOrDefault() ?? spots[0]];
+            if (near.Count == 0) near = [spots.Where(sp => Fits(sp) && Dist(sp.At, target) >= MinFirst).OrderBy(sp => Dist(sp.At, target)).FirstOrDefault() ?? spots[0]];
             return r.Weighted(map, near, sp => sp.At, sp => sp.Node?.IsSpecial == true ? InsideWeight : sp.Node is null ? 2 : 1);
         }
         double[] Lot(int i) => [map.Lot[0] + 12 * (i % 6), map.Lot[1] + 12 * (i / 6)];
@@ -295,7 +295,7 @@ public static class RemixDirector
                 var hides = map.Of("hideout").Where(n => HasSafe(map, n)).ToList();
                 var hide = r.Weighted(map, WithStart(hides.Count > 0 ? hides : map.Of("hideout").ToList(), n => n.At, 900, 1500, n => n), n => n.At, n => n.IsSpecial ? InsideWeight : 1);
                 // the start: far enough from the hideout to lose them on the way, with an entry behind it for the pursuit
-                UseStart(NearStart(hide.At, 900, 1500, sp => map.Entries.Any(e => EntryNear(map, e, sp.At, 250, 700)), hide), hide.At);
+                UseStart(NearStart(hide.At, 900, 1400, sp => map.Entries.Any(e => EntryNear(map, e, sp.At, 250, 700)), hide), hide.At);
                 Inside(hide);
                 Friend(hide);
                 var safes = map.Of("hideout").Concat(map.Of("home")).Where(n => n != hide && Far(n.At, hide.At, MinNext, MaxNext)).Distinct().ToList();
@@ -351,8 +351,11 @@ public static class RemixDirector
             }
             case "intercept":
             {
-                var route = r.Quiet(map, WithStart(map.Routes.ToList(), RouteStart, MinFirst, MaxFirst), RouteStart);
-                UseStart(NearStart(RouteStart(route), MinFirst, MaxFirst), RouteStart(route));
+                // the start never on the convoy's own road (it would drive into him at once: run 850764's second job) nor by its way out
+                // (docs/remix-missions.md "Spacing"); a route with no such start spot in reach is taken only when no route has one
+                var clearRoutes = map.Routes.Where(rt => spots.Any(sp => Far(sp.At, RouteStart(rt), MinFirst, MaxFirst) && InterceptClear(sp, rt))).ToList();
+                var route = r.Quiet(map, clearRoutes.Count > 0 ? clearRoutes : WithStart(map.Routes.ToList(), RouteStart, MinFirst, MaxFirst), RouteStart);
+                UseStart(NearStart(RouteStart(route), MinFirst, MaxFirst, sp => InterceptClear(sp, route)), RouteStart(route));
                 string routePlace = route.Path ?? Place("route", [.. route.Points]);
                 var exit = route.Exit ?? route.Points[^1];
                 var park = route.Park ?? (route.Points.Count > 0 ? route.Points[0] : throw new RemixError($"{map.Base} route {route.Name}: a stock path needs park"));
@@ -773,7 +776,7 @@ public static class RemixDirector
     {
         "deliver" => t.Of("pickup").Any() && t.Entries.Any(e => e.At.Count > 0),
         "tail" => t.Of("hideout").Any(h => HasSafe(t, h)) && t.Entries.Any(e => e.At.Count > 0),
-        "intercept" => t.Routes.Count > 0,
+        "intercept" => t.Routes.Any(rt => Spots(t).Any(sp => Far(sp.At, RouteStart(rt), MinFirst, MaxFirst) && InterceptClear(sp, rt))),
         "defend" => t.Clusters.Any(c => c.Serves("defend")),
         "escort" => t.Routes.Any(rt => rt.Escort && rt.Points.Count >= 3),
         "raid" => RaidTargets(t).Count > 0 && t.Entries.Any(e => e.At.Count > 0),
@@ -792,7 +795,7 @@ public static class RemixDirector
     {
         var o = new List<Ambush>();
         foreach (var rt in t.Routes.Where(r => r.Points.Count >= 3))
-            foreach (var sp in Spots(t))
+            foreach (var sp in Spots(t).Where(sp => Dist(sp.At, rt.Exit ?? rt.Points[^1]) >= RemixSpacing.MinPair))   // not by the convoy's way out: it would be through as it passes (docs/remix-missions.md "Spacing")
             {
                 int best = -1;
                 double bd = double.MaxValue;
@@ -804,7 +807,8 @@ public static class RemixDirector
                 if (best < 0) continue;
                 int from = best;
                 while (from > 0 && PolyLength(rt.Points, from, best) < 1100) from--;
-                if (best - from >= 1) o.Add(new Ambush(sp, rt, from, best));
+                // the convoy parks out of sight up the road: not within a mark's spacing of the player (a road that bends back)
+                if (best - from >= 1 && Dist(sp.At, rt.Points[from]) >= RemixSpacing.MinPair) o.Add(new Ambush(sp, rt, from, best));
             }
         return o;
     }
@@ -908,6 +912,13 @@ public static class RemixDirector
     private static double Dist(double[] a, double[] b) => Math.Sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]));
     private static bool Far(double[] a, double[] b, double min, double max) => Dist(a, b) is var d && d >= min && d <= max;
     private static double[] RouteStart(RouteNode rt) => rt.Park ?? (rt.Points.Count > 0 ? rt.Points[0] : [double.NaN, double.NaN]);
+
+    /// <summary>
+    /// An intercept's start clear of its convoy (docs/remix-missions.md "Spacing"): off the convoy's own road (it would drive into him at
+    /// once: run 850764's second job) and away from its way out.
+    /// </summary>
+    private static bool InterceptClear(Spot sp, RouteNode rt) => RemixSpacing.FromRoute(sp.At, rt.Points) >= RemixSpacing.MinFromRoute
+        && Dist(sp.At, rt.Exit ?? (rt.Points.Count > 0 ? rt.Points[^1] : RouteStart(rt))) >= RemixSpacing.MinPair;
 
     private static bool EntryNear(RemixNodes t, EntryNode e, double[] at, double min, double max) =>
         e.At.Count > 0 && Far(e.At[0], at, min, max);
