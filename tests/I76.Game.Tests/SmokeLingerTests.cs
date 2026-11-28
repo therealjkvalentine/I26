@@ -69,28 +69,6 @@ public class SmokeLingerTests
     }
 
     [Fact]
-    public void UnderLongAPuffsOwnLifeKeepsTheEarlierLives()
-    {
-        int was = SmokeLinger.Percent; bool wasLong = SmokeHaze.Long;
-        try
-        {
-            foreach (int p in SmokeLinger.Steps)
-            {
-                SmokeLinger.Percent = p;
-                SmokeHaze.Long = false;
-                Assert.Equal(p / 100f, SmokeLinger.LifeFactor);
-                SmokeHaze.Long = true;
-                Assert.Equal(MathF.Min(p / 100f, SmokeLinger.LongYoung), SmokeLinger.LifeFactor);
-            }
-            // the default: Normal's puffs four times their own life, Long's twice (the lives before smoke_linger 400) and then the haze
-            SmokeLinger.Percent = SmokeLinger.Default;
-            SmokeHaze.Long = false; Assert.Equal(4f, SmokeLinger.LifeFactor);
-            SmokeHaze.Long = true; Assert.Equal(2f, SmokeLinger.LifeFactor);
-        }
-        finally { SmokeLinger.Percent = was; SmokeHaze.Long = wasLong; }
-    }
-
-    [Fact]
     public void TheSettingsReachTheSmoke()
     {
         int was = SmokeLinger.Percent;
@@ -117,9 +95,9 @@ public class SmokeLingerTests
     public void TheModernSmokesTakeItAndThe1997LookAndTheSimulationDoNot()
     {
         static string Src(params string[] p) => File.ReadAllText(Path.Combine([Repo(), .. p]));
-        Assert.Contains("p.Life = Math.Min(p.Life, 4f) * SmokeLinger.LifeFactor;", Src("game", "Scripts", "Sim", "DamageSmoke.cs"));
+        Assert.Contains("p.Span = Math.Min(p.Life, 4f) * SmokeLinger.Factor;", Src("game", "Scripts", "Sim", "DamageSmoke.cs"));
         Assert.Contains("Life = Life * (0.85f + 0.3f * r3) * linger", Src("game", "Scripts", "Sim", "RocketSmoke.cs"));
-        Assert.Contains("(3.5 + GD.Randf()) * SmokeLinger.LifeFactor", Src("game", "Scripts", "Sim", "ModernFx.cs"));
+        Assert.Contains("(3.5 + GD.Randf()) * (SmokeHaze.On ? MathF.Min(SmokeLinger.Factor, 2f) : SmokeLinger.Factor)", Src("game", "Scripts", "Sim", "ModernFx.cs"));
         Assert.Contains("8.0 * linger", Src("game", "Scripts", "Sim", "WreckFire.cs"));
         Assert.DoesNotContain("SmokeLinger", Src("game", "Scripts", "Sim", "ChemClouds.cs"));
         Assert.DoesNotContain("SmokeLinger", Src("game", "Scripts", "Sim", "Contrails.cs"));

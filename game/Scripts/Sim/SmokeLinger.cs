@@ -27,16 +27,6 @@ public static class SmokeLinger
     /// <summary>The factor on the modern look's smoke lives now (1 to 3).</summary>
     public static float Factor => Setting / 100f;
 
-    /// <summary>
-    /// The factor on a puff's own life (before Smoke Linger Long's haze takes it on): <see cref="Factor"/>, but under Long at most
-    /// <see cref="LongYoung"/>. Long's smoke lingers as haze after its life (minutes, growing ever more slowly), so a longer young life
-    /// only held the column dense and narrow for longer and put off its spreading; Normal's puffs end with their life, so they take it all.
-    /// </summary>
-    public static float LifeFactor => SmokeHaze.On ? MathF.Min(Factor, LongYoung) : Factor;
-
-    /// <summary>The longest young life under Long (the 200 % lives, the default before smoke_linger 400).</summary>
-    public const float LongYoung = 2f;
-
     /// <summary>The largest factor: the pools are made this big and used up to <see cref="Factor"/> of their base size.</summary>
     public const float MaxFactor = Max / 100f;
 
