@@ -190,10 +190,10 @@ public partial class Main
 public partial class Main
 {
     /// <summary>
-    /// I76_ROGUE_WRECK=T (a capture hook, on a listen host of a co-op roguetrip): at server tick T of each job, up to four of the job's
+    /// I76_ROGUE_WRECK=F (a capture hook, on a listen host of a co-op roguetrip): at frame F of each job (as I76_END_MISSION counts), up to four of the job's
     /// cars die the damage model's death (their wrecks feed the salvage, as the crew's kills would).
     /// </summary>
-    private static readonly uint RogueWreck = uint.TryParse(System.Environment.GetEnvironmentVariable("I76_ROGUE_WRECK"), out uint rw) ? rw : 0;
+    private static readonly int RogueWreck = int.TryParse(System.Environment.GetEnvironmentVariable("I76_ROGUE_WRECK"), out int rw) ? rw : 0;
     private object? _rogueWrecked;
 
     private void RoguetripWreck()
@@ -201,11 +201,11 @@ public partial class Main
         if (RogueWreck == 0 || _net?.Server is not { Roguetrip: { Run.Phase: "playing" } } server) return;
         server.Invoke(h =>
         {
-            if (ReferenceEquals(_rogueWrecked, h) || h.Tick < RogueWreck) return 0;
+            if (ReferenceEquals(_rogueWrecked, h) || _frames < RogueWreck) return 0;
             _rogueWrecked = h;
             var cars = h.Setup.Entities.Where(e => e.Vehicle is { } v && !h.Setup.World.IsHuman(v) && !v.IsHeli && !v.IsEmplacement && !I76.Sim.Damage.DamageModel.IsDead(v)).Take(4).ToList();
             foreach (var e in cars) h.Setup.Damage.Die(e.Vehicle!, true);
-            GD.Print($"network: I76_ROGUE_WRECK: {cars.Count} cars wrecked at tick {h.Tick}");
+            GD.Print($"network: I76_ROGUE_WRECK: {cars.Count} cars wrecked at frame {_frames}, tick {h.Tick}");
             return cars.Count;
         });
     }

@@ -90,13 +90,13 @@ public sealed class CoopSalvage
         return true;
     }
 
-    /// <summary>The two lines right of FIELD SALVAGE: whose pick and the seconds, or the garages' clock.</summary>
+    /// <summary>The status: whose pick and the seconds (the salvage screen shows the first line), or the garages' clock and who is still fitting.</summary>
     public (string, string) Status()
     {
         if (State() is not { } s) return ("", "");
         if (s.Garage) return ($"GARAGES: {(int)Math.Ceiling(s.GarageLeft)} S", string.Join(", ", s.Crew.Where(c => !c.GarageReady).Select(c => c.Name)));
         string me = Me();
-        return s.Turn == me ? ($"YOUR PICK: {(int)Math.Ceiling(s.TurnLeft)} S", "click a part; ACCEPT: done")
+        return s.Turn == me ? ($"YOUR PICK: {(int)Math.Ceiling(s.TurnLeft)} S", "click a part; ACCEPT SALVAGE: done")
             : s.Turn.Length > 0 ? ($"{s.Turn.ToUpperInvariant()} PICKS: {(int)Math.Ceiling(s.TurnLeft)} S", "taken parts leave the field") : ("THE FIELD IS DONE", "");
     }
 
@@ -123,8 +123,8 @@ public sealed class CoopSalvage
 public sealed partial class FieldSalvageScreen
 {
     private int _coopFrames;
-    // the free paper right of FIELD SALVAGE, under the legends
-    private const int StatusX = 476, StatusY = 254;
+    // the free paper left of the FIELD SALVAGE title, over the engines list
+    private const int StatusX = 12, StatusY = 258;
 
     /// <summary>The co-op screen's frame (true: taken): the host's word redraws it; the capture hook picks.</summary>
     private bool CoopTick()
@@ -139,7 +139,7 @@ public sealed partial class FieldSalvageScreen
             Build();
             Repaint();
         }
-        else if (++_coopFrames % 15 == 0) { Frame.Restore(StatusX - 2, StatusY - 1, 640 - StatusX, 24); CoopStatus(); }
+        else if (++_coopFrames % 15 == 0) { Frame.Restore(StatusX - 2, StatusY - 1, 200, 18); CoopStatus(); }
         co.AutoPick();
         if (System.Environment.GetEnvironmentVariable("I76_ROGUE_SALVAGE") is { } && co.State() is { } s && s.Crew.FirstOrDefault(c => c.Name == co.Me()) is { Done: false } && !s.Items.Any(i => i.Taker.Length == 0)) AcceptSalvage();
         return false;
@@ -173,9 +173,8 @@ public sealed partial class FieldSalvageScreen
     private void CoopStatus()
     {
         if (Coop is not { } co) return;
-        var (a, b) = co.Status();
-        Text(F45, StatusX, StatusY, a);
-        Text(F45, StatusX, StatusY + 11, b);
+        var (line, _) = co.Status();
+        Text(F45, StatusX, StatusY, line);   // the salvage shows the first line; the garage both
     }
 }
 
