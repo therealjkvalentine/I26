@@ -48,7 +48,7 @@ public partial class RoguetripMapLayer : Control
                 RoguetripLayout.Ink.State => (new Color(Pencil, 0.7f), 0.8f, 5f, 3f),
                 RoguetripLayout.Ink.Run => (new Color(Marker, 0.9f), 1.8f, 3f, 2f),
                 RoguetripLayout.Ink.Approach => (new Color(Marker, 0.85f), 1.6f, 4f, 3f),
-                _ => (new Color(Road, 0.7f), 1.1f, 0f, 0f),
+                _ => (new Color(Road, 0.7f), 1.3f, 0f, 0f),
             };
             if (halo) Pen(sg.X0, sg.Y0, sg.X1, sg.Y1, glow, w + 2.2f, 0, 0);
             Pen(sg.X0, sg.Y0, sg.X1, sg.Y1, c, w, on, off);
@@ -64,9 +64,9 @@ public partial class RoguetripMapLayer : Control
         {
             var c = o.Selected ? Marker : Ink;
             // inside the ring the atlas is covered with paper, so its number reads
-            if (halo) DrawCircle(T(o.X, o.Y), (o.Selected ? 13.5f : 9.5f) * _s, glow, true, -1, true);
-            DrawArc(T(o.X, o.Y), 8 * _s, 0, Mathf.Tau, 48, c, (o.Selected ? 1.8f : 1.1f) * _s, true);
-            if (o.Selected) DrawArc(T(o.X, o.Y), 12 * _s, 0, Mathf.Tau, 64, new Color(Marker, 0.8f), 1f * _s, true);
+            if (halo) DrawCircle(T(o.X, o.Y), (o.Selected ? RoguetripLayout.OuterRing + 1.5f : RoguetripLayout.Ring + 1.5f) * _s, glow, true, -1, true);
+            DrawArc(T(o.X, o.Y), RoguetripLayout.Ring * _s, 0, Mathf.Tau, 48, c, (o.Selected ? 2f : 1.2f) * _s, true);
+            if (o.Selected) DrawArc(T(o.X, o.Y), RoguetripLayout.OuterRing * _s, 0, Mathf.Tau, 64, new Color(Marker, 0.8f), 1.2f * _s, true);
         }
     }
 
@@ -107,7 +107,7 @@ public partial class RoguetripAtlasLayer : Control
         var size = GetViewportRect().Size;
         float s = Mathf.Min(size.X / ShellFrame.W, size.Y / ShellFrame.H);
         var off = (size - new Vector2(ShellFrame.W, ShellFrame.H) * s) / 2;
-        var b = RoguetripLayout.RegionBox;
+        var b = RoguetripLayout.MapBox;
         DrawTextureRect(tex, new Rect2(off + new Vector2(b.X, b.Y) * s, new Vector2(b.W, b.H) * s), false);
     }
 }
@@ -172,7 +172,7 @@ public static class RoguetripAtlas
     public static (byte[] Rgba, int W, int H)? Small(string dir)
     {
         if (State(dir) != RoguetripLayout.AtlasState.Ready) return null;
-        int w = (int)RoguetripLayout.RegionBox.W, h = (int)RoguetripLayout.RegionBox.H;
+        int w = (int)RoguetripLayout.MapBox.W, h = (int)RoguetripLayout.MapBox.H;
         if (_px1997 is not null) return (_px1997, w, h);
         var r = _job!.Result!.Value;
         var o = new byte[w * h * 4];
@@ -202,12 +202,12 @@ public static class RoguetripAtlas
     /// </summary>
     private static (byte[] Rgba, int W, int H)? Fit(string dir, string picture, string points)
     {
-        var box = RoguetripLayout.RegionBox;
+        var box = RoguetripLayout.MapBox;
         int w = (int)box.W * Scale, h = (int)box.H * Scale;
         try
         {
             var info = new FileInfo(picture);
-            string kept = Path.Combine(dir, $"{Picture}.fit-{info.Length}-{info.LastWriteTimeUtc.Ticks}-{w}x{h}-{Fnv(File.ReadAllText(points)):x8}.png");
+            string kept = Path.Combine(dir, $"{Picture}.fit2-{info.Length}-{info.LastWriteTimeUtc.Ticks}-{w}x{h}-{Fnv(File.ReadAllText(points)):x8}.png");
             if (File.Exists(kept) && Image.LoadFromFile(kept) is { } done && done.GetWidth() == w && done.GetHeight() == h)
             {
                 done.Convert(Image.Format.Rgba8);
@@ -220,13 +220,13 @@ public static class RoguetripAtlas
             img.Convert(Image.Format.Rgba8);
             int sw = img.GetWidth(), sh = img.GetHeight();
             var src = img.GetData();
-            var reg = RemixRegion.Builtin();
+            var view = RoguetripLayout.View;
             var o = new byte[w * h * 4];
             var inside = new bool[w * h];
             for (int y = 0; y < h; y++)
                 for (int x = 0; x < w; x++)
                 {
-                    var (lat, lon) = RoguetripLayout.Unproject(reg, (x + 0.5) / Scale, (y + 0.5) / Scale, box.W, box.H);
+                    var (lat, lon) = view.Unproject(box.X + (x + 0.5) / Scale, box.Y + (y + 0.5) / Scale);
                     var (px, py) = fit.ToPicture(lat, lon);
                     px -= 0.5; py -= 0.5;
                     int x0 = (int)Math.Floor(px), y0 = (int)Math.Floor(py);

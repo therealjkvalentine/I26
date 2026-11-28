@@ -778,6 +778,8 @@ public partial class Main
         // a co-op mission's movies (T05, T06) are played from the client's word (NetMovie), the game standing still for them
         var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);
         I76.Game.World.BrushImpacts.Audio = audio;
+        // a co-op roguetrip's spoken lines: this machine built the job (and so its line plan, the job seed's) itself
+        PrepareRemixVoices();
         // inputs held back while the fork's briefing plays over the built mission, and once the next round has begun on this connection (an
         // input of this old scene would count as the next mission's game loaded, its start going before anyone has built it)
         var view = new NetView { World = mirror, Client = client, Nodes = _carNodes, Predictor = predictor, Hold = () => _netBriefing is not null || _netBriefingPlayer is not null || client.Rounds > _roundsAtBuild };

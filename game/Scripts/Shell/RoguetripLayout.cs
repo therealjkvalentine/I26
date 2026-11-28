@@ -33,7 +33,7 @@ public static class RoguetripLayout
 
     public sealed record OfferRing(int Index, float X, float Y, bool Selected)
     {
-        public float Radius => Selected ? 12 : 8;
+        public float Radius => Selected ? OuterRing : Ring;
     }
 
     public sealed class RegionPlan
@@ -52,20 +52,59 @@ public static class RoguetripLayout
         public Func<int, int, bool>? Inked { get; init; }
     }
 
+    /// <summary>How far a word keeps from another town's dot or a trip map's ring where it can (so "HOBBS" does not run on into SEMINOLE).</summary>
+    private const float SmallClear = 4;
+
     /// <summary>The gap between a mark and its word.</summary>
     private const float Gap = 3;
 
-    /// <summary>The region's box on the sheet, and the column of offers, the chosen job's map and its notes beside it.</summary>
-    public static readonly Box RegionBox = new(26, 76, 268, 334), ColumnBox = new(298, 76, 306, 346);
-    /// <summary>The sheet inside its double rule: no word may leave it.</summary>
+    /// <summary>The sheet inside its double rule: no word may leave it. The map fills it, edge to edge.</summary>
     public static readonly Box Sheet = new(26, 42, 588, 392);
+    public static readonly Box MapBox = Sheet;
+    /// <summary>The shown offer's scrap, laid over the map's east side (the trip's maps all lie west of it: the view is centred on them in the rest).</summary>
+    public static readonly Box ScrapBox = new(334, 46, 274, 382);
+    /// <summary>An offer's ring and the chosen one's outer ring, shell pixels.</summary>
+    public const float Ring = 10, OuterRing = 14;
+
+    /// <summary>
+    /// The map's view of the region: the region's latitudes fill the sheet's height; a degree of longitude is a degree of latitude
+    /// shortened by the cosine of the middle latitude; the trip's maps are centred in the part of the sheet left of the scrap. The
+    /// rest of the sheet shows more of the country east and west (under the scrap, the atlas or the paper).
+    /// </summary>
+    public sealed class RegionView
+    {
+        public Box Map { get; }
+        private readonly double _north, _scale, _k, _lon0, _x0;
+
+        public RegionView(RemixRegion reg, Box map, float leftOf)
+        {
+            Map = map;
+            var b = reg.Bounds;
+            _north = b.North;
+            _scale = map.H / (b.North - b.South);
+            _k = I76.Formats.DetMath.Cos((b.North + b.South) / 2 * Math.PI / 180);
+            double west = reg.Maps.Values.Min(m => m[1]), east = reg.Maps.Values.Max(m => m[1]);
+            _lon0 = (west + east) / 2;
+            _x0 = (map.X + leftOf) / 2;
+        }
+
+        /// <summary>The sheet's point for a latitude and longitude.</summary>
+        public (float X, float Y) Project(double[] latLon) => ((float)(_x0 + (latLon[1] - _lon0) * _k * _scale), (float)(Map.Y + (_north - latLon[0]) * _scale));
+
+        /// <summary>The latitude and longitude at a sheet point.</summary>
+        public (double Lat, double Lon) Unproject(double x, double y) => (_north - (y - Map.Y) / _scale, _lon0 + (x - _x0) / (_k * _scale));
+    }
+
+    private static RegionView? _view;
+    /// <summary>The choice screen's view (the built-in region, the sheet, the scrap's left edge).</summary>
+    public static RegionView View => _view ??= new RegionView(RemixRegion.Builtin(), MapBox, ScrapBox.X);
     /// <summary>The shell fonts: the region's, the job map's and the notes' words (the small sans, 10 px), the offers' (the small hand, 12 px).</summary>
     public const int MapFont = 0x47, TextFont = 0x44;
     public const float OfferLine = 13, NoteLine = 13;
     /// <summary>The printed words' capital height on the map and the scrap (Arial Bold, as the stock forms print their labels), in their cell.</summary>
-    public const int MapCap = 6;
+    public const int MapCap = 7;
     /// <summary>The printed words' cells: the small sans's measure scaled (Arial Bold's capitals at MapCap fill about that), and their height.</summary>
-    public const float MapScale = 0.86f, MapCell = 9;
+    public const float MapScale = 1f, MapCell = 10;
 
     /// <summary>Where the player's road atlas is: none, being read and fitted, unreadable, or ready to draw.</summary>
     public enum AtlasState { Absent, Loading, Failed, Ready }
@@ -98,15 +137,14 @@ public static class RoguetripLayout
     /// on one map side by side), and the words. With <paramref name="backdrop"/> (a road atlas under it) the region's own lines,
     /// towns and words are left to the atlas: only the trip's maps, the run's road and the offers are drawn.
     /// </summary>
-    public static RegionPlan Region(RemixRegion reg, Box box, IReadOnlyList<string> offerMaps, int sel, IReadOnlyList<string> visited, string here,
-        Func<string, float> measure, float textH, bool backdrop = false)
+    public static RegionPlan Region(RemixRegion reg, RegionView view, IReadOnlyList<string> offerMaps, int sel, IReadOnlyList<string> visited, string here,
+        Func<string, float> measure, float textH, bool backdrop = false, Box? cover = null)
     {
         var plan = new RegionPlan();
-        (float X, float Y) At(double[] latLon)
-        {
-            var (x, y) = reg.Project(latLon, box.W, box.H);
-            return (box.X + (float)x, box.Y + (float)y);
-        }
+        var box = view.Map;
+        (float X, float Y) At(double[] latLon) => view.Project(latLon);
+        // (the scrap over the map: no word goes under it, and no town under it is named)
+        bool Covered(float x, float y) => cover is { } cv && new Box(x, y, 0, 0).Within(cv.Grow(2));
         void Line((float X, float Y) p, (float X, float Y) q, Ink kind)
         {
             if (Clip(box, ref p, ref q)) plan.Segments.Add(new Segment(p.X, p.Y, q.X, q.Y, kind));
@@ -135,12 +173,13 @@ public static class RoguetripLayout
         if (here.Length > 0 && reg.Maps.TryGetValue(here, out var hh) && plan.Offers.FirstOrDefault(o => o.Selected) is { } chosen)
             Line(At(hh), (chosen.X, chosen.Y), Ink.Approach);
         foreach (var o in plan.Offers) plan.Marks.Add(new Box(o.X - o.Radius - 1, o.Y - o.Radius - 1, 2 * o.Radius + 2, 2 * o.Radius + 2));
+        if (cover is { } c0) plan.Marks.Add(c0.Grow(3));
         // the trip's maps: small rings (filled where the run has been)
         foreach (var (map, at) in reg.Maps)
         {
             var p = At(at);
             // (under an offer's ring its number stands for it)
-            if (!new Box(p.X, p.Y, 0, 0).Within(box) || offerMaps.Contains(map, StringComparer.OrdinalIgnoreCase)) continue;
+            if (!new Box(p.X, p.Y, 0, 0).Within(box) || Covered(p.X, p.Y) || offerMaps.Contains(map, StringComparer.OrdinalIgnoreCase)) continue;
             plan.Dots.Add(new Dot(p.X, p.Y, visited.Contains(map, StringComparer.OrdinalIgnoreCase) ? "visited" : "map"));
             plan.Small.Add(new Box(p.X - 3, p.Y - 3, 6, 6));
         }
@@ -149,7 +188,7 @@ public static class RoguetripLayout
         foreach (var t in reg.Towns)
         {
             var p = At(t.At);
-            if (!new Box(p.X - 1, p.Y - 1, 3, 3).Within(box)) continue;
+            if (!new Box(p.X - 1, p.Y - 1, 3, 3).Within(box) || Covered(p.X, p.Y)) continue;
             towns.Add((t, p.X, p.Y));
             // (a town under an offer's ring keeps its name but not its dot: the ring's number is there)
             if (plan.Offers.Any(o => MathF.Abs(o.X - p.X) < o.Radius && MathF.Abs(o.Y - p.Y) < o.Radius)) continue;
@@ -179,7 +218,7 @@ public static class RoguetripLayout
     private static void PlaceAt(RegionPlan plan, Box box, string text, string kind, float x, float y, float w, float h, bool needClear)
     {
         var cands = new List<Box>();
-        foreach (float g in new[] { Gap, Gap + 5, Gap + 11, Gap + 17 })
+        foreach (float g in new[] { Gap, Gap + 5, Gap + 11, Gap + 17, Gap + 24 })
         {
             cands.Add(new Box(x + g + 1, y - h / 2, w, h));
             cands.Add(new Box(x - g - 1 - w, y - h / 2, w, h));
@@ -195,7 +234,7 @@ public static class RoguetripLayout
             cands.Add(new Box(x - g - 1 - w, y - h, w, h));
             cands.Add(new Box(x - g - 1 - w, y, w, h));
         }
-        Choose(plan, box, text, kind, cands, needClear);
+        Choose(plan, box, text, kind, cands, needClear, (x, y));
     }
 
     /// <summary>A highway's number beside its line, part way along one of its stretches, on either side.</summary>
@@ -226,20 +265,22 @@ public static class RoguetripLayout
     /// The first candidate crossing the fewest lines that lies inside the box and on no word or mark; none: the word is left out
     /// (and so is one that needs a clear place and has none).
     /// </summary>
-    private static void Choose(RegionPlan plan, Box box, string text, string kind, List<Box> cands, bool needClear)
+    private static void Choose(RegionPlan plan, Box box, string text, string kind, List<Box> cands, bool needClear, (float X, float Y)? own = null)
     {
         Box? best = null;
         int bestCost = int.MaxValue;
+        bool Own(Box m) => own is { } o && new Box(o.X, o.Y, 0, 0).Within(m);
         for (int i = 0; i < cands.Count; i++)
         {
             var c = cands[i];
-            if (!c.Within(box) || plan.Labels.Any(l => l.Rect.Grow(1).Intersects(c)) || plan.Marks.Any(m => m.Intersects(c))) continue;
-            int crossings = plan.Segments.Count(s => Crosses(s, c.Grow(-0.5f))), small = plan.Small.Count(m => m.Intersects(c));
+            if (!c.Within(box) || plan.Labels.Any(l => l.Rect.Grow(2.5f).Intersects(c)) || plan.Marks.Any(m => m.Intersects(c))) continue;
+            int crossings = plan.Segments.Count(s => Crosses(s, c.Grow(-0.5f))), small = plan.Small.Count(m => m.Intersects(c) && !Own(m)),
+                near = plan.Small.Count(m => m.Grow(SmallClear).Intersects(c) && !Own(m));
             if (needClear && crossings + small > 0) continue;
             int ink = 0;
             if (plan.Inked is { } inkedAt)
                 for (int y = (int)c.Y; y < (int)c.Bottom; y++) for (int x = (int)c.X; x < (int)c.Right; x++) if (inkedAt(x, y)) ink++;
-            int cost = small * 10000 + crossings * 100 + ink * 8 + i;
+            int cost = small * 10000 + near * 150 + crossings * 100 + ink * 8 + i;
             if (cost < bestCost) { bestCost = cost; best = c; }
         }
         if (best is { } b) plan.Labels.Add(new Placed(text, b, kind));
@@ -272,53 +313,52 @@ public static class RoguetripLayout
         return true;
     }
 
-    // ---- the offers' column ----
+    // ---- the offer on its scrap ----
 
-    /// <summary>An offer's box and its lines (each at its top left).</summary>
-    public sealed record OfferBlock(Box Box, List<(string Text, float X, float Y)> Lines, int TitleLines);
+    /// <summary>The offer's scrap: its lines (each at its top left), the "1 of 3" (top right), the box its job map gets, and what did not fit.</summary>
+    public sealed record ScrapPlan(Box Scrap, List<(string Text, float X, float Y)> Lines, (string Text, float X, float Y) Count, Box Map, List<string> Overflow);
 
-    public sealed record ColumnPlan(List<OfferBlock> Offers, Box Map, List<(string Text, float X, float Y)> Notes, List<string> Overflow);
-
-    /// <summary>The smallest the chosen job's map may be squeezed to.</summary>
-    public const float MinMapH = 56;
+    /// <summary>The smallest the job's map on the scrap may be squeezed to.</summary>
+    public const float MinMapH = 96;
+    private const float ScrapPadX = 14, ScrapPadTop = 12, ScrapPadFoot = 10;
 
     /// <summary>
-    /// The column: each offer's title and words wrapped whole (no word cut, the challenge number whole) inside its box, the boxes one
-    /// under the other from the column's top; the chosen job's notes wrapped whole at the column's foot; the job's map between.
-    /// Anything that still does not fit is named in Overflow (the test holds it empty).
+    /// The shown offer on its scrap, in the form's hand, every word whole: at the top the run's line (beside the "1 of 3"), the offer's
+    /// title (its number, map, job and challenge) and its words; at the foot the help line; above it the job's notes and its other
+    /// objectives; the job's map between them, as tall as is left. Anything that still does not fit is named in Overflow.
     /// </summary>
-    public static ColumnPlan Column(Box col, IReadOnlyList<(string Title, string Words)> offers, IReadOnlyList<string> notes, Func<string, float> measure, float lineH, float noteH, Func<string, float>? noteMeasure = null, float wordH = 0)
+    public static ScrapPlan Scrap(Box scrap, string run, string count, string title, string words, IReadOnlyList<string> notes, string help, Func<string, float> measure, float lineH)
     {
-        // the offers' titles in the measure's font, their words and the notes in the note font (wordH a line)
-        noteMeasure ??= measure;
-        if (wordH <= 0) wordH = noteH;
-        var blocks = new List<OfferBlock>();
+        var lines = new List<(string, float, float)>();
         var overflow = new List<string>();
-        float y = col.Y;
-        const float Pad = 12;
-        float inner = col.W - 2 * Pad;
-        foreach (var (title, words) in offers)
+        float x = scrap.X + ScrapPadX, inner = scrap.W - 2 * ScrapPadX, cw = measure(count);
+        float y = scrap.Y + ScrapPadTop;
+        void Put(IEnumerable<string> ls, float w)
         {
-            var lines = new List<(string, float, float)>();
-            var t = Wrap(title, inner, measure);
-            var f = Wrap(words, inner, noteMeasure);
-            float ly = y + 4;
-            foreach (var s in t) { lines.Add((s, col.X + Pad, ly)); ly += lineH; }
-            ly += 2;
-            foreach (var s in f) { lines.Add((s, col.X + Pad, ly)); ly += wordH; }
-            var b = new Box(col.X, y, col.W, ly + 3 - y);
-            blocks.Add(new OfferBlock(b, lines, t.Count));
-            y = b.Bottom + 4;
-            foreach (var s in t) if (measure(s) > inner + 0.01f) overflow.Add(s);
-            foreach (var s in f) if (noteMeasure(s) > inner + 0.01f) overflow.Add(s);
+            foreach (var l in ls) { lines.Add((l, x, y)); if (measure(l) > w + 0.01f) overflow.Add(l); y += lineH; }
         }
-        var noteLines = notes.SelectMany(n => Wrap(n, col.W, noteMeasure)).ToList();
-        float notesTop = col.Bottom - noteLines.Count * noteH;
-        var placedNotes = noteLines.Select((s, i) => (s, col.X, notesTop + i * noteH)).ToList();
-        foreach (var s in noteLines) if (noteMeasure(s) > col.W + 0.01f) overflow.Add(s);
-        var map = new Box(col.X, y + 2, col.W, notesTop - 4 - (y + 2));
+        // the run's line beside the count, then a gap, the title, the words
+        var runLines = Wrap(run, inner - cw - 8, measure);
+        Put(runLines.Take(1), inner - cw - 8);
+        Put(Wrap(string.Join(" ", runLines.Skip(1)), inner, measure), inner);
+        y += 5;
+        int titleAt = lines.Count;
+        Put(Wrap(title, inner, measure), inner);
+        y += 2;
+        Put(Wrap(words, inner, measure), inner);
+        float top = y + 4;
+        // from the foot up: the help, a gap, the notes
+        var foot = new List<string>();
+        foreach (var n in notes) foot.AddRange(Wrap(n, inner, measure));
+        var helpLines = Wrap(help, inner, measure);
+        float footTop = scrap.Bottom - ScrapPadFoot - helpLines.Count * lineH - 5 - foot.Count * lineH;
+        y = footTop;
+        Put(foot, inner);
+        y += 5;
+        Put(helpLines, inner);
+        var map = new Box(scrap.X + ScrapPadX - 4, top, scrap.W - 2 * ScrapPadX + 8, footTop - 4 - top);
         if (map.H < MinMapH) overflow.Add($"(the map: {map.H:0} px high)");
-        return new ColumnPlan(blocks, map, placedNotes, overflow);
+        return new ScrapPlan(scrap, lines, (count, scrap.Right - ScrapPadX - cw, scrap.Y + ScrapPadTop), map, overflow);
     }
 
     /// <summary>Words broken at spaces to a width; a single word wider than it stands alone (never cut).</summary>
@@ -454,15 +494,4 @@ public static class RoguetripLayout
         }
     }
 
-    /// <summary>The inverse of <see cref="RemixRegion.Project"/>: the latitude and longitude at (x, y) of a box w x h.</summary>
-    public static (double Lat, double Lon) Unproject(RemixRegion reg, double x, double y, double w, double h)
-    {
-        var b = reg.Bounds;
-        double mid = (b.North + b.South) / 2 * Math.PI / 180;
-        double k = I76.Formats.DetMath.Cos(mid);
-        double rw = (b.East - b.West) * k, rh = b.North - b.South;
-        double s = Math.Min(w / rw, h / rh);
-        double ox = (w - rw * s) / 2, oy = (h - rh * s) / 2;
-        return (b.North - (y - oy) / s, b.West + (x - ox) / (k * s));
-    }
 }

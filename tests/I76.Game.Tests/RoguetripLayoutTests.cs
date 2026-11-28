@@ -10,9 +10,9 @@ namespace I76.Game.Tests;
 
 /// <summary>
 /// ROGUETRIP's choice screen lays out its words without overlap or truncation (docs/remix-missions.md "The choice map"): over rolled
-/// runs on every map, every word on the region inside its box and on no other word or mark (the towns the region names, the highway
-/// numbers and the states all placed), every offer's words wrapped whole inside the column (the challenge number whole), the notes
-/// whole at its foot, the job map's words clear of each other and its rings. Measured with the shell fonts the screen sets them in.
+/// runs on every map, every word on the map inside the sheet and on no other word or mark (the towns the region names, the highway
+/// numbers and the states all placed), the shown offer's scrap over none of the rings or the route, its words wrapped whole on it (the
+/// challenge number whole) clear of its job map, the job map's words clear of each other and its rings. Measured with the shell fonts the screen sets them in.
 /// </summary>
 public class RoguetripLayoutTests(ITestOutputHelper output)
 {
@@ -47,8 +47,12 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>The notes and objectives the scrap shows for an offer (RoguetripScreen.Notes).</summary>
+    private static List<string> Notes(RemixSpec spec) =>
+        [.. spec.Text.Objectives.Skip(1).Where(o => !o.StartsWith("(hidden)", StringComparison.Ordinal)), .. spec.Text.Notes.Take(2)];
+
     [InstallFact]
-    public void TheRegionsWordsNeverOverlapAndTheNamedOnesAreAllPlaced()
+    public void TheRegionsWordsNeverOverlapAndTheScrapNeverCoversTheRingsOrTheRoute()
     {
         var f = Db().Font(L.MapFont);
         var reg = RemixRegion.Builtin();
@@ -61,13 +65,23 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
             foreach (bool atlas in new[] { false, true })
                 for (int sel = 0; sel < offers.Count; sel++)
                 {
-                    var plan = L.Region(reg, L.RegionBox, offers.Select(o => o.Map).ToList(), sel, run.Legs.Select(l => l.Map).ToList(), run.Map, t => f.Measure(t) * L.MapScale, L.MapCell, atlas);
-                    NoOverlap(plan.Labels, plan.Marks, L.RegionBox, $"run {run.Number} map '{run.Map}' sel {sel}");
-                    // the words the region always shows: the named towns, the through highways' numbers, the states (a quiet town's name or a short spur's number may go)
-                    var must = atlas ? [] : reg.Towns.Where(t => !t.Quiet).Select(t => L.Printed(t.Name)).Concat(reg.Highways.Where(h => h.Towns.Count >= 3).Select(h => h.Name)).Concat(reg.States.Select(s => s.Name));
-                    foreach (var name in must) Assert.True(plan.Labels.Any(l => l.Text == name), $"run {run.Number} map '{run.Map}' sel {sel} atlas {atlas}: no place for {name}");
+                    var plan = L.Region(reg, L.View, offers.Select(o => o.Map).ToList(), sel, run.Legs.Select(l => l.Map).ToList(), run.Map, t => f.Measure(t) * L.MapScale, L.MapCell, atlas, L.ScrapBox);
+                    string what = $"run {run.Number} map '{run.Map}' sel {sel}";
+                    NoOverlap(plan.Labels, plan.Marks, L.MapBox, what);
+                    // the scrap covers no ring (the shown one least of all), no part of the run's road or the way to the shown offer
+                    foreach (var o in plan.Offers)
+                    {
+                        var ring = new L.Box(o.X - o.Radius - 1, o.Y - o.Radius - 1, 2 * o.Radius + 2, 2 * o.Radius + 2);
+                        Assert.False(ring.Intersects(L.ScrapBox), $"{what}: the scrap covers offer {o.Index + 1}'s ring");
+                        Assert.True(ring.Within(L.MapBox), $"{what}: offer {o.Index + 1}'s ring leaves the map");
+                    }
+                    foreach (var s in plan.Segments.Where(s => s.Kind is L.Ink.Run or L.Ink.Approach))
+                        Assert.False(L.Crosses(s, L.ScrapBox), $"{what}: the scrap covers the route");
+                    // the words the map always shows: the named towns clear of the scrap, the through highways' numbers, the states
+                    var must = atlas ? [] : reg.Towns.Where(t => !t.Quiet && L.View.Project(t.At).X < L.ScrapBox.X - 80).Select(t => L.Printed(t.Name))
+                        .Concat(reg.Highways.Where(h => h.Towns.Count >= 3).Select(h => h.Name)).Concat(reg.States.Select(s => s.Name));
+                    foreach (var name in must) Assert.True(plan.Labels.Any(l => l.Text == name), $"{what} atlas {atlas}: no place for {name}");
                     foreach (var d in plan.Dropped) dropped[d] = dropped.GetValueOrDefault(d) + 1;
-                    // a word crossing a road is allowed only where no clear place was left
                     plans++;
                     labels += plan.Labels.Count;
                     onSmall += plan.Labels.Count(l => plan.Small.Any(m => m.Intersects(l.Rect)));
@@ -77,44 +91,45 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
     }
 
     [InstallFact]
-    public void TheOffersAndNotesAreWrappedWholeInsideTheColumn()
+    public void TheShownOffersWordsAreWholeOnItsScrap()
     {
-        var db = Db();
-        var f = db.Font(L.TextFont);
-        var nf = db.Font(L.MapFont);
-        int cols = 0, maxLines = 0;
+        var f = Db().Font(L.TextFont);
+        int scraps = 0, maxLines = 0;
         float minMap = float.MaxValue;
         foreach (var run in Runs())
         {
             var offers = run.Offers(RemixNodes.Builtin());
             for (int sel = 0; sel < offers.Count; sel++)
             {
-                var notes = run.Spec(offers[sel]).Text.Notes.Take(2).ToList();
-                var col = L.Column(L.ColumnBox, offers.Select((o, i) => (RoguetripScreen.OfferTitle(o, i), o.Flavour)).ToList(), notes, t => f.Measure(t), L.OfferLine, L.NoteLine, t => f.Measure(t), L.NoteLine);
-                Assert.True(col.Overflow.Count == 0, $"run {run.Number}: {string.Join(" | ", col.Overflow)}");
-                for (int i = 0; i < offers.Count; i++)
+                var o = offers[sel];
+                var notes = Notes(run.Spec(o));
+                string runLine = $"Run {run.Number}, job {run.Legs.Count + 1} of 4 (1 busted). ABX Leprechaun: armour 100%, chassis 100%, ammo 100%. Leaving Fort Stockton and the Pecos.";
+                foreach (var help in new[] { "Arrows, 1-3 or a ring: choose. Enter: take it. Esc: back.", "The host chooses (the red ring). Esc: back to the lobby." })
                 {
-                    var b = col.Offers[i];
-                    Assert.True(b.Box.Within(L.ColumnBox), $"run {run.Number} offer {i} leaves the column");
-                    foreach (var (t, x, y) in b.Lines.Take(b.TitleLines))
-                        Assert.True(new L.Box(x, y, f.Measure(t), f.Height).Within(b.Box), $"run {run.Number}: '{t}' leaves its offer's box");
-                    foreach (var (t, x, y) in b.Lines.Skip(b.TitleLines))
-                        Assert.True(new L.Box(x, y, f.Measure(t), f.Height).Within(b.Box), $"run {run.Number}: '{t}' leaves its offer's box");
-                    // nothing cut: the lines are the words, in order, every one
-                    Assert.Equal(RoguetripScreen.OfferTitle(offers[i], i) + " " + offers[i].Flavour, string.Join(" ", b.Lines.Select(l => l.Text)));
-                    Assert.Contains($"{offers[i].Challenge:0.0}", b.Lines.Take(b.TitleLines).Last().Text);
-                    maxLines = Math.Max(maxLines, b.Lines.Count);
+                    var sp = L.Scrap(L.ScrapBox, runLine, $"{sel + 1} of {offers.Count}", RoguetripScreen.OfferTitle(o, sel), o.Flavour, notes, help, t => f.Measure(t), L.OfferLine);
+                    string what = $"run {run.Number} offer {sel + 1}";
+                    Assert.True(sp.Overflow.Count == 0, $"{what}: {string.Join(" | ", sp.Overflow)}");
+                    var inner = L.ScrapBox.Grow(-8);
+                    var boxes = sp.Lines.Select(l => new L.Box(l.X, l.Y, f.Measure(l.Text), f.Height)).ToList();
+                    boxes.Add(new L.Box(sp.Count.X, sp.Count.Y, f.Measure(sp.Count.Text), f.Height));
+                    for (int i = 0; i < boxes.Count; i++)
+                    {
+                        Assert.True(boxes[i].Within(inner), $"{what}: a line leaves the scrap ({boxes[i]})");
+                        Assert.False(boxes[i].Intersects(sp.Map), $"{what}: a line on the job's map");
+                        for (int j = i + 1; j < boxes.Count; j++) Assert.False(boxes[i].Grow(-0.5f).Intersects(boxes[j].Grow(-0.5f)), $"{what}: two lines overlap");
+                    }
+                    Assert.True(sp.Map.Within(L.ScrapBox) && sp.Map.H >= L.MinMapH);
+                    // nothing cut: every word of the title, the offer, the notes and the help is there, in order
+                    string all = string.Join(" ", sp.Lines.Select(l => l.Text));
+                    Assert.Equal(string.Join(" ", new[] { runLine, RoguetripScreen.OfferTitle(o, sel), o.Flavour }.Concat(notes).Append(help).SelectMany(t => t.Split(' ', StringSplitOptions.RemoveEmptyEntries))), all);
+                    Assert.Contains($"{o.Challenge:0.0}", all);
+                    maxLines = Math.Max(maxLines, sp.Lines.Count);
+                    minMap = Math.Min(minMap, sp.Map.H);
+                    scraps++;
                 }
-                Assert.Equal(string.Join(" ", notes), string.Join(" ", col.Notes.Select(n => n.Text)));
-                foreach (var (t, x, y) in col.Notes) Assert.True(new L.Box(x, y, f.Measure(t), f.Height).Within(L.ColumnBox), $"run {run.Number}: note '{t}' leaves the column");
-                Assert.True(col.Map.H >= L.MinMapH);
-                minMap = Math.Min(minMap, col.Map.H);
-                cols++;
             }
-            // the two lines over the sheet fit across it
-            Assert.True(f.Measure($"Run {run.Number}: job {run.Legs.Count + 1} of 4. ABX Leprechaun: armour 100%, chassis 100%, ammo 100%.") <= L.Sheet.W);
         }
-        output.WriteLine($"{cols} columns; at most {maxLines} lines an offer; the job map at least {minMap:0} px high");
+        output.WriteLine($"{scraps} scraps; at most {maxLines} lines; the job map at least {minMap:0} px high");
     }
 
     [InstallFact]
@@ -129,9 +144,10 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
             for (int sel = 0; sel < offers.Count; sel++)
             {
                 var spec = run.Spec(offers[sel]);
-                var col = L.Column(L.ColumnBox, offers.Select((o, i) => (RoguetripScreen.OfferTitle(o, i), o.Flavour)).ToList(), spec.Text.Notes.Take(2).ToList(), t => tf.Measure(t), L.OfferLine, L.NoteLine, t => tf.Measure(t), L.NoteLine);
-                // the sketch box as the screen sizes it (RoguetripScreen.DrawJobMap)
-                int w = (int)col.Map.W - 2 * 5 - 2, h = (int)col.Map.H - 2 * 5 - 7 - 6;
+                var sp = L.Scrap(L.ScrapBox, $"Run {run.Number}, job 1 of 4. ABX Leprechaun: the car as built. Pick where the run starts.", "1 of 3",
+                    RoguetripScreen.OfferTitle(offers[sel], sel), offers[sel].Flavour, Notes(spec), "Arrows, 1-3 or a ring: choose. Enter: take it. Esc: back.", t => tf.Measure(t), L.OfferLine);
+                // the sketch's box as the screen sizes it (RoguetripScreen.DrawOfferScrap)
+                int w = (int)sp.Map.W, h = (int)sp.Map.H - 7 - 6;
                 if (L.JobMap(TestInstall.Install, spec, w, h, t => f.Measure(t) * L.MapScale, L.MapCell) is not { } jm) continue;
                 Assert.True(jm.Marks.Dropped.Count == 0, $"run {run.Number} {offers[sel].Map} {offers[sel].Template}: no place for {string.Join(", ", jm.Marks.Dropped)}");
                 NoOverlap(jm.Marks.Labels, jm.Marks.Rings.Select(r => new L.Box(r.X - 5, r.Y - 5, 10, 10)), new L.Box(0, 0, w, h), $"run {run.Number} {offers[sel].Map}");
@@ -165,8 +181,8 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
         var reg = RemixRegion.Builtin();
         foreach (var state in Enum.GetValues<L.AtlasState>())
         {
-            var plan = L.Region(reg, L.RegionBox, ["t10"], 0, [], "", t => t.Length * 6f, 10, L.AtlasShown(state));
-            bool drawn = plan.Segments.Any(s => s.Kind == L.Ink.Highway) && reg.Towns.Where(t => !t.Quiet).All(t => plan.Labels.Any(l => l.Text == L.Printed(t.Name)));
+            var plan = L.Region(reg, L.View, ["t10"], 0, [], "", t => t.Length * 6f, 10, L.AtlasShown(state), L.ScrapBox);
+            bool drawn = plan.Segments.Any(s => s.Kind == L.Ink.Highway) && reg.Towns.Where(t => !t.Quiet && L.View.Project(t.At).X < L.ScrapBox.X - 60).All(t => plan.Labels.Any(l => l.Text == L.Printed(t.Name)));
             Assert.Equal(state != L.AtlasState.Ready, drawn);
             Assert.NotEmpty(plan.Offers);
         }
@@ -183,10 +199,14 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
         Assert.Equal(400, y, 3);
         Assert.Null(L.AtlasFit.Parse("33 -104 0 300\n33 -101 300 300\n"));
         // the region's projection and its inverse agree
+        var p = L.View.Project([32.5, -103.2]);
+        var (lat, lon) = L.View.Unproject(p.X, p.Y);
+        Assert.Equal(32.5, lat, 4);
+        Assert.Equal(-103.2, lon, 4);
+        // the view fills the sheet: the region's north and south edges on its top and foot, every trip map left of the scrap
         var reg = RemixRegion.Builtin();
-        var p = reg.Project([32.5, -103.2], 304, 334);
-        var (lat, lon) = L.Unproject(reg, p.X, p.Y, 304, 334);
-        Assert.Equal(32.5, lat, 6);
-        Assert.Equal(-103.2, lon, 6);
+        Assert.Equal(L.MapBox.Y, L.View.Project([reg.Bounds.North, -103]).Y, 2);
+        Assert.Equal(L.MapBox.Bottom, L.View.Project([reg.Bounds.South, -103]).Y, 2);
+        Assert.All(reg.Maps.Values, m => Assert.InRange(L.View.Project(m).X, L.MapBox.X + L.OuterRing, L.ScrapBox.X - L.OuterRing));
     }
 }
