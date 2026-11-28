@@ -198,6 +198,7 @@ public class SharedSettingsFileTests
         head_track_sensitivity=2.0
         head_track_reach=120
         head_track_centre="off"
+        thrown_light="bright"
         head_track_port=4243
         head_track_bind="0.0.0.0"
         head_track_position=true
@@ -285,7 +286,7 @@ public class SharedSettingsFileTests
         night_station_light=50
         headlamp_throw=50
         muzzle_reach=50
-        smoke_linger=200
+        smoke_linger=260
         smoke_start_dark=50
         smoke_start_density=100
         smoke_start_width=50
