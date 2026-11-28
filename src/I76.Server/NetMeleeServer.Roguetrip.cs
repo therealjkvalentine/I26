@@ -212,7 +212,8 @@ public sealed partial class NetMeleeServer
         bool allDead = seats.Count > 0 && seats.All(s => s.Actor.Destroyed);
         int fail = won is null ? -1 : script.Host.End?.FailMessage ?? -1;
         var outcome = won is null ? RemixRun.Outcome.Bust : RemixRun.Classify(won.Value, fail, _rtFailures, allDead);
-        int kills = script.Host.Entities.Count(e => e.Dead && e.KilledByPlayer);
+        // (civilians, nobody's cars, apart: the run counts them as heat; docs/remix-missions.md "Civilian traffic")
+        var (kills, civilians) = RemixKills.Count(script.Host.Entities);
         var text = cm.Setup.ObjectiveText;
         string why = won == true ? "" : won is null ? "The crew walked away from the job."
             : text is { } t && fail >= 0 && fail < t.Failures.Count ? t.Failures[fail] : outcome == RemixRun.Outcome.Dead ? "The whole crew was killed." : "The job went wrong.";
@@ -221,7 +222,7 @@ public sealed partial class NetMeleeServer
         for (int i = 0; i < flags.Length && text is not null && i < text.Objectives.Count; i++)
             if ((flags[i] & Objectives.Hidden) == 0)
                 objectives.Add(new CoopObjective { Text = text.Objectives[i].Text, Done = (flags[i] & Objectives.Succeeded) != 0, Failed = (flags[i] & Objectives.Failed) != 0 });
-        run.Finish(outcome, kills, seats.Select(s => (s.Name, ((CoopActor)s.Actor).CarFile, (RunCar?)RunCarry.Capture(s.Actor.Car), s.Actor.Destroyed)), why, objectives);
+        run.Finish(outcome, kills, seats.Select(s => (s.Name, ((CoopActor)s.Actor).CarFile, (RunCar?)RunCarry.Capture(s.Actor.Car), s.Actor.Destroyed)), why, objectives, civilians);
         Log?.Invoke($"roguetrip: job {run.Run.Legs.Count} {outcome.ToString().ToLowerInvariant()} ({(why.Length > 0 ? why : "done")}), {kills} kills; "
             + string.Join(", ", run.Crew.Select(c => $"{c.Name} {(c.Out ? "killed" : $"armour {c.State?.ArmourLeft ?? 100}%")}")));
         _rtJob = null;

@@ -46,6 +46,8 @@ public sealed record ShellLaunch(string Mission, GameKind Kind, string? Car = nu
 public sealed record RunResult(bool Won, int Kills, I76.Formats.Remix.RunCar Car)
 {
     public int FailMessage { get; init; } = -1;
+    /// <summary>Civilians (the job's traffic) the player destroyed: the run's heat (docs/remix-missions.md "Civilian traffic").</summary>
+    public int Civilians { get; init; }
     public bool PlayerDead { get; init; }
     public bool Aborted { get; init; }
     public string Why { get; init; } = "";

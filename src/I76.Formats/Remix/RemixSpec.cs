@@ -54,6 +54,8 @@ public sealed class RemixSpec
     /// stock mission's scripted salvage (its .fsi) is, in a usable condition; null for any other job. Read by the game, not the build.
     /// </summary>
     public List<string>? Prize { get; set; }
+    /// <summary>Civilian traffic (docs/remix-missions.md "Civilian traffic"): cars of nobody's side driving the roads; null for none.</summary>
+    public List<TrafficSpec>? Traffic { get; set; }
     /// <summary>
     /// The stock cars no kept thread and no template names (the base's mission threads drove them): remove (the default; they
     /// would only stand where the base parked them) or keep (as decor).

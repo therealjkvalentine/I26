@@ -1264,7 +1264,8 @@ public partial class Main : Node3D
 		_lastRun = null;
 		if (_launch is { Roguetrip: true } && _sim?.World.Player is { } rp)
 		{
-			int kills = _sim.Script?.Host.Entities.Count(e => e.Vehicle is not null && e.Vehicle != rp && e.Dead && e.KilledByPlayer) ?? 0;
+			// (civilians, nobody's cars, apart: the run counts them as heat; docs/remix-missions.md "Civilian traffic")
+			var (kills, civilians) = _sim.Script is { } ks ? I76.Sim.Missions.RemixKills.Count(ks.Host.Entities.Where(e => e.Vehicle is not null), rp) : (0, 0);
 			// how it ended, for the run's bust rule and the debrief page: the failure line (none: walked away), the objectives as they stood
 			int fm = _script?.Host.End is { Success: false } fe ? fe.FailMessage : -1;
 			bool aborted = !won && _script?.Result is null;
@@ -1293,9 +1294,9 @@ public partial class Main : Node3D
 			_lastRun = new I76.Game.Shell.RunResult(won, kills, I76.Sim.Trip.RunCarry.Capture(rp))
 			{
 				FailMessage = fm, PlayerDead = PlayerDead || I76.Sim.Damage.DamageModel.IsDead(rp), Aborted = aborted, Why = why, Objectives = obs,
-				Salvage = items, Parts = I76.Sim.Trip.CarState.Capture(rp),
+				Salvage = items, Parts = I76.Sim.Trip.CarState.Capture(rp), Civilians = civilians,
 			};
-			GD.Print($"remix: roguetrip job ended: {(won ? "won" : aborted ? "walked away" : $"failed on line {fm + 1}")}, {kills} kills{(items is null ? "" : $", {items.Count} salvage items")}");
+			GD.Print($"remix: roguetrip job ended: {(won ? "won" : aborted ? "walked away" : $"failed on line {fm + 1}")}, {kills} kills{(civilians > 0 ? $", {civilians} civilians" : "")}{(items is null ? "" : $", {items.Count} salvage items")}");
 			_salvage = null;   // the trip's own salvage hand-back below is the trip's alone
 		}
 		_lastLaunch = _launch;
