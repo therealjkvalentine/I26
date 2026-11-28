@@ -835,6 +835,9 @@ public class CoopCutSceneTests(ITestOutputHelper output)
             if (was && !host.View.Active && !intro)
             {
                 intro = true;
+                // the form-up is the next script frame's (ScriptHost.CoopFrame): the other stood on its brakes through the scene
+                s.Tick(new CarInput[2]);
+                SnapshotRig.TakeEvents(s);
                 output.WriteLine($"{mission}: the intro ends at tick {s.Ticks}, the lead {Vector3.Distance(start, lead.Pos.ToVector3()):0} m from its start, the other {D(lead, other):0} m from it");
                 Assert.True(Vector3.Distance(start, lead.Pos.ToVector3()) > 100, "the intro drove the lead");
                 Assert.InRange(D(lead, other), 4f, 40f);

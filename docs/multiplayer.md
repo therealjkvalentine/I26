@@ -1044,7 +1044,11 @@ plays its own rule (no bonus); under a fork host an upstream client sees the esc
 
 A cut-scene (the script holding the camera) drives the lead; every driver's keys are held as the one player's were
 (`SimSession.Cutscene`), so the others wait where they are until a teleport or the end of the scene forms them up
-behind the lead. Which screen shows the cut-scene, and the gameplay cameras, are the presentation's. The scene's cars
+behind the lead. They wait on their brakes (`ScriptHost.HeldInScene`: a living human other than the lead whom the scene
+gives no order or driveControl entry): held with no keys, a teammate formed up on a slope rolled backwards down it for the
+length of the scene, 300 m to an exit in the Nitro Pack's long intros (P04, P14: warned and put back; idle teammates in P07, P15, S04 and T06 also crashed in
+theirs), where the original's one player is either driven by the scene or put down where it stands. The lead stays
+the original's, braked or not as the scene leaves it (`CoopSweepTests`). Which screen shows the cut-scene, and the gameplay cameras, are the presentation's. The scene's cars
 go at the lead (above) and their way keeps clear of the waiting seats (the formation), so it plays as single player's
 (`CoopFormationTests`: T01's intro, Taurus and the lead where single player has them; in the openings of T01–T03,
 T05, T06, S01, P01, P03 and P06 with 2 and 4 humans no AI car drives into a seat in a cut-scene, nor a friend's at
