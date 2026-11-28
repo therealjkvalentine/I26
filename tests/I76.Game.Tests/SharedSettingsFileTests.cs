@@ -199,6 +199,7 @@ public class SharedSettingsFileTests
         head_track_reach=120
         head_track_centre="off"
         thrown_light="bright"
+        gun_smoke="heavy"
         head_track_port=4243
         head_track_bind="0.0.0.0"
         head_track_position=true

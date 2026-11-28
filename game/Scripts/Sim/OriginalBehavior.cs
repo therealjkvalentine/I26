@@ -60,6 +60,7 @@ public static class OriginalBehavior
         OwnSmoke.EngineOnly = s.OwnSmokeEngine;
         SmokeHaze.Long = s.SmokeHaze;
         ThrownLight.Bright = s.ThrownLightBright;
+        GunSmoke.Setting = s.GunSmoke;
         DamageView.MovieIgnition = s.MovieIgnition;
     }
 

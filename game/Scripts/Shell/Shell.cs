@@ -1557,6 +1557,8 @@ public sealed class ShellSettings
     public bool SmokeHaze { get; set; }
     /// <summary>The port's own, without a row (the Developer panel): the light the modern look's lamps, flashes and fires throw (ThrownLight); [port] thrown_light="bright" the light as before the key, written only then. Original (the original's: none by day, none on the ground from a flash) unless the player chose.</summary>
     public bool ThrownLightBright { get; set; }
+    /// <summary>The port's own, without a row (the Developer panel): the modern look's smoke from firing guns (GunSmoke); [port] gun_smoke off, light or heavy, written when not the default (light).</summary>
+    public I76.Game.Sim.GunSmoke.Level GunSmoke { get; set; } = I76.Game.Sim.GunSmoke.Default;
     /// <summary>The port's own: Graphic Detail's Road Detail (RoadDetailRow), the modern look's paved roads with a surface of their own near the camera (World/RoadDetail); [port] road_detail, written only when on. Off unless the player chose.</summary>
     public bool RoadDetail { get; set; }
     /// <summary>Road Detail's Strong (RoadDetailRow): with <see cref="RoadDetail"/>, the larger, rougher aggregate; [port] road_detail_strong, written only when on.</summary>
@@ -2295,6 +2297,7 @@ public sealed class ShellSettings
         s.SmokeLighting = (bool)c.GetValue("port", "smoke_lighting", false);
         s.SmokeHaze = (bool)c.GetValue("port", "smoke_haze", false);
         s.ThrownLightBright = c.GetValue("port", "thrown_light", "").ToString() == "bright";
+        s.GunSmoke = I76.Game.Sim.GunSmoke.Parse(c.GetValue("port", "gun_smoke", "").ToString(), null) ?? I76.Game.Sim.GunSmoke.Default;
         s.RoadDetail = (bool)c.GetValue("port", "road_detail", false);
         // (the key asked about whatever road_detail says: a save keeps only keys a build does not ask about, SaveFile)
         s.RoadDetailStrong = (bool)c.GetValue("port", "road_detail_strong", false) && s.RoadDetail;
@@ -2624,6 +2627,7 @@ public sealed class ShellSettings
         if (SmokeLighting) c.SetValue("port", "smoke_lighting", true);
         if (SmokeHaze) c.SetValue("port", "smoke_haze", true);
         if (ThrownLightBright) c.SetValue("port", "thrown_light", "bright");
+        if (GunSmoke != I76.Game.Sim.GunSmoke.Default) c.SetValue("port", "gun_smoke", I76.Game.Sim.GunSmoke.Words[(int)GunSmoke]);
         if (RoadDetail) c.SetValue("port", "road_detail", true);
         if (RoadDetail && RoadDetailStrong) c.SetValue("port", "road_detail_strong", true);
         if (HeatShimmer != HeatShimmerRow.Off) c.SetValue("port", "heat_shimmer", HeatShimmerRow.Word(HeatShimmer));
