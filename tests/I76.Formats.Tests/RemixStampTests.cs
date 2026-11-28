@@ -13,6 +13,6 @@ public class RemixStampTests
     [Fact]
     public void TheStampIsTheSameOnEveryPlatform()
     {
-        Assert.Equal("remix 8 spec df8eeda46bf0b64d base t03 e3b0c44298fc1c14", RemixBuilder.Stamp(RemixDirector.Roll(1), []));
+        Assert.Equal("remix 9 spec 6c1a5afc5930523f base t03 e3b0c44298fc1c14", RemixBuilder.Stamp(RemixDirector.Roll(1), []));
     }
 }
