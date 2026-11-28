@@ -23,7 +23,69 @@ public static class RemixTemplates
         "escort" => Escort(c),
         "raid" => Raid(c),
         var t => throw new RemixError($"objective template '{t}': defend, deliver, tail, intercept, escort or raid"),
-    }) + (c.Spec.Objective.Template is "intercept" or "ambush" or "defend" or "escort" or "raid" ? Sleepers(c) : "") + Reinforcements(c)).Replace("\r\n", "\n");
+    }) + (c.Spec.Objective.Template is "intercept" or "ambush" or "defend" or "escort" or "raid" ? Sleepers(c) : "") + Reinforcements(c) + Traffic(c)).Replace("\r\n", "\n");
+
+    /// <summary>
+    /// Civilian traffic (docs/remix-missions.md "Civilian traffic"), the stock trip's loop: each car waits hidden at the lot until its delay
+    /// and nobody is near its route's start, is put there and drives its route,
+    /// and at the end waits until nobody is within the unseen radius of it or of the route's start, then is put back at the start. A car
+    /// the player destroys counts (rx_civk; co-op: each human's own); Groove remarks on the first and on any after, S04's way.
+    /// </summary>
+    private static string Traffic(Context c)
+    {
+        if (c.Spec.Traffic is not { Count: > 0 } traffic) return "";
+        var y = new StringBuilder("---\nsounds:\n");
+        foreach (var clip in RemixTraffic.KillClips) y.Append($"  {SoundKey(clip)}: {clip}.wav\n");
+        y.Append($"globals:\n  rx_cuser: actor.{c.Player}\n  rx_civk: 0\n  rx_unseen: {N((int)RemixTraffic.Unseen)}\n");
+        for (int i = 0; i < traffic.Count; i++)
+        {
+            var t = traffic[i];
+            y.Append($"  rx_tc{i}: actor.{c.Actor(t.Car)}\n  rx_tr{i}: path.{c.Place(t.Route)}\n  rx_ts{i}: {N(t.Speed)}\n  rx_td{i}: {N(t.Delay)}\n  rx_th{i}: {N(c.Heading(t.Route))}\n");
+        }
+        y.Append($$"""
+            scripts:
+              rx_civ:
+                fields: [car, user, route, speed, delay, head, civk, unseen]
+                variables: {timer: null}
+                guards:
+                  - when: isGroovesFault(car)
+                    then: inc(civk)
+                    goto: stop
+                  - when: isDead(car)
+                    goto: stop
+                steps:
+                  - do:
+                      - startTimer(timer)
+                      - setAvoid(car, 0)
+                      - setSkill(car, 1, 1)
+                      - setAgg(car, 1)
+                    while_waiting: hide(car)
+                  - wait_until: timeGreater(timer, delay) && !isWithinNav(route, user, unseen)
+                    then:
+                      - teleport(car, route, 0, head)
+                      - startCar(car)
+                    while_waiting: hide(car)
+                  - repeat:
+                      - wait_until: isArrived(car)
+                        while_waiting: goto(car, route, speed)
+                      - wait_until: '!isWithin(car, user, unseen) && !isWithinNav(route, user, unseen)'
+                        then: teleport(car, route, 0, head)
+                        while_waiting: sit(car)
+              rx_civsay:
+                fields: [civk]
+                steps:
+                  - wait_until: civk == 1
+                    then: cbPrior(sound.{{SoundKey(RemixTraffic.KillClips[0])}}, 3)
+                  - wait_until: civk > 1
+                    then: cbPrior(sound.{{SoundKey(RemixTraffic.KillClips[1])}}, 3)
+            threads:
+
+            """);
+        for (int i = 0; i < traffic.Count; i++)
+            y.Append($"  rx_civ{i}: {{script: rx_civ, args: {{car: rx_tc{i}, user: rx_cuser, route: rx_tr{i}, speed: rx_ts{i}, delay: rx_td{i}, head: rx_th{i}, civk: rx_civk, unseen: rx_unseen}}}}\n");
+        y.Append("  rx_civsay: {script: rx_civsay, args: {civk: rx_civk}}\n");
+        return y.ToString();
+    }
 
     /// <summary>
     /// Sleepers for the templates without their own (intercept, defend): each waits parked where it is until the player comes within

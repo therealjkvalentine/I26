@@ -16,7 +16,7 @@ public static class RemixVoiceCheck
         ("warehouse", ["place:warehouse", "defended:warehouse"]), ("hideout", ["place:hideout"]), ("rendezvous", ["place:rendezvous"]),
         ("380", ["road:380:west"]), ("385", []), ("west", ["road:380:west", "from:west"]), ("east", ["from:east"]), ("north", []), ("south", []),
         ("convoy", ["convoy"]), ("police", ["police"]), ("two minutes", ["left:120"]), ("to go", ["count:1/3", "count:2/3", "count:3/5"]),
-        ("airfield", []), ("hangar", []), ("depot", []), ("skeeter", []), ("vixen", []), ("civilians", []), ("tanker", []), ("soldier", []),
+        ("airfield", []), ("hangar", []), ("depot", []), ("skeeter", []), ("vixen", []), ("civilians", ["civilians"]), ("tanker", []), ("soldier", []),
         ("riders", []), ("escort", []), ("monkey wrench", []), ("got away", []),
     ];
 
@@ -71,6 +71,7 @@ public static class RemixVoiceCheck
                     case "police" when !(o.Pursuit is { } pu && pu.Cars.All(c => spec.Cars.TryGetValue(c, out var cc) && RemixDirector.Police.Contains(cc.Vcf))): Bad("not the police"); break;
                     case "more" when !o.Reinforce.Any(r => r.Cars.All(c => spec.Cars.TryGetValue(c, out var cc) && RemixDirector.Police.Contains(cc.Vcf))): Bad("no more police come"); break;
                     case "deadline" when o.Deadline <= 0: Bad("no deadline"); break;
+                    case "civilians" when spec.Traffic is not { Count: > 0 }: Bad("no civilians on the roads"); break;
                     case "left:120" when Clock(spec) < 180: Bad($"a clock of {Clock(spec)} s"); break;
                     case "left:45" when Clock(spec) < 90: Bad($"a clock of {Clock(spec)} s"); break;
                     case "clear" when !(ch.Moment == "lost" && o.Template == "tail" || ch.Moment == "done" && (o.FinishClear > 0 || o.Template == "deliver" && o.Clear > 0)): Bad("nothing makes the moment clear"); break;

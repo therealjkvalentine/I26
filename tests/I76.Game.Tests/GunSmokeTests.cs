@@ -84,8 +84,12 @@ public class GunSmokeTests
         Assert.True(MathF.Exp(-GunSmoke.Drag * 0.5f) < 0.3f);
         // the sources: a gun's puff fades by Out under either Smoke Linger and ends with its life under Long too
         string dmg = Src("Sim", "DamageSmoke.cs"), cv = Src("Sim", "CombatView.cs");
-        Assert.Contains("SmokeHaze.On && !p.Brief ? (lf, size, p.Dens) : (lf, SmokeFade.Size(p.Start, p.End, lf), p.Dens * SmokeFade.Out(lf))", dmg);
+        Assert.Contains("float lf = p.Age / p.Span, size = SmokeFade.Size(p.Start, p.End, lf);", dmg);
+        Assert.Contains("return SmokeHaze.On && !p.Brief ? (lf, size, p.Dens) : (lf, size, p.Dens * SmokeFade.Out(lf));", dmg);
+        Assert.Contains("p.Span = p.Life;   // its own life is its curve's", dmg);
         Assert.Contains("if (!hazeOn || p.Brief) { p.Live = false; continue; }", dmg);
+        // and so never reaches the hand-over to the haze, which follows it
+        Assert.True(dmg.IndexOf("if (!hazeOn || p.Brief) { p.Live = false; continue; }", StringComparison.Ordinal) < dmg.IndexOf("if (!p.Haze) HandOver(ref p);", StringComparison.Ordinal));
         Assert.Contains("GunSmoke.For(s.Weapon.Def.Kind, GunSmoke.Now) is { } gp", cv);
     }
 }

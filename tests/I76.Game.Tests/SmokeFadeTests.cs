@@ -153,7 +153,7 @@ public class SmokeFadeTests
     public void NoSlotStillShowingIsTakenForANewPuff()
     {
         string dmg = Repo("game", "Scripts", "Sim", "DamageSmoke.cs"), rocket = Repo("game", "Scripts", "Sim", "RocketSmoke.cs");
-        Assert.Contains("if (_mp[_mnext].Live) return;", dmg);
+        Assert.Contains("if (_mp[_mnext].Live) { _skipped++; return; }", dmg);
         Assert.Contains("if (s._mp[s._mnext].Live) return;", dmg);
         Assert.Contains("if (_pool[_next].Live) return;", rocket);
     }

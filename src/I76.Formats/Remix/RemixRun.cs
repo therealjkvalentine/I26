@@ -69,6 +69,11 @@ public sealed class RemixRun
     [YamlIgnore] public string Gear => (RemixRoster.GearOfInventory(Inventory) ?? RemixRoster.GearOfCar(Car.Length > 0 ? Car : "vppirna1.vcf")).ToString();
     /// <summary>The challenge of the next job: one step a job played, and one more for each bust.</summary>
     [YamlIgnore] public double NextChallenge => Challenges[Math.Clamp(Legs.Count + Busts, 0, Challenges.Length - 1)];
+    /// <summary>
+    /// Civilians (a job's traffic) the player destroyed on the run, for the record only: they cost nothing (the owner: "civilian cars don't
+    /// need a penalty unless part of the mission"; docs/remix-missions.md "Civilian traffic").
+    /// </summary>
+    public int Civilians { get; set; }
     /// <summary>The job being played or last played, from 1.</summary>
     [YamlIgnore] public int JobIndex => Phase == "playing" || Current is null ? Legs.Count + 1 : Legs.Count;
 
@@ -164,13 +169,14 @@ public sealed class RemixRun
     /// The job is over: won (the car's state carried; its salvage next, or the run done), bust (the car's state carried, no salvage,
     /// the next job a step harder) or dead (the run over). Each goes to its debrief page first; why is the line it ended on.
     /// </summary>
-    public void Finish(Outcome outcome, int kills, RunCar? car, string why = "")
+    public void Finish(Outcome outcome, int kills, RunCar? car, string why = "", int civilians = 0)
     {
         if (Current is not { } c) return;
         Kills += kills;
+        Civilians += civilians;
         Legs.Add(new RunLeg
         {
-            Map = c.Map, Name = c.Name, Template = c.Template, Seed = c.Seed, Challenge = c.Challenge, Won = outcome == Outcome.Won, Kills = kills,
+            Map = c.Map, Name = c.Name, Template = c.Template, Seed = c.Seed, Challenge = c.Challenge, Won = outcome == Outcome.Won, Kills = kills, Civilians = civilians,
             Outcome = outcome.ToString().ToLowerInvariant(), Why = why,
         });
         Map = c.Map;
@@ -224,6 +230,7 @@ public sealed class RemixRun
         var l = Legs[^1];
         Legs.RemoveAt(Legs.Count - 1);
         Kills -= l.Kills;
+        Civilians -= l.Civilians;
         if (l.Outcome == "won" || (l.Outcome.Length == 0 && l.Won)) Won--;
         if (l.Outcome == "bust") Busts--;
         Map = Legs.Count > 0 ? Legs[^1].Map : "";
@@ -460,6 +467,8 @@ public sealed class RunLeg
     public double Challenge { get; set; }
     public bool Won { get; set; }
     public int Kills { get; set; }
+    /// <summary>Civilians the player destroyed in the job (for the record: no penalty).</summary>
+    public int Civilians { get; set; }
     /// <summary>won, bust or dead (empty in a round-four run file: Won says).</summary>
     public string Outcome { get; set; } = "";
     /// <summary>The line the job ended on (a failure's, or the debrief's own words).</summary>

@@ -528,8 +528,9 @@ public partial class ModernFx : Node3D
             for (int k = 0; k < layers * 2; k++)
             {
                 var off = new Vector3(GD.Randf() - 0.5f, 0, GD.Randf() - 0.5f) * size * 0.8f;
-                // [port] smoke_linger: its life longer, the fade out its same share of it (it thins over the longer time)
-                var sm = AddSprite(_smoke, at + off + Vector3.Up * size * 0.8f, size * 1.3f, size * 3.2f, life * (st.SmokeDelay + 0.08 * k), (3.5 + GD.Randf()) * SmokeLinger.LifeFactor, GD.Randf() * Mathf.Tau);
+                // [port] smoke_linger: its life longer, the fade out its same share of it (it thins over the longer time); under Long at most
+                // twice (the haze takes it on as the sprite fades, from where it has risen to: a longer sprite rose out of sight first)
+                var sm = AddSprite(_smoke, at + off + Vector3.Up * size * 0.8f, size * 1.3f, size * 3.2f, life * (st.SmokeDelay + 0.08 * k), (3.5 + GD.Randf()) * (SmokeHaze.On ? MathF.Min(SmokeLinger.Factor, 2f) : SmokeLinger.Factor), GD.Randf() * Mathf.Tau);
                 sm.Loop = true; sm.FrameRate = 14; sm.FadeIn = 0.2f; sm.FadeOut = 0.6f; sm.Opacity = 0.6f;
                 sm.Velocity = new Vector3(GD.Randf() - 0.5f, 2.2f + GD.Randf() * 1.5f, GD.Randf() - 0.5f);
                 sm.Node.SetInstanceShaderParameter("tint", smoke.Lerp(Colors.White, 0.2f) * 1.6f);

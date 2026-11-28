@@ -41,7 +41,7 @@ public sealed record RemixOutput(string Stem, byte[] Mission, string Text, strin
 public static class RemixBuilder
 {
     /// <summary>The generator's version, in the stamp: a build by another version is made again.</summary>
-    public const int Version = 8;   // 7: the rosters near the player's car and the salvage; 8: the boundaries' margins and the spacing (docs/remix-missions.md): run numbers roll other jobs
+    public const int Version = 9;   // 7: the rosters near the player's car and the salvage; 8: the boundaries' margins and the spacing; 9: civilian traffic (docs/remix-missions.md): run numbers roll other jobs
     /// <summary>The stock library's routines lead every mission's code: Interstate '76's 15, the Nitro Pack's 28 (docs/mission-scripts.md).</summary>
     public const int LibraryRoutines = 15, NitroLibraryRoutines = 28;
     public const string PathPrefix = "rx_";
@@ -239,6 +239,7 @@ public static class RemixBuilder
     public static string Stamp(RemixSpec spec, byte[] baseFile)
     {
         var yaml = new YamlDotNet.Serialization.SerializerBuilder().DisableAliases().Build().Serialize(spec);   // no anchors: a description and its parsed copy stamp alike
+        yaml = yaml.Replace("\r\n", "\n");   // the serializer ends lines with Environment.NewLine: the same job stamps alike on every platform
         return $"remix {Version} spec {Hash(Encoding.UTF8.GetBytes(yaml))} base {spec.Base.ToLowerInvariant()} {Hash(baseFile)}";
     }
 
