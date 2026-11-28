@@ -61,10 +61,10 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
             foreach (bool atlas in new[] { false, true })
                 for (int sel = 0; sel < offers.Count; sel++)
                 {
-                    var plan = L.Region(reg, L.RegionBox, offers.Select(o => o.Map).ToList(), sel, run.Legs.Select(l => l.Map).ToList(), run.Map, t => f.Measure(t), f.Height, atlas);
+                    var plan = L.Region(reg, L.RegionBox, offers.Select(o => o.Map).ToList(), sel, run.Legs.Select(l => l.Map).ToList(), run.Map, t => f.Measure(t) * L.MapScale, L.MapCell, atlas);
                     NoOverlap(plan.Labels, plan.Marks, L.RegionBox, $"run {run.Number} map '{run.Map}' sel {sel}");
                     // the words the region always shows: the named towns, the through highways' numbers, the states (a quiet town's name or a short spur's number may go)
-                    var must = atlas ? [] : reg.Towns.Where(t => !t.Quiet).Select(t => t.Name).Concat(reg.Highways.Where(h => h.Towns.Count >= 3).Select(h => h.Name)).Concat(reg.States.Select(s => s.Name));
+                    var must = atlas ? [] : reg.Towns.Where(t => !t.Quiet).Select(t => L.Printed(t.Name)).Concat(reg.Highways.Where(h => h.Towns.Count >= 3).Select(h => h.Name)).Concat(reg.States.Select(s => s.Name));
                     foreach (var name in must) Assert.True(plan.Labels.Any(l => l.Text == name), $"run {run.Number} map '{run.Map}' sel {sel} atlas {atlas}: no place for {name}");
                     foreach (var d in plan.Dropped) dropped[d] = dropped.GetValueOrDefault(d) + 1;
                     // a word crossing a road is allowed only where no clear place was left
@@ -90,7 +90,7 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
             for (int sel = 0; sel < offers.Count; sel++)
             {
                 var notes = run.Spec(offers[sel]).Text.Notes.Take(2).ToList();
-                var col = L.Column(L.ColumnBox, offers.Select((o, i) => (RoguetripScreen.OfferTitle(o, i), o.Flavour)).ToList(), notes, t => f.Measure(t), L.OfferLine, L.NoteLine, t => nf.Measure(t), L.NoteLine);
+                var col = L.Column(L.ColumnBox, offers.Select((o, i) => (RoguetripScreen.OfferTitle(o, i), o.Flavour)).ToList(), notes, t => f.Measure(t), L.OfferLine, L.NoteLine, t => f.Measure(t), L.NoteLine);
                 Assert.True(col.Overflow.Count == 0, $"run {run.Number}: {string.Join(" | ", col.Overflow)}");
                 for (int i = 0; i < offers.Count; i++)
                 {
@@ -99,14 +99,14 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
                     foreach (var (t, x, y) in b.Lines.Take(b.TitleLines))
                         Assert.True(new L.Box(x, y, f.Measure(t), f.Height).Within(b.Box), $"run {run.Number}: '{t}' leaves its offer's box");
                     foreach (var (t, x, y) in b.Lines.Skip(b.TitleLines))
-                        Assert.True(new L.Box(x, y, nf.Measure(t), nf.Height).Within(b.Box), $"run {run.Number}: '{t}' leaves its offer's box");
+                        Assert.True(new L.Box(x, y, f.Measure(t), f.Height).Within(b.Box), $"run {run.Number}: '{t}' leaves its offer's box");
                     // nothing cut: the lines are the words, in order, every one
                     Assert.Equal(RoguetripScreen.OfferTitle(offers[i], i) + " " + offers[i].Flavour, string.Join(" ", b.Lines.Select(l => l.Text)));
                     Assert.Contains($"{offers[i].Challenge:0.0}", b.Lines.Take(b.TitleLines).Last().Text);
                     maxLines = Math.Max(maxLines, b.Lines.Count);
                 }
                 Assert.Equal(string.Join(" ", notes), string.Join(" ", col.Notes.Select(n => n.Text)));
-                foreach (var (t, x, y) in col.Notes) Assert.True(new L.Box(x, y, nf.Measure(t), nf.Height).Within(L.ColumnBox), $"run {run.Number}: note '{t}' leaves the column");
+                foreach (var (t, x, y) in col.Notes) Assert.True(new L.Box(x, y, f.Measure(t), f.Height).Within(L.ColumnBox), $"run {run.Number}: note '{t}' leaves the column");
                 Assert.True(col.Map.H >= L.MinMapH);
                 minMap = Math.Min(minMap, col.Map.H);
                 cols++;
@@ -129,10 +129,10 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
             for (int sel = 0; sel < offers.Count; sel++)
             {
                 var spec = run.Spec(offers[sel]);
-                var col = L.Column(L.ColumnBox, offers.Select((o, i) => (RoguetripScreen.OfferTitle(o, i), o.Flavour)).ToList(), spec.Text.Notes.Take(2).ToList(), t => tf.Measure(t), L.OfferLine, L.NoteLine, t => f.Measure(t), L.NoteLine);
+                var col = L.Column(L.ColumnBox, offers.Select((o, i) => (RoguetripScreen.OfferTitle(o, i), o.Flavour)).ToList(), spec.Text.Notes.Take(2).ToList(), t => tf.Measure(t), L.OfferLine, L.NoteLine, t => tf.Measure(t), L.NoteLine);
                 // the sketch box as the screen sizes it (RoguetripScreen.DrawJobMap)
                 int w = (int)col.Map.W - 2 * 5 - 2, h = (int)col.Map.H - 2 * 5 - 7 - 6;
-                if (L.JobMap(TestInstall.Install, spec, w, h, t => f.Measure(t), f.Height) is not { } jm) continue;
+                if (L.JobMap(TestInstall.Install, spec, w, h, t => f.Measure(t) * L.MapScale, L.MapCell) is not { } jm) continue;
                 Assert.True(jm.Marks.Dropped.Count == 0, $"run {run.Number} {offers[sel].Map} {offers[sel].Template}: no place for {string.Join(", ", jm.Marks.Dropped)}");
                 NoOverlap(jm.Marks.Labels, jm.Marks.Rings.Select(r => new L.Box(r.X - 5, r.Y - 5, 10, 10)), new L.Box(0, 0, w, h), $"run {run.Number} {offers[sel].Map}");
                 maps++;
@@ -141,6 +141,35 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
         }
         output.WriteLine($"{maps} job maps, {words} words");
         Assert.True(maps > 40);
+    }
+
+    /// <summary>
+    /// With no atlas, or one still being read, or one that cannot be read, the region is the drawn map (its lines and every named
+    /// word); only a ready atlas takes their place.
+    /// </summary>
+    [Fact]
+    public void WithoutAReadyAtlasTheDrawnMapShows()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "i26-atlas-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            Assert.Equal(L.AtlasState.Absent, RoguetripAtlas.State(dir, start: false));
+            // a picture without its control points is no atlas
+            File.WriteAllBytes(Path.Combine(dir, RoguetripAtlas.Picture + ".png"), [0]);
+            Assert.Equal(L.AtlasState.Absent, RoguetripAtlas.State(dir, start: false));
+            File.WriteAllText(Path.Combine(dir, RoguetripAtlas.Points), "33 -104 0 0\n");
+            Assert.Equal(L.AtlasState.Loading, RoguetripAtlas.State(dir, start: false));
+        }
+        finally { Directory.Delete(dir, true); }
+        var reg = RemixRegion.Builtin();
+        foreach (var state in Enum.GetValues<L.AtlasState>())
+        {
+            var plan = L.Region(reg, L.RegionBox, ["t10"], 0, [], "", t => t.Length * 6f, 10, L.AtlasShown(state));
+            bool drawn = plan.Segments.Any(s => s.Kind == L.Ink.Highway) && reg.Towns.Where(t => !t.Quiet).All(t => plan.Labels.Any(l => l.Text == L.Printed(t.Name)));
+            Assert.Equal(state != L.AtlasState.Ready, drawn);
+            Assert.NotEmpty(plan.Offers);
+        }
     }
 
     [Fact]

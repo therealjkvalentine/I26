@@ -166,10 +166,12 @@ public sealed class RoguetripScreen : ShellScreen
         {
             _layer = new RoguetripMapLayer
             {
-                Plan = () => Mood == "choose" ? _plan : null, Covered = () => Shell.ModalOpen || Shell.OverlayOpen,
-                Backdrop = () => RoguetripAtlas.Texture(Dir, Repaint),
+                Plan = () => Mood == "choose" ? _plan : null, Covered = () => Shell.ModalOpen || Shell.OverlayOpen, OnAtlas = () => _atlasShown,
             };
             Shell.AddLayerOverFrame(_layer);
+            // (added second, so it lies under the drawing: each layer goes in just over the frame)
+            _atlasLayer = new RoguetripAtlasLayer { Picture = () => _atlasShown ? RoguetripAtlas.Texture(Dir) : null, Covered = () => Shell.ModalOpen || Shell.OverlayOpen };
+            Shell.AddLayerOverFrame(_atlasLayer);
         }
         Repaint();
         // a run made by another version of the generator rolls other jobs from the same number: say so
@@ -182,7 +184,13 @@ public sealed class RoguetripScreen : ShellScreen
     {
         _layer?.QueueFree();
         _layer = null;
+        _atlasLayer?.QueueFree();
+        _atlasLayer = null;
     }
+
+    private RoguetripAtlasLayer? _atlasLayer;
+    /// <summary>The player's atlas is drawn under the region (it is there and read: until then, and without it, the drawn map).</summary>
+    private bool _atlasShown;
 
     private int Count => Mood switch { "choose" => _offers.Count, "reward" => Picks.Length, _ => 0 };
 
@@ -229,20 +237,22 @@ public sealed class RoguetripScreen : ShellScreen
     /// <summary>
     /// The region: its plan (RoguetripLayout.Region: the lines, the towns, the trip's maps, the run's road, the offers, the words
     /// placed clear of each other), its lines and rings drawn by the modern look's layer or here into the pixels (the 1997 look),
-    /// its words in the small sans either way (the text layer sets them at the window's resolution in the modern look).
+    /// its words printed as the stock forms print their labels (Arial Bold capitals; Print), at the window's resolution in the modern look.
     /// </summary>
     private void DrawRegion()
     {
         var reg = RemixRegion.Builtin();
-        bool atlas = RoguetripAtlas.Files(Dir) is not null;
+        // the drawn map unless the atlas is ready: absent, still being read (a second or two the first time) or unreadable, it stands alone
+        _atlasState = RoguetripAtlas.State(Dir);
+        bool atlas = _atlasShown = RoguetripLayout.AtlasShown(_atlasState);
         _plan = RoguetripLayout.Region(reg, RegionBox, _offers.Select(o => o.Map).ToList(), _sel, Run.Legs.Select(l => l.Map).ToList(), Run.Map,
-            t => _map.Measure(t), _map.Height, atlas);
+            t => _map.Measure(t) * RoguetripLayout.MapScale, RoguetripLayout.MapCell, atlas);
         var plan = _plan;
         byte ink = Frame.Nearest(RoguetripMapLayer.Ink), road = Frame.Nearest(RoguetripMapLayer.Road), pencil = Frame.Nearest(RoguetripMapLayer.Pencil),
             red = Frame.Nearest(RoguetripMapLayer.Marker), redPencil = Frame.Nearest(RoguetripMapLayer.RedPencil);
         if (Shell.Faithful)
         {
-            if (atlas && RoguetripAtlas.Small(Dir, Repaint) is { } bg)
+            if (atlas && RoguetripAtlas.Small(Dir) is { } bg)
             {
                 // the player's atlas matched to the palette, under the drawing
                 var near = new Dictionary<int, byte>();
@@ -251,10 +261,9 @@ public sealed class RoguetripScreen : ShellScreen
                     {
                         int o = (y * bg.W + x) * 4;
                         if (bg.Rgba[o + 3] < 128) continue;
-                        // laid on the sheet as ink is (multiplied: the atlas's own paper becomes the sheet's; the palette has no cream)
+                        // laid on the sheet as print is (multiplied; its paper was made white, so the sheet's shows; the palette has no cream)
                         int fx = (int)RegionBox.X + x, fy = (int)RegionBox.Y + y, under = Frame.At(fx, fy) * 3;
-                        int r = Math.Min(255, Frame.Palette[under] * bg.Rgba[o] / AtlasPaper.R), g = Math.Min(255, Frame.Palette[under + 1] * bg.Rgba[o + 1] / AtlasPaper.G),
-                            b = Math.Min(255, Frame.Palette[under + 2] * bg.Rgba[o + 2] / AtlasPaper.B);
+                        int r = Frame.Palette[under] * bg.Rgba[o] / 255, g = Frame.Palette[under + 1] * bg.Rgba[o + 1] / 255, b = Frame.Palette[under + 2] * bg.Rgba[o + 2] / 255;
                         int key = r >> 3 << 10 | g >> 3 << 5 | b >> 3;
                         if (!near.TryGetValue(key, out byte v)) near[key] = v = Frame.Nearest(Color.Color8((byte)r, (byte)g, (byte)b));
                         Frame.Fill(fx, fy, 1, 1, v);
@@ -272,10 +281,12 @@ public sealed class RoguetripScreen : ShellScreen
             {
                 if (d.Kind == "town") Frame.Fill(R(d.X) - 1, R(d.Y) - 1, 3, 3, ink);
                 else if (d.Kind == "visited") Frame.Fill(R(d.X) - 2, R(d.Y) - 2, 5, 5, ink);
-                else Ring(R(d.X), R(d.Y), 2, pencil);
+                else Ring(R(d.X), R(d.Y), 2, atlas ? ink : pencil);
             }
             foreach (var o in plan.Offers)
             {
+                // on the atlas: the ring's inside cleared to paper, so its number reads
+                if (atlas) for (int dy = -7; dy <= 7; dy++) for (int dx = -7; dx <= 7; dx++) if (dx * dx + dy * dy <= 49) Frame.Fill(R(o.X) + dx, R(o.Y) + dy, 1, 1, _sheet!.Pixels[(R(o.Y) + dy) * ShellFrame.W + R(o.X) + dx]);
                 Ring(R(o.X), R(o.Y), 8, o.Selected ? red : ink, o.Selected ? 2 : 1);
                 if (o.Selected) Ring(R(o.X), R(o.Y), 12, red);
             }
@@ -283,7 +294,7 @@ public sealed class RoguetripScreen : ShellScreen
         foreach (var l in plan.Labels)
         {
             byte c = l.Kind switch { "road" => redPencil, "state" => pencil, _ => ink };
-            Frame.Text(_map, R(l.Rect.X), R(l.Rect.Y), l.Text, Solid(_map, c));
+            Print(l.Rect, l.Text, c);
         }
         foreach (var o in plan.Offers)
         {
@@ -294,8 +305,45 @@ public sealed class RoguetripScreen : ShellScreen
     }
 
     private readonly Dictionary<int, Rect2I> _hits = [];
-    /// <summary>A scanned road atlas's paper, about (the 1997 look lays the atlas on the sheet relative to it).</summary>
-    private static readonly (int R, int G, int B) AtlasPaper = (246, 236, 200);
+
+    /// <summary>
+    /// A word the map prints (a town, a road number, a state): Arial Bold as the stock forms print their labels, its capitals
+    /// <see cref="RoguetripLayout.MapCap"/> px high inside the word's cell (the cell is the small sans's measure, which the layout
+    /// places); at the window's resolution in the modern look, printed at the pixel size that fits in the 1997 look. Without Arial,
+    /// the small sans.
+    /// </summary>
+    private void Print(RoguetripLayout.Box cell, string text, byte ink)
+    {
+        int cap = RoguetripLayout.MapCap;
+        var box = new Rect2I(R(cell.X), R(cell.Y + (cell.H - cap) / 2), Math.Max(1, (int)MathF.Floor(cell.W)), cap);
+        if (Frame.Modern ? Frame.Label(box, text, ink, 0) : PrintPx(text, box.Size) is int px && Frame.Label(box, text, ink, px)) return;
+        Frame.Text(_map, R(cell.X), R(cell.Y), text, Solid(_map, ink));
+    }
+
+    private static readonly Dictionary<(string, Vector2I), int?> PrintSizes = [];
+
+    /// <summary>The largest pixel size at which Arial Bold prints the words inside the box (the 1997 look), or null.</summary>
+    private static int? PrintPx(string text, Vector2I box)
+    {
+        if (PrintSizes.TryGetValue((text, box), out var have)) return have;
+        // one size for every word whose capitals are the box's height (a word wider than its box a size or two down)
+        int? best = null;
+        for (int px = CapPx(box.Y); px >= 5 && best is null; px--)
+            if (ShellGlyphs.LabelPixels(text, px) is { } r && r.W <= box.X + 2) best = px;
+        return PrintSizes[(text, box)] = best;
+    }
+
+    private static readonly Dictionary<int, int> CapSizes = [];
+
+    /// <summary>The pixel size at which Arial Bold's capitals are <paramref name="cap"/> px high (the 1997 look's print).</summary>
+    private static int CapPx(int cap)
+    {
+        if (CapSizes.TryGetValue(cap, out int px)) return px;
+        int best = 5;
+        for (int p = 5; p <= 24; p++)
+            if (ShellGlyphs.LabelPixels("H", p) is { } r && r.H <= cap) best = p;
+        return CapSizes[cap] = best;
+    }
     private readonly Dictionary<(int Seed, int W, int H), (I76.Formats.Mission.ArenaSketch Sketch, RoguetripLayout.MarkPlan Marks)?> _jobMaps = [];
 
     /// <summary>The paper the job map's scrap is cut from: a plain part of the sheet (under the region, which is drawn later).</summary>
@@ -314,7 +362,7 @@ public sealed class RoguetripScreen : ShellScreen
         if (!_jobMaps.TryGetValue((offer.Seed, w, h), out var made))
         {
             made = null;
-            try { made = RoguetripLayout.JobMap(new GameInstall(Shell.Install.Root!), Run.Spec(offer), w, h, t => _map.Measure(t), _map.Height); }
+            try { made = RoguetripLayout.JobMap(new GameInstall(Shell.Install.Root!), Run.Spec(offer), w, h, t => _map.Measure(t) * RoguetripLayout.MapScale, RoguetripLayout.MapCell); }
             catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { GD.PrintErr($"roguetrip: the job's map: {ex.Message}"); }
             _jobMaps[(offer.Seed, w, h)] = made;
         }
@@ -335,9 +383,6 @@ public sealed class RoguetripScreen : ShellScreen
         ArenaSketches.DrawScrap(Frame, _sheet.Pixels, ScrapPaperAt, $"roguetrip:{offer.Seed}", sk, bx, by, scrap, legend, lx, ly, LegendCap, RoguetripMapLayer.Ink,
             (k, aliased) => JobInk(sk, m.Marks, k, aliased));
     }
-
-    /// <summary>The atlas of the map font's glyphs (the modern look's letters, 8 texels a pixel), as an image, once.</summary>
-    private static Image? _glyphs;
 
     /// <summary>The job map's ink: the sketch's roads and edges (its hatching left out: at this size it fills the high ground solid), the marks' rings in red marker and their words in red pencil.</summary>
     private byte[] JobInk(I76.Formats.Mission.ArenaSketch sk, RoguetripLayout.MarkPlan marks, int k, bool aliased)
@@ -375,37 +420,43 @@ public sealed class RoguetripScreen : ShellScreen
                     Put(x, y, RoguetripMapLayer.Marker, a);
                 }
         }
-        // the words: the map font's own pixels (1997), or its letters from the text layer's atlas (modern)
-        ShellGlyphs.Atlas? atlas = aliased ? null : ShellGlyphs.For(_map);
-        if (atlas is not null) _glyphs ??= atlas.Texture.GetImage();
+        // the words printed as the map's others are: Arial Bold capitals, MapCap high in the word's cell (the small sans without Arial)
+        int cap = RoguetripLayout.MapCap;
         foreach (var l in marks.Labels)
         {
+            int bw = Math.Max(1, (int)MathF.Floor(l.Rect.W)) * k, bh = cap * k;
+            int bx = (int)MathF.Round(l.Rect.X * k), by = (int)MathF.Round((l.Rect.Y + (l.Rect.H - cap) / 2) * k);
+            byte[]? cov = null;
+            int cw = 0, chh = 0;
+            if (aliased)
+            {
+                if (PrintPx(l.Text, new Vector2I(bw, bh)) is int p && ShellGlyphs.LabelPixels(l.Text, p) is { } r) { cov = r.A; cw = r.W; chh = r.H; bx += (bw - cw) / 2; by += (bh - chh + 1) / 2; }
+            }
+            else if (ShellGlyphs.LabelPixels(l.Text, 64) is { } r)
+            {
+                var img = Image.CreateFromData(r.W, r.H, false, Image.Format.L8, r.A);
+                img.Resize(bw, bh, Image.Interpolation.Lanczos);
+                cov = img.GetData(); cw = bw; chh = bh;
+            }
+            if (cov is not null)
+            {
+                for (int y = 0; y < chh; y++)
+                    for (int x = 0; x < cw; x++)
+                    {
+                        float a = cov[y * cw + x] / 255f;
+                        Put(bx + x, by + y, RoguetripMapLayer.RedPencil, aliased ? (a >= 0.5f ? 1 : 0) : a);
+                    }
+                continue;
+            }
             float pen = l.Rect.X;
             foreach (char ch in l.Text)
             {
                 if (_map.Glyph(ch) is not { } g) continue;
                 int gx = (int)MathF.Round(pen * k), gy = (int)MathF.Round(l.Rect.Y * k);
-                if (atlas is not null && _glyphs is not null && atlas.Cells.TryGetValue(ch, out var cell))
-                {
-                    int step = ShellGlyphs.Scale / k;
-                    for (int y = 0; y < _map.Height * k; y++)
-                        for (int x = 0; x < g.Width * k; x++)
-                        {
-                            float acc = 0;
-                            for (int j = 0; j < step; j++)
-                                for (int i = 0; i < step; i++)
-                                {
-                                    int sx = (int)cell.Position.X + x * step + i, sy = (int)cell.Position.Y + y * step + j;
-                                    if (sx < _glyphs.GetWidth() && sy < _glyphs.GetHeight()) acc += _glyphs.GetPixel(sx, sy).A;
-                                }
-                            Put(gx + x, gy + y, RoguetripMapLayer.RedPencil, acc / (step * step));
-                        }
-                }
-                else
-                    for (int y = 0; y < _map.Height; y++)
-                        for (int x = 0; x < g.Width; x++)
-                            if (g.Px[y * g.Width + x] != _map.Key)
-                                for (int j = 0; j < k; j++) for (int i = 0; i < k; i++) Put(gx + x * k + i, gy + y * k + j, RoguetripMapLayer.RedPencil, 1);
+                for (int y = 0; y < _map.Height; y++)
+                    for (int x = 0; x < g.Width; x++)
+                        if (g.Px[y * g.Width + x] != _map.Key)
+                            for (int j = 0; j < k; j++) for (int i = 0; i < k; i++) Put(gx + x * k + i, gy + y * k + j, RoguetripMapLayer.RedPencil, 1);
                 pen += g.Width;
             }
         }
@@ -467,7 +518,7 @@ public sealed class RoguetripScreen : ShellScreen
         if (Mood == "choose")
         {
             _column = RoguetripLayout.Column(RoguetripLayout.ColumnBox, _offers.Select((o, i) => (OfferTitle(o, i), o.Flavour)).ToList(), Notes(),
-                t => _small.Measure(t), RoguetripLayout.OfferLine, RoguetripLayout.NoteLine, t => _map.Measure(t), RoguetripLayout.NoteLine);
+                t => _small.Measure(t), RoguetripLayout.OfferLine, RoguetripLayout.NoteLine, t => _small.Measure(t), RoguetripLayout.NoteLine);
             if (_column.Overflow.Count > 0) GD.PrintErr($"roguetrip: the column overflows: {string.Join(" | ", _column.Overflow)}");
         }
         for (int i = 0; i < Count; i++) { var b = Box(i); lines.AddRange([(b.Position.X, b.Position.Y, b.Size.X, 1), (b.Position.X, b.End.Y, b.Size.X, 1)]); }
@@ -492,16 +543,12 @@ public sealed class RoguetripScreen : ShellScreen
                 {
                     var blk = col.Offers[i];
                     if (i == _sel) Mark(Box(i), blk.TitleLines);
-                    for (int k = 0; k < blk.Lines.Count; k++)
-                    {
-                        var (t, x, y) = blk.Lines[k];
-                        if (k < blk.TitleLines) Frame.Text(_small, R(x), R(y), t, ShellFrame.OverlayInk);
-                        else Frame.Text(_map, R(x), R(y), t, Solid(_map, Frame.Nearest(RoguetripMapLayer.Ink)));
-                    }
+                    // written on the form: in its hand, the title and the words alike
+                    foreach (var (t, x, y) in blk.Lines) Frame.Text(_small, R(x), R(y), t, ShellFrame.OverlayInk);
                 }
                 if (_offers.Count == 0) Centre(_hand, 200, "No jobs on the road from here.");
                 else DrawJobMap(_offers[Math.Clamp(_sel, 0, _offers.Count - 1)], col.Map);
-                foreach (var (t, x, y) in col.Notes) Frame.Text(_map, R(x), R(y), t, Solid(_map, Frame.Nearest(RoguetripMapLayer.Ink)));
+                foreach (var (t, x, y) in col.Notes) Frame.Text(_small, R(x), R(y), t, ShellFrame.OverlayInk);
                 Centre(_small, 428, "Up, Down or the map's rings choose; Enter takes the job; Esc: back.");
                 Button(Take, "TAKE THE JOB");
                 Button(Later, "BACK");
@@ -617,8 +664,12 @@ public sealed class RoguetripScreen : ShellScreen
         Mood == "debrief" ? [PadRegion.Of(Later), .. Developer ? new[] { PadRegion.Of(Retry) } : []]
         : [.. Enumerable.Range(0, Count).Select(i => PadRegion.Of(Box(i))), PadRegion.Of(Take), PadRegion.Of(Later)];
 
+    /// <summary>Where the atlas was when the region was last drawn: once it is read, the region is drawn again with it.</summary>
+    private RoguetripLayout.AtlasState _atlasState;
+
     public override void Tick()
     {
+        if (Mood == "choose" && _atlasState == RoguetripLayout.AtlasState.Loading && RoguetripAtlas.State(Dir) != RoguetripLayout.AtlasState.Loading) Repaint();
         foreach (var k in Shell.Keys)
         {
             if (k is Key.Up && Count > 0) { _sel = (_sel + Count - 1) % Count; Shell.Sound(82); Repaint(); }

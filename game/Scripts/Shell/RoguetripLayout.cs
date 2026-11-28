@@ -56,12 +56,22 @@ public static class RoguetripLayout
     private const float Gap = 3;
 
     /// <summary>The region's box on the sheet, and the column of offers, the chosen job's map and its notes beside it.</summary>
-    public static readonly Box RegionBox = new(28, 76, 304, 334), ColumnBox = new(344, 76, 260, 346);
+    public static readonly Box RegionBox = new(26, 76, 268, 334), ColumnBox = new(298, 76, 306, 346);
     /// <summary>The sheet inside its double rule: no word may leave it.</summary>
     public static readonly Box Sheet = new(26, 42, 588, 392);
     /// <summary>The shell fonts: the region's, the job map's and the notes' words (the small sans, 10 px), the offers' (the small hand, 12 px).</summary>
     public const int MapFont = 0x47, TextFont = 0x44;
-    public const float OfferLine = 13, NoteLine = 11;
+    public const float OfferLine = 13, NoteLine = 13;
+    /// <summary>The printed words' capital height on the map and the scrap (Arial Bold, as the stock forms print their labels), in their cell.</summary>
+    public const int MapCap = 6;
+    /// <summary>The printed words' cells: the small sans's measure scaled (Arial Bold's capitals at MapCap fill about that), and their height.</summary>
+    public const float MapScale = 0.86f, MapCell = 9;
+
+    /// <summary>Where the player's road atlas is: none, being read and fitted, unreadable, or ready to draw.</summary>
+    public enum AtlasState { Absent, Loading, Failed, Ready }
+
+    /// <summary>The atlas replaces the region's own lines, towns and words only once it can be drawn: absent, loading or failed, the drawn map shows.</summary>
+    public static bool AtlasShown(AtlasState state) => state == AtlasState.Ready;
 
     /// <summary>
     /// The chosen job's map as the screen draws it (box pixels, w x h): the whole map's sketch (ArenaSketch.Whole) and its marks'
@@ -147,7 +157,7 @@ public static class RoguetripLayout
             plan.Small.Add(new Box(p.X - 1.5f, p.Y - 1.5f, 3, 3));
         }
         // the words, the most needed first: the towns the region names, the highways' numbers, the states, then the quiet towns
-        foreach (var (t, x, y) in towns.Where(t => !t.Town.Quiet)) PlaceAt(plan, box, t.Name, "town", x, y, measure(t.Name), textH, needClear: false);
+        foreach (var (t, x, y) in towns.Where(t => !t.Town.Quiet)) PlaceAt(plan, box, Printed(t.Name), "town", x, y, measure(Printed(t.Name)), textH, needClear: false);
         foreach (var h in reg.Highways) PlaceRoad(plan, box, h.Name, reg.Route(h).Select(At).ToList(), measure(h.Name), textH);
         foreach (var s in reg.States)
         {
@@ -158,9 +168,12 @@ public static class RoguetripLayout
                 cands.Add(new Box(p.X - w / 2 + dx, p.Y - textH / 2 + dy, w, textH));
             Choose(plan, box, s.Name, "state", cands, needClear: false);
         }
-        foreach (var (t, x, y) in towns.Where(t => t.Town.Quiet)) PlaceAt(plan, box, t.Name, "quiet", x, y, measure(t.Name), textH, needClear: true);
+        foreach (var (t, x, y) in towns.Where(t => t.Town.Quiet)) PlaceAt(plan, box, Printed(t.Name), "quiet", x, y, measure(Printed(t.Name)), textH, needClear: true);
         return plan;
     }
+
+    /// <summary>A town's name as the map prints it: in capitals, as the stock forms print their labels.</summary>
+    public static string Printed(string name) => name.ToUpperInvariant();
 
     /// <summary>A word beside a point: right, left, above, below, then the corners (and the same again further out).</summary>
     private static void PlaceAt(RegionPlan plan, Box box, string text, string kind, float x, float y, float w, float h, bool needClear)
