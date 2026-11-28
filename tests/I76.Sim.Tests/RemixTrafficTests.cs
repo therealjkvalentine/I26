@@ -133,9 +133,9 @@ public class RemixTrafficTests(ITestOutputHelper output)
         Assert.All(traffic, t => Assert.False(CarOf(setup, t.Car)!.Dead));
     }
 
-    /// <summary>A civilian the player destroys: Groove remarks (S04's clip), the run counts it apart from the kills, and two move the next job a step on.</summary>
+    /// <summary>A civilian the player destroys: Groove remarks (S04's clip), the run records it apart from the kills, and it costs nothing (the owner: no penalty unless part of the mission).</summary>
     [Fact]
-    public void ACivilianKilledIsRemarkedOnAndCountsAsHeat()
+    public void ACivilianKilledIsRemarkedOnAndCostsNothing()
     {
         if (Dir() is null) return;
         var (s, setup, spec) = Built(1);
@@ -149,14 +149,14 @@ public class RemixTrafficTests(ITestOutputHelper output)
         Assert.Contains(RemixTraffic.KillClips[0], heard);
         var (kills, civilians) = RemixKills.Count(setup.Script.Host.Entities, setup.World.Player);
         Assert.Equal((0, 1), (kills, civilians));
-        // the run's heat
+        // the run's record
         var run = RemixRun.Start(1, "vppirna1.vcf", "", "", 0);
         var offer = run.Offers(RemixNodes.Builtin())[0];
         run.Take(offer);
         run.Finish(RemixRun.Outcome.Won, 3, null, "", 2);
         run.Debriefed();
         Assert.Equal((3, 2), (run.Kills, run.Civilians));
-        Assert.Equal(RemixRun.Challenges[2], run.NextChallenge);   // a job played, and two civilians: a step on
+        Assert.Equal(RemixRun.Challenges[1], run.NextChallenge);   // a job played: the next step, the civilians nothing
         run.Phase = "debrief";
         run.Retry();
         Assert.Equal(0, run.Civilians);

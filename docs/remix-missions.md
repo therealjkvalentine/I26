@@ -542,10 +542,10 @@ The owner: "don't forget to place civillian cars on some roads during some rogue
   wreck does (the stock rule: a civilian's parts are the base engine, brakes and tyres). Headless (`i76 remix traffic --seeds 1-60`):
   every civilian of the 7 jobs with traffic drove its route and came round within 420 s; the sim's tick 0.116 ms with them against
   0.096 without.
-- **Shooting them.** The job's script counts the civilians the player destroys (`isGroovesFault`, each human's own in co-op) and has
-  Groove remark on the first and on any after, S04's clips. The run counts them apart from the kills (`civilians` in run.yaml and its
-  legs, `RemixKills`): every two move the next job's challenge a step on, as a bust does (the roguetrip's own rule: no penalty in the
-  stock trip). The job is not failed.
+- **Shooting them.** No penalty (the owner: "civilian cars don't need a penalty unless part of the mission"; the stock trip has none
+  either): the job is not failed or busted, nothing is lost and no police come. The job's script counts the civilians the player
+  destroys (`isGroovesFault`, each human's own in co-op) and Groove remarks on the first and on any after, S04's clips; the run records
+  them apart from the kills (`civilians` in run.yaml and its legs, `RemixKills`). No template makes protecting civilians part of a job.
 - **The radio and the notepad.** With traffic the `civilians` fact is true, so Taurus's approved "Watch for civilians" lines can be
   said (at contact or the fight: "Pick your shots. Watch for civilians. Let's get them." and "Watch for civilians. Let's get them.",
   with more than one enemy; at the start "Head for the truck stop. Watch for civilians." where the job goes to the truck stop); the

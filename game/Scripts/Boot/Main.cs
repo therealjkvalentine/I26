@@ -1264,7 +1264,7 @@ public partial class Main : Node3D
 		_lastRun = null;
 		if (_launch is { Roguetrip: true } && _sim?.World.Player is { } rp)
 		{
-			// (civilians, nobody's cars, apart: the run counts them as heat; docs/remix-missions.md "Civilian traffic")
+			// (civilians, nobody's cars, apart: recorded, no penalty; docs/remix-missions.md "Civilian traffic")
 			var (kills, civilians) = _sim.Script is { } ks ? I76.Sim.Missions.RemixKills.Count(ks.Host.Entities.Where(e => e.Vehicle is not null), rp) : (0, 0);
 			// how it ended, for the run's bust rule and the debrief page: the failure line (none: walked away), the objectives as they stood
 			int fm = _script?.Host.End is { Success: false } fe ? fe.FailMessage : -1;

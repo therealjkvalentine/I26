@@ -68,7 +68,7 @@ suspension, brakes and guns (as the garage leaves them after each job), the bett
 their wrecks leave in FIELD SALVAGE (in the condition the fight left them, mostly battered: queue the good ones for repair). From the
 second job a lead car a step above the rest carries something at or above your own in some slot; win a job at challenge 1.0 or more and
 that part is in the field too, never in the red. Some jobs have civilian traffic on the paved roads (the notepad says so); shooting
-civilians does not fail the job, but every two make the next job a step harder.
+civilians costs nothing, though Groove has something to say about it.
 
 **Roguetrip in co-op.** Host it as any co-op game: MELEE > MULTI MELEE > HOST, the MELEE / CO-OP button to CO-OP, then ROGUETRIP, the
 last row of AREA OF PLAY, and BROADCAST GAME. The others join from the roster as for any co-op game and pick their cars in the lobby

@@ -68,10 +68,10 @@ public sealed class RemixRun
     /// </summary>
     [YamlIgnore] public string Gear => (RemixRoster.GearOfInventory(Inventory) ?? RemixRoster.GearOfCar(Car.Length > 0 ? Car : "vppirna1.vcf")).ToString();
     /// <summary>The challenge of the next job: one step a job played, and one more for each bust.</summary>
-    [YamlIgnore] public double NextChallenge => Challenges[Math.Clamp(Legs.Count + Busts + Civilians / 2, 0, Challenges.Length - 1)];
+    [YamlIgnore] public double NextChallenge => Challenges[Math.Clamp(Legs.Count + Busts, 0, Challenges.Length - 1)];
     /// <summary>
-    /// Civilians (a job's traffic) the player destroyed on the run: its heat (docs/remix-missions.md "Civilian traffic"); every two move the
-    /// next job's challenge a step on, as a bust does.
+    /// Civilians (a job's traffic) the player destroyed on the run, for the record only: they cost nothing (the owner: "civilian cars don't
+    /// need a penalty unless part of the mission"; docs/remix-missions.md "Civilian traffic").
     /// </summary>
     public int Civilians { get; set; }
     /// <summary>The job being played or last played, from 1.</summary>
@@ -467,7 +467,7 @@ public sealed class RunLeg
     public double Challenge { get; set; }
     public bool Won { get; set; }
     public int Kills { get; set; }
-    /// <summary>Civilians the player destroyed in the job (the run's heat).</summary>
+    /// <summary>Civilians the player destroyed in the job (for the record: no penalty).</summary>
     public int Civilians { get; set; }
     /// <summary>won, bust or dead (empty in a round-four run file: Won says).</summary>
     public string Outcome { get; set; } = "";

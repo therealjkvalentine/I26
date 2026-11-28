@@ -4,7 +4,7 @@ namespace I76.Sim.Missions;
 
 /// <summary>
 /// A generated job's kills at its end (docs/remix-missions.md "Civilian traffic"): the player's kills of cars on a side (the run's
-/// kills), and of civilians (cars of nobody's side: the job's traffic), which the run counts apart as heat.
+/// kills), and of civilians (cars of nobody's side: the job's traffic), which the run records apart and which cost nothing.
 /// </summary>
 public static class RemixKills
 {
