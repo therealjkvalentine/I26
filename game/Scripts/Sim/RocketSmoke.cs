@@ -54,14 +54,14 @@ public partial class RocketSmoke : Node3D
         return n;
     }
     /// <summary>
-    /// A puff as drawn: its shader age, size and density. Under Normal it ends with its life, so it swells and fades out over the last
-    /// of it (SmokeFade); under Long the haze takes it on from there (DamageSmoke.Adopt), so it is drawn as it is. A puff the pool is
+    /// A puff as drawn: its shader age, size and density. Under Normal it ends with its life, so it grows slowly the whole of it and fades
+    /// out over the last of it (SmokeFade); under Long the haze takes it on from there (DamageSmoke.Adopt), so it is drawn as it is. A puff the pool is
     /// taking back fades out either way.
     /// </summary>
     private static (float Life, float Size, float Dens) Drawn(in Puff p)
     {
         float lf = p.Age / p.Life, e = 1f - (1f - lf) * (1f - lf), size = Mathf.Lerp(Start, p.End, e), dens = p.Dens * SmokeFade.Retire(p.Gone);
-        return SmokeHaze.On ? (lf, size, dens) : (lf, size * SmokeFade.Swell(lf), dens * SmokeFade.Out(lf));
+        return SmokeHaze.On ? (lf, size, dens) : (lf, SmokeFade.Size(Start, p.End, lf), dens * SmokeFade.Out(lf));
     }
     private readonly float[] _key = new float[Cap];
     private readonly int[] _idx = new int[Cap];
@@ -128,7 +128,7 @@ public partial class RocketSmoke : Node3D
         ref var p = ref _pool[_next];
         _next = (_next + 1) % pool;
         // [port] smoke_linger stretches the whole life: the puff swells and thins over the longer time
-        float linger = SmokeLinger.Factor;
+        float linger = SmokeLinger.LifeFactor;
         p = new Puff
         {
             Live = true, X = g.X + (r1 - 0.5f) * 0.12f, Y = g.Y + (r2 - 0.5f) * 0.12f, Z = g.Z + (r3 - 0.5f) * 0.12f,
