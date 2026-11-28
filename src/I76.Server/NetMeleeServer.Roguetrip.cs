@@ -157,6 +157,8 @@ public sealed partial class NetMeleeServer
         if (_rtOffers.Count == 0) return "no jobs on the road from here";
         var offer = _rtOffers[Math.Clamp(run.Selected, 0, _rtOffers.Count - 1)];
         int players = Math.Max(1, _lobby.Count);
+        // the roster is drawn around the crew's average car (CoopJob.CrewGear), kept on the offer for the job's rebuilds (Playing)
+        offer.Gear = CoopJob.CrewGear(_lobby.Select(m => m.Request.Car));
         var job = run.Job(offer, players);
         MeleeHost built;
         byte[] hash;

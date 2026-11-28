@@ -81,6 +81,14 @@ public static class RemixDirector
         public bool Nitro { get; init; }
         /// <summary>What the first objective line and the notes call the job ("Job 637742"; a run's "Roguetrip 12, job 2").</summary>
         public string? Label { get; init; }
+        /// <summary>
+        /// A roguetrip's: the player's gear (RemixRoster.Gear's "E.S.B.W.G"), or null for the stock pools. With it the cars come from the
+        /// ladder around the player's gear, a lead car carries the job's prize, and the budget follows the gear (docs/remix-missions.md
+        /// "Rosters and salvage").
+        /// </summary>
+        public string? Gear { get; init; }
+        /// <summary>The job's index in its run (1..), for the roster's lead car.</summary>
+        public int Job { get; init; } = 1;
     }
 
     /// <summary>A job's description from a seed and what is asked of it (a run picks the map, the template and the challenge).</summary>
@@ -142,10 +150,16 @@ public static class RemixDirector
         }
         double[] Lot(int i) => [map.Lot[0] + 12 * (i % 6), map.Lot[1] + 12 * (i / 6)];
         int carNo = 0;
+        // a roguetrip's roster: the ladder's cars around the player's gear, drawn on a stream of their own (the stock pick is still drawn, so
+        // the rest of the roll, places and all, is the stock one's)
+        var roster = RemixRoster.Gear.Parse(ask.Gear) is { } gear ? new RemixRoster.Picker(gear, ask.Challenge, ask.Job, seed) : null;
+        var rostered = new List<string>();
         string NewCar(string[] pool, double[]? at = null, double heading = 0)
         {
             var name = $"car{++carNo}";
-            spec.Cars[name] = new CarSpec { Vcf = r.Pick(pool), At = at ?? Lot(carNo), Heading = heading };
+            var vcf = r.Pick(pool);
+            if (roster is not null && Array.IndexOf(Heat, pool) is var step and >= 0) { vcf = roster.Pick(Math.Max(0, step - heat)); rostered.Add(name); }
+            spec.Cars[name] = new CarSpec { Vcf = vcf, At = at ?? Lot(carNo), Heading = heading };
             return name;
         }
         string Place(string name, params double[][] pts)
@@ -678,15 +692,25 @@ public static class RemixDirector
                 break;
             }
         }
-        // fill to the budget: the smallest group grows by a car until the score reaches the level's share of Back to Spanner's
-        double budget = RemixChallenge.Spanner * ask.Challenge;
+        // a roguetrip's lead car: the last of the template's own cars a step above the rest, carrying the job's prize (a part at or above
+        // the player's in some slot, given on a win at challenge 1.0 and over as a stock mission gives its scripted salvage)
+        if (roster is { HasBoss: true } && rostered.Count > 0)
+        {
+            var (boss, prize) = roster.Boss();
+            spec.Cars[rostered[^1]].Vcf = boss;
+            if (ask.Challenge >= 1.0) spec.Prize = [prize];
+        }
+        // fill to the budget: the smallest group grows by a car until the score reaches the level's share of Back to Spanner's (a roguetrip's
+        // times its gear's scale, its cars at the ladder's strengths)
+        double budget = RemixChallenge.Spanner * ask.Challenge * (roster is null ? 1 : RemixRoster.BudgetScale(roster.Gear));
+        double Scored() => roster is null ? Score(spec) : ScoreWith(spec, RemixRoster.Picker.Strength);
         for (int guard = 0; guard < 40 && grow.Count > 0; guard++)
         {
-            if (Score(spec) >= budget * 0.95 || RemixRoles.Hostiles(spec).Count >= MaxCars) break;
+            if (Scored() >= budget * 0.95 || RemixRoles.Hostiles(spec).Count >= MaxCars) break;
             var g = grow.OrderBy(x => x.Count()).ThenBy(x => grow.IndexOf(x)).First();
             g.Add();
         }
-        spec.Text.Notes.Add($"{job}: {map.Base.ToUpperInvariant()}, challenge {Score(spec) / RemixChallenge.Spanner:0.0} (Back to Spanner 1.0).");
+        spec.Text.Notes.Add($"{job}: {map.Base.ToUpperInvariant()}, challenge {Scored() / RemixChallenge.Spanner:0.0} (Back to Spanner 1.0).");
         spec.Landmarks.AddRange(Landmarks(map, spec));
         // the spoken lines, on a stream of their own (the rest of the roll is as it was)
         foreach (var (slot, line) in RemixVoice.Plan(voice.SelectMany(v => v()), seed))
@@ -721,8 +745,11 @@ public static class RemixDirector
     private const string Deaths0 = "You should be more careful... try to stay alive.";
 
     /// <summary>A job's challenge with the pools' measured strengths (RemixChallenge.PoolStrength).</summary>
-    public static double Score(RemixSpec spec) =>
-        RemixChallenge.Score(spec, n => spec.Cars.TryGetValue(n, out var c) ? RemixChallenge.PoolStrength(c.Vcf) : 0.8, n => spec.Cars.TryGetValue(n, out var c) ? c.At : null).Total;
+    public static double Score(RemixSpec spec) => ScoreWith(spec, RemixChallenge.PoolStrength);
+
+    /// <summary>A job's challenge with each car's strength by its file.</summary>
+    public static double ScoreWith(RemixSpec spec, Func<string, double> strength) =>
+        RemixChallenge.Score(spec, n => spec.Cars.TryGetValue(n, out var c) ? strength(c.Vcf) : 0.8, n => spec.Cars.TryGetValue(n, out var c) ? c.At : null).Total;
 
     /// <summary>Each wave's kill count: the cars of the waves before it.</summary>
     private static void RecountKills(ObjectiveSpec o)

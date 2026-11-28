@@ -42,6 +42,8 @@ public sealed record RoguetripState(int Run, int Builder, string Build, string P
         foreach (var o in Objectives.Take(MaxList)) { w.Str(o.Text); w.Bool(o.Done); w.Bool(o.Failed); }
         w.U8((byte)Math.Min(Crew.Count, Protocol.MaxCoopSeats * 2));
         foreach (var c in Crew.Take(Protocol.MaxCoopSeats * 2)) { w.Str(c.Name); w.Str(c.Car); w.U8(c.Armour); w.U8(c.Chassis); w.U8(c.Ammo); w.Bool(c.Out); }
+        // builder v7: the job's crew gear (its roster's input), last, so an older reader stops before it (and refuses the job by its builder)
+        w.Str(Job?.Gear ?? "");
     }
 
     /// <summary>Reads the body (after the type byte).</summary>
@@ -75,6 +77,7 @@ public sealed record RoguetripState(int Run, int Builder, string Build, string P
         n = Count(ref r, Protocol.MaxCoopSeats * 2);
         var crew = new List<RoguetripCrew>(n);
         for (int i = 0; i < n; i++) crew.Add(new RoguetripCrew(r.Str(), r.Str(), r.U8(), r.U8(), r.U8(), r.Bool()));
+        if (!r.End && r.Str() is { Length: > 0 } gear && job is not null) job = job with { Gear = gear };
         return new RoguetripState(run, builder, build, phase, busts, won, kills, map, legs, offers, selected, job, hash, objectives, crew);
     }
 

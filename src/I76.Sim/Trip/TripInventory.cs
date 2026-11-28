@@ -154,7 +154,8 @@ public sealed class TripInventory
     /// The field salvage as state-4 nodes: a random-condition
     /// item is at full health on r &lt; 5, three quarters on r &lt; 30, a quarter on
     /// r &lt; 50, half otherwise (r = rand() % 100); the rest at their health.
-    /// Items the database has no part for are left out.
+    /// Items the database has no part for are left out. A roguetrip job's prize (health <see cref="SalvageItem.Prize"/>, docs/remix-missions.md
+    /// "Rosters and salvage") is rolled the same way but never at a quarter: half instead, so it is never in the red.
     /// </summary>
     public void AddSalvage(IEnumerable<SalvageItem> items, PartsDatabase db, Func<int> rand)
     {
@@ -162,10 +163,10 @@ public sealed class TripInventory
         {
             if (db.ByStem(it.Name) is not { } part) continue;
             int hp = it.Health;
-            if (it.Health == -1 && it.RandomCondition)
+            if (it.Health is -1 or SalvageItem.Prize && it.RandomCondition)
             {
                 int r = rand() % 100;
-                hp = r < 5 ? part.MaxHp : r < 30 ? part.MaxHp * 3 / 4 : r < 50 ? part.MaxHp / 4 : part.MaxHp / 2;
+                hp = r < 5 ? part.MaxHp : r < 30 ? part.MaxHp * 3 / 4 : r < 50 && it.Health == -1 ? part.MaxHp / 4 : part.MaxHp / 2;
             }
             Nodes.Add(new PartNode(part, hp, PartState.Field));
         }
