@@ -1,7 +1,7 @@
 namespace I76.Formats.Remix;
 
 /// <summary>
-/// The original's salvage tier table (docs/trip.md "Field salvage": the clamp each salvaged part goes through), per salvage type: where
+/// The original's salvage tier table (the clamp each salvaged part goes through, SalvagePool.Clamp; SalvageFlowTests), per salvage type: where
 /// in the part's file key the entry names are compared, and the entries in table order, each with the trip mission level and the melee
 /// level from which it is let through ("always" rows start a family). The table is the engine's; <c>SalvagePool.Clamp</c> walks it.
 /// The roguetrip also reads it as a ladder (docs/remix-missions.md "Rosters and salvage"): a part's trip level is how far into the trip
