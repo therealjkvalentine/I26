@@ -4,7 +4,7 @@ namespace I76.Game.Sim;
 /// How long the modern look's smoke hangs in the air ([port] smoke_linger, in percent of each smoke's own life): the cars' damage
 /// smoke and the burning wrecks' (DamageSmoke, WreckFire), the rockets' and the Ball O'Flame's trails (RocketSmoke) and the
 /// explosions' smoke (ModernFx). 100 is each smoke's life as it was (the 1997 look always draws the original's: 20 ticks a puff, the
-/// contrails' 23 sections); the default, 200, lets it linger twice as long (150 until the fade rule, SmokeFade, eased each puff out over the last part of its life). A puff's whole life stretches, so it swells and
+/// contrails' 23 sections); the default, 400, lets it linger four times as long (150, then 200 with the fade rule, before the owner asked for longer, slower-growing smoke; SmokeFade). A puff's whole life stretches, so it swells and
 /// erodes away over the longer time (the shaders thin it by its age over its life) rather than holding and then going at once; the
 /// pools that hold the puffs grow with it, so a melee's trails are as dense as before, only longer. Purely visual: nothing goes back
 /// into the simulation or onto the wire. Not the Nitro chemical mortar's cloud, whose puffs mark where the round still harms, nor the
@@ -12,9 +12,9 @@ namespace I76.Game.Sim;
 /// </summary>
 public static class SmokeLinger
 {
-    public const int Default = 200, Min = 100, Max = 300;
+    public const int Default = 400, Min = 100, Max = 600;
     /// <summary>The steps the Developer panel offers.</summary>
-    public static readonly int[] Steps = [100, 125, 150, 200, 300];
+    public static readonly int[] Steps = [100, 125, 150, 200, 300, 400, 600];
     public static int Percent = Default;
     public static readonly int? Hook = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SMOKE_LINGER"), out int h) ? h : null;
 
@@ -26,6 +26,16 @@ public static class SmokeLinger
 
     /// <summary>The factor on the modern look's smoke lives now (1 to 3).</summary>
     public static float Factor => Setting / 100f;
+
+    /// <summary>
+    /// The factor on a puff's own life (before Smoke Linger Long's haze takes it on): <see cref="Factor"/>, but under Long at most
+    /// <see cref="LongYoung"/>. Long's smoke lingers as haze after its life (minutes, growing ever more slowly), so a longer young life
+    /// only held the column dense and narrow for longer and put off its spreading; Normal's puffs end with their life, so they take it all.
+    /// </summary>
+    public static float LifeFactor => SmokeHaze.On ? MathF.Min(Factor, LongYoung) : Factor;
+
+    /// <summary>The longest young life under Long (the 200 % lives, the default before smoke_linger 400).</summary>
+    public const float LongYoung = 2f;
 
     /// <summary>The largest factor: the pools are made this big and used up to <see cref="Factor"/> of their base size.</summary>
     public const float MaxFactor = Max / 100f;

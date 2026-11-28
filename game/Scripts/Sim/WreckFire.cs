@@ -73,7 +73,7 @@ public partial class WreckFire : Node3D
         float topY = b.Size.Y * 0.15f;
         _flames = Emitter(Shared.FlameProc, Shared.FlameMesh, 30, 0.85, box, topY);
         // where the smoke layer cannot draw it ([port] smoke_linger: the particles live longer, as many more of them at the same rate)
-        float linger = SmokeLinger.Factor;
+        float linger = SmokeLinger.LifeFactor;
         _smoke = Emitter(Shared.SmokeProc, Shared.SmokeMesh, (int)MathF.Round(36 * linger), 8.0 * linger, box * 0.8f, topY + 0.5f);
         _embers = Emitter(Shared.EmberProc, Shared.EmberMesh, 14, 1.8, box, topY + 0.2f);
         _smoke.SetInstanceShaderParameter("scene_light", SceneLight);
