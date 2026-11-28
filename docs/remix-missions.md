@@ -528,11 +528,17 @@ The owner: "don't forget to place civillian cars on some roads during some rogue
   missions, were the stock missions' own actors whose threads were gone; the traffic below is new cars with threads of their own.)
 - **Which jobs.** The node tables' routes that are paved road: 1200 m or longer, 85 % of their points every 10 m within 22 m of a
   paved road's centre line (`i76 remix traffic` measures them; `RemixTraffic.Paved`, a table of route names written by
-  `--table` and held to the install by a test): T02's crossroad west, T03's highway, T05's 380, T08's two, T10's two, T13's two,
-  T14's west road; the other maps' routes are dirt or wander off the road. A route qualifies for a job when both its ends are 400 m
-  or more from the player's start and every place of the job. Then the job has traffic with a chance by template (intercept, ambush,
-  escort, tail 0.8; deliver, raid 0.6; defend 0.45; times 0.8 with one such route, 1 with two or more), drawn on a stream of its own.
-  Measured over 500 rolled jobs: 69 have traffic (14 %), 2.8 civilians each.
+  `--table` and held to the install by a test): T01's highway north, T02's crossroad west, T03's highway, T05's 380, T07's 380,
+  T08's two, T10's two, T11's 380 both ways, T13's two, T14's west road; the other routes are dirt by design (a wash, a dirt road).
+  Builder v10 retraced T01's, T07's and T11's 380 routes onto the paved road's centre line (`i76 remix traffic --retrace BASE ROUTE`:
+  each leg on one road segment follows its centre line, every 25 m of the others is snapped to the nearest centre line within 80 m,
+  a point kept every 150 m and at every bend; then held to `i76 remix check --nodes` and the boundaries' margins): they were written
+  as straight legs between far waypoints, 45-83 % on the road, and are now 85-100 %; their convoys and escorts drive the road too. A
+  route qualifies for a job when both its ends are 400 m or more from every mark of the job (the start, every place the player must
+  reach, a convoy's lead) and every entry its cars come in at (a pursuit's, the reinforcements', a defence's waves'). Then the job has
+  traffic with a chance by template (intercept, ambush, escort, tail 0.8; deliver, raid 0.6; defend 0.45; times 0.8 with one such
+  route, 1 with two or more), drawn on a stream of its own. Measured over 500 rolled jobs: 105 have traffic (21 %), 2.7 civilians
+  each (builder v9: 69, 14 %).
 - **The cars.** Two to four (never more than 4, nor the job's cars past 16 with the hostiles): norclyd, norpony, norstag, norvan1,
   norvan2, norvike at 20-28, now and then norbus or normarx at 16 (the stock loop's 30 is fast for a town road); each on one of the
   routes, either way along it, their delays 35 s apart on one route. Each waits hidden at the map's lot (a row past the job's own
@@ -554,6 +560,11 @@ The owner: "don't forget to place civillian cars on some roads during some rogue
 - **Checked.** `i76 remix check` holds every job's traffic to the map (`RemixTraffic.Check`: the route paved, its ends clear, the caps,
   the cars civilian files on nobody's side); `RemixTrafficTests`; co-op hosts and guests build the job from the same numbers
   (`RoguetripCoopTests`).
+- **Seen in the game.** The same job runs the same in the game and headless: T07's defence of seed 8 (builder v10) has its first civilian
+  within 30 m of the player's start at tick 1014 headless (`i76 remix traffic --seeds 8-8 --near X,Z`), and a capture of ticks
+  990-1050 (`I76_SHOT_TICKS`, `--fixed-fps 30`) shows it there in both looks. (An earlier capture had seemed to bring the civilians on
+  over a minute late: it ran its frames on the wall clock, `I76_SHOT_FPS` being `tools/shot.sh`'s and not the game's, so its frame
+  numbers were no measure of mission time; the draw log's ticks put the spawn at 8.2 s, on time.)
 
 ### Reproducing a job
 

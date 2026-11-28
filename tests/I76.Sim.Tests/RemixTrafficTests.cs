@@ -79,7 +79,7 @@ public class RemixTrafficTests(ITestOutputHelper output)
                 Assert.Equal(0, spec.Cars[t.Car].Team);
                 Assert.Contains(spec.Cars[t.Car].Vcf, RemixTraffic.Cars.Concat(RemixTraffic.Slow));
                 var pts = spec.Places[t.Route];
-                foreach (var p in spec.Places.Where(p => !p.Key.StartsWith("civ_", StringComparison.Ordinal) && p.Value.Count is 1 or 2).Select(p => p.Value[0]).Append(spec.Start!.At))
+                foreach (var p in RemixTraffic.Avoid(spec).Select(a => a.At))
                     foreach (var end in (double[][])[pts[0], pts[^1]])
                         Assert.True(System.Math.Sqrt((p[0] - end[0]) * (p[0] - end[0]) + (p[1] - end[1]) * (p[1] - end[1])) >= RemixTraffic.Clear, $"seed {seed} {t.Car}");
             }
