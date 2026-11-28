@@ -28,15 +28,42 @@ towns:
   - {name: Odessa, at: [31.85, -102.37]}
   - {name: Fort Stockton, at: [30.89, -102.88]}
   - {name: Fort Davis, at: [30.59, -103.89]}
+  # minor towns, for the map at the size of the whole sheet (quiet: named only where clear)
+  - {name: Lovington, quiet: true, at: [32.94, -103.35]}
+  - {name: Eunice, quiet: true, at: [32.44, -103.16]}
+  - {name: Jal, quiet: true, at: [32.11, -103.19]}
+  - {name: Denver City, quiet: true, at: [32.97, -102.83]}
+  - {name: Andrews, quiet: true, at: [32.32, -102.55]}
+  - {name: Kermit, quiet: true, at: [31.86, -103.09]}
+  - {name: Monahans, quiet: true, at: [31.59, -102.89]}
+  - {name: Midland, at: [32.00, -102.08]}
+  - {name: Dexter, quiet: true, at: [33.20, -104.37]}
+  - {name: Hagerman, quiet: true, at: [33.12, -104.33]}
+  - {name: Loving, quiet: true, at: [32.29, -104.10]}
+  - {name: Balmorhea, quiet: true, at: [30.98, -103.74]}
+  - {name: Van Horn, at: [31.04, -104.83]}
+  - {name: Kent, quiet: true, at: [31.06, -104.22]}
+  - {name: Toyah, quiet: true, at: [31.31, -103.79]}
+  - {name: Orla, quiet: true, at: [31.83, -103.93]}
+  - {name: Pine Springs, quiet: true, at: [31.90, -104.81]}
+  - {name: Whites City, quiet: true, at: [32.18, -104.37]}
+  - {name: Hope, quiet: true, at: [32.81, -104.73]}
+  - {name: Valentine, quiet: true, at: [30.59, -104.50]}
 highways:
   - {name: '380', towns: [Roswell, Tatum, Plains, Brownfield, Tahoka]}
-  - {name: '285', towns: [Roswell, Artesia, Carlsbad, Pecos, Fort Stockton]}
+  - {name: '285', towns: [Roswell, Artesia, Carlsbad, Loving, Pecos, Fort Stockton]}
   - {name: '62', towns: [Carlsbad, Hobbs, Seminole, Lamesa]}
-  - {name: '385', towns: [Levelland, Brownfield, Seagraves, Seminole, Odessa]}
+  - {name: '385', towns: [Levelland, Brownfield, Seagraves, Seminole, Andrews, Odessa]}
   - {name: '114', towns: [Levelland, Morton]}
   - {name: '87', towns: [Lubbock, Tahoka, Lamesa]}
-  - {name: '17', towns: [Pecos, Fort Davis]}
+  - {name: '17', towns: [Pecos, Balmorhea, Fort Davis]}
   - {name: '82', towns: [Lubbock, Levelland]}
+  - {name: '18', towns: [Lovington, Hobbs, Eunice, Jal]}
+  - {name: '20', towns: [Kent, Toyah, Pecos, Monahans, Odessa, Midland]}
+  - {name: '10', towns: [Van Horn, Kent, Balmorhea, Fort Stockton]}
+  - {name: '180', towns: [Pine Springs, Whites City, Carlsbad]}
+  - {name: '82', towns: [Hope, Artesia]}
+  - {name: '90', towns: [Van Horn, Valentine]}
 # where each trip map lies (the gazetteer's: canon or inferred places of the trip)
 maps:
   t01: [32.95, -102.57]

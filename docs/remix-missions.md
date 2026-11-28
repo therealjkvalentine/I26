@@ -475,27 +475,35 @@ towns, the trip maps' places, all typed by hand from real geography) with the of
 pencil, and beside it the offers and the chosen one's own map (its whole-map sketch and marks) and notes. Up, Down, 1-3 or a click on
 a ring or a box choose; Enter or a second click takes the job.
 
-Its layout (`RoguetripLayout`, game/Scripts/Shell; held by `RoguetripLayoutTests` over rolled runs on every map, each offer chosen):
+Its layout (`RoguetripLayout`, game/Scripts/Shell; held by `RoguetripLayoutTests` over rolled runs on every map, each offer chosen).
+The owner: "The atlas can take up the whole space and the options can be on scraps and they can show one at a time so there is space
+for the mission detail map and notes/objectives".
 
+- **The map fills the sheet**, edge to edge inside the frame's double rule (588 x 392 px): the region's latitudes fill its height, and
+  the trip's maps are centred in the part of it west of the scrap (`RegionView`); the rest shows more of the country (the trans-Pecos
+  and the Guadalupes west, Midland east). The region names minor towns and roads for that size (Lovington, Eunice, Jal, Andrews,
+  Kermit, Monahans, Midland, Van Horn, Kent, Toyah; I-20, I-10, NM 18, US 180, 82 west of Artesia, 90; quiet ones named only where clear).
+  Offer rings have a 10 px radius (the shown one ringed again at 14), the trip's maps are small rings, the run's road and the way to
+  the shown offer in red pencil.
+- **One offer at a time, on a scrap** laid over the map's east side (334-608 x 46-428), where no trip map lies, so it never covers a
+  ring or the route (the test holds that for every run and pick): the sheet's paper lightened, torn edges, turned a third of a degree or
+  so, a shadow (`ArenaSketches.DrawScrap`, kept whole under its words: `ShellFrame.Picture(keep)`). On it, in the form's hand: the run's
+  line and "1 of 3", the offer's title (number, map, job, challenge), its words, then the job's own map as big as the room left (106 px
+  high at the least over the test's runs, most much more; the whole map's sketch, its marks ringed in red with their words printed clear
+  of each other, its name under it), then the job's other objectives shown from the start and its notes, and the help line, every word
+  whole. Up and Down, Left and Right, 1-3, a click on a ring or the pad's focus on one change the offer shown; Enter or TAKE THE JOB
+  takes it. In co-op the guest's scrap follows the host's highlight and says the host chooses.
 - **Words placed, none on another.** Each town's name, highway number and state name is printed beside its mark as the stock forms print
-  their labels (Arial Bold capitals, 6 px high; the cell the small sans's measure scaled by 0.86): the four sides of the dot, then the
-  corners, then further out, the first place
-  that lies inside the region's box, on no word, offer ring or other mark, crossing the fewest lines. The named towns, the through
-  highways' numbers and the states are always placed; a quiet town's name (SEAGRAVES, TAHOKA...) only where it touches no line, and a
-  short spur's number (82) only where there is room. A town under an offer's ring loses its dot, not its name (the ring's number is there).
+  their labels (Arial Bold capitals, 7 px high, in the small sans's cell): the four sides of the dot, then the corners, then further out,
+  the first place that lies inside the sheet, off the scrap, on no word or ring, at least 2.5 px from other words and as far as it can
+  from other towns' dots, crossing the fewest lines. The named towns west of the scrap, the through highways' numbers and the states are
+  always placed; a quiet town's name only where it touches no line, a short spur's number only where there is room.
 - **Drawn at the screen's resolution.** In the modern look the lines, dots and rings are a layer of their own (`RoguetripMapLayer`),
-  antialiased at any window size (3440 x 1440 included), and the printed words go to the text layer; the highways a lighter brown.
-  The 1997 look draws the same plan into the 640 x 480 pixels.
+  antialiased at any window size (3440 x 1440 included), and the printed words go to the text layer. The 1997 look draws the same plan
+  into the 640 x 480 pixels.
 - **Written by hand, printed by type.** What a person wrote on the form is in its hand (font 0x44, as the stock forms' entries): the run
-  line, each offer's title and words, the chosen job's notes. What is printed is in the forms' printed lettering: the title, the buttons,
-  the map's words, the scrap's marks.
-- **The offers wrapped whole.** An offer's first line (number, map, job, challenge) wraps at spaces, so the challenge stands whole; its
-  words follow, every line of them; the chosen job's notes sit whole at the column's foot, and the job's map takes the room between (93
-  px high at the least over the test's runs). The region is as wide as its map (268 px), the column the rest (306 px).
-- **The job's map on a scrap of paper**, laid on the sheet as the melee host form lays its arena's (`ArenaSketches.DrawScrap`: the
-  sheet's paper lightened, torn edges, turned a degree or two, a shadow; the map's name in the hand under it). Its marks are red rings;
-  marks within a ring's width share one ring and its words ("START / HOME"; three or more, or a long pair, each word on its own beside
-  it); every word is placed clear of the others' rings and words, as little on the sketch's ink as it can, inside the scrap.
+  line, the offer, its notes. What is printed is in the forms' printed lettering: the title, the buttons, the map's words, the job map's
+  marks.
 - **The stock forms' lettering.** The title (ROGUETRIP, JOB WON...) is set as the scenario form's AUTO MELEE · DRIVER ENTRY FORM is
   (Arial Bold at its height, `ArtButtons.Letter`), and the buttons are that form's ENTER AREA button, resized, lettered as its label is,
   in both looks.
@@ -509,9 +517,10 @@ under the region: put the picture in the user folder's `remix` folder as `roguet
 `roguetrip-atlas.txt` beside it, the picture's control points, one a line: `latitude longitude x y` (degrees, north and east positive;
 the picture's pixels from its top left; `#` starts a comment), three or more, towns whose dots are easy to find. The game fits an affine
 map from latitude and longitude to the picture by least squares (`RoguetripLayout.AtlasFit`; the game log says how near the fit comes
-to its own points), resamples the region box's part of it off the main thread (4 texels a pixel; a 7000 px scan takes a second or
-two), takes its paper (the brightest tenth's level) to white and fades its edges over 6 px, and keeps the result beside it
-(`roguetrip-atlas.fit-*.png`, named by the picture's size and time and the points), so a later session reads that at once. It is laid
+to its own points), resamples the sheet's part of it off the main thread (4 texels a pixel; a 7000 px scan takes a second or two),
+takes its paper (the brightest tenth's level) to white and fades its edges over 6 px (and where the scan ends), and keeps the result
+beside it (`roguetrip-atlas.fit2-*.png`, named by the picture's size and time, the size and the points), so a later session reads that
+at once. It is laid
 on the sheet multiplied, as print on paper (the sheet's paper shows through; the 1997 look matches the product to the palette), under
 the trip's maps, the run's road and the offers, which get a halo of paper (the rings' insides cleared) so they read over its roads;
 the region's own lines, towns and words are then left to the atlas. Until the atlas is ready (being read), and without it or when it

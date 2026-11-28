@@ -148,7 +148,7 @@ public sealed partial class RoguetripScreen : ShellScreen
     private ShellFont _map = null!;
     private RoguetripMapLayer? _layer;
     private RoguetripLayout.RegionPlan? _plan;
-    private RoguetripLayout.ColumnPlan? _column;
+    private RoguetripLayout.ScrapPlan? _scrap;
 
     public override void Enter()
     {
@@ -157,14 +157,8 @@ public sealed partial class RoguetripScreen : ShellScreen
         _title = Shell.Db.Font(0x43);
         _caps = Shell.Db.Font(0x47);
         _map = Shell.Db.Font(RoguetripLayout.MapFont);
-        // a co-op roguetrip's route map and debrief, read from the host's run (RoguetripScreen.Coop.cs)
-        if (CoopEnter()) return;
-        // a won job's salvage and garage: the trip's own screens on the run's inventory
-        if (Run.Phase == "salvage") { Salvage(); return; }
-        if (Mood == "choose") _offers = Run.Offers(RemixNodes.Builtin(), Shell.Install.IsNitro);
-        _sel = 0;
-        // the modern look: the region's lines and rings at the window's resolution (the 1997 look: the frame's pixels)
-        if (!Shell.Faithful && Mood == "choose")
+        // the modern look: the region's lines and rings at the window's resolution (the 1997 look: the frame's pixels); in co-op too
+        if (!Shell.Faithful)
         {
             _layer = new RoguetripMapLayer
             {
@@ -172,9 +166,15 @@ public sealed partial class RoguetripScreen : ShellScreen
             };
             Shell.AddLayerOverFrame(_layer);
             // (added second, so it lies under the drawing: each layer goes in just over the frame)
-            _atlasLayer = new RoguetripAtlasLayer { Picture = () => _atlasShown ? RoguetripAtlas.Texture(Dir) : null, Covered = () => Shell.ModalOpen || Shell.OverlayOpen };
+            _atlasLayer = new RoguetripAtlasLayer { Picture = () => Mood == "choose" && _atlasShown ? RoguetripAtlas.Texture(Dir) : null, Covered = () => Shell.ModalOpen || Shell.OverlayOpen };
             Shell.AddLayerOverFrame(_atlasLayer);
         }
+        // a co-op roguetrip's route map and debrief, read from the host's run (RoguetripScreen.Coop.cs)
+        if (CoopEnter()) return;
+        // a won job's salvage and garage: the trip's own screens on the run's inventory
+        if (Run.Phase == "salvage") { Salvage(); return; }
+        if (Mood == "choose") _offers = Run.Offers(RemixNodes.Builtin(), Shell.Install.IsNitro);
+        _sel = 0;
         Repaint();
         // a run made by another version of the generator rolls other jobs from the same number: say so
         if (Notice is null && Run.Builder != RemixBuilder.Version && Mood == "choose")
@@ -199,15 +199,14 @@ public sealed partial class RoguetripScreen : ShellScreen
     /// <summary>The debrief page's second button: RETRY JOB with the Developer setting on.</summary>
     private static readonly Rect2I Retry = Take;   // (the sheet's middle button: TAKE THE JOB's)
 
+    /// <summary>The choice's selectable places (the offers' rings), or the reward page's boxes.</summary>
     private Rect2I Box(int i)
     {
-        if (Mood == "choose" && _column is { } c && i < c.Offers.Count) { var b = c.Offers[i].Box; return new((int)b.X, (int)b.Y, (int)b.W, (int)b.H); }
+        if (Mood == "choose") return _hits.TryGetValue(i, out var r) ? r : default;
         return new(Left, Top + i * (BoxH + BoxGap), Right - Left, BoxH);
     }
 
     // ---- the choice map (docs/remix-missions.md "The choice map"): the region with the offers as points of interest ----
-
-    private static readonly RoguetripLayout.Box RegionBox = RoguetripLayout.RegionBox;
 
     /// <summary>A pen line on the frame (Bresenham), solid or dashed (on, off pixels): the 1997 look's.</summary>
     private void Pen(int x0, int y0, int x1, int y1, byte ink, int on = 0, int off = 0, int width = 1)
@@ -247,8 +246,9 @@ public sealed partial class RoguetripScreen : ShellScreen
         // the drawn map unless the atlas is ready: absent, still being read (a second or two the first time) or unreadable, it stands alone
         _atlasState = RoguetripAtlas.State(Dir);
         bool atlas = _atlasShown = RoguetripLayout.AtlasShown(_atlasState);
-        _plan = RoguetripLayout.Region(reg, RegionBox, _offers.Select(o => o.Map).ToList(), _sel, Run.Legs.Select(l => l.Map).ToList(), Run.Map,
-            t => _map.Measure(t) * RoguetripLayout.MapScale, RoguetripLayout.MapCell, atlas);
+        // the map fills the sheet; the shown offer's scrap lies over its east side (no word goes under it)
+        _plan = RoguetripLayout.Region(reg, RoguetripLayout.View, _offers.Select(o => o.Map).ToList(), _sel, Run.Legs.Select(l => l.Map).ToList(), Run.Map,
+            t => _map.Measure(t) * RoguetripLayout.MapScale, RoguetripLayout.MapCell, atlas, _offers.Count > 0 ? RoguetripLayout.ScrapBox : null);
         var plan = _plan;
         byte ink = Frame.Nearest(RoguetripMapLayer.Ink), road = Frame.Nearest(RoguetripMapLayer.Road), pencil = Frame.Nearest(RoguetripMapLayer.Pencil),
             red = Frame.Nearest(RoguetripMapLayer.Marker), redPencil = Frame.Nearest(RoguetripMapLayer.RedPencil);
@@ -264,7 +264,7 @@ public sealed partial class RoguetripScreen : ShellScreen
                         int o = (y * bg.W + x) * 4;
                         if (bg.Rgba[o + 3] < 128) continue;
                         // laid on the sheet as print is (multiplied; its paper was made white, so the sheet's shows; the palette has no cream)
-                        int fx = (int)RegionBox.X + x, fy = (int)RegionBox.Y + y, under = Frame.At(fx, fy) * 3;
+                        int fx = (int)RoguetripLayout.MapBox.X + x, fy = (int)RoguetripLayout.MapBox.Y + y, under = Frame.At(fx, fy) * 3;
                         int r = Frame.Palette[under] * bg.Rgba[o] / 255, g = Frame.Palette[under + 1] * bg.Rgba[o + 1] / 255, b = Frame.Palette[under + 2] * bg.Rgba[o + 2] / 255;
                         int key = r >> 3 << 10 | g >> 3 << 5 | b >> 3;
                         if (!near.TryGetValue(key, out byte v)) near[key] = v = Frame.Nearest(Color.Color8((byte)r, (byte)g, (byte)b));
@@ -288,9 +288,10 @@ public sealed partial class RoguetripScreen : ShellScreen
             foreach (var o in plan.Offers)
             {
                 // on the atlas: the ring's inside cleared to paper, so its number reads
-                if (atlas) for (int dy = -7; dy <= 7; dy++) for (int dx = -7; dx <= 7; dx++) if (dx * dx + dy * dy <= 49) Frame.Fill(R(o.X) + dx, R(o.Y) + dy, 1, 1, _sheet!.Pixels[(R(o.Y) + dy) * ShellFrame.W + R(o.X) + dx]);
-                Ring(R(o.X), R(o.Y), 8, o.Selected ? red : ink, o.Selected ? 2 : 1);
-                if (o.Selected) Ring(R(o.X), R(o.Y), 12, red);
+                int ri = (int)RoguetripLayout.Ring, cl = ri - 1;
+                if (atlas) for (int dy = -cl; dy <= cl; dy++) for (int dx = -cl; dx <= cl; dx++) if (dx * dx + dy * dy <= cl * cl) Frame.Fill(R(o.X) + dx, R(o.Y) + dy, 1, 1, _sheet!.Pixels[(R(o.Y) + dy) * ShellFrame.W + R(o.X) + dx]);
+                Ring(R(o.X), R(o.Y), ri, o.Selected ? red : ink, o.Selected ? 2 : 1);
+                if (o.Selected) Ring(R(o.X), R(o.Y), (int)RoguetripLayout.OuterRing, red);
             }
         }
         foreach (var l in plan.Labels)
@@ -302,7 +303,8 @@ public sealed partial class RoguetripScreen : ShellScreen
         {
             string n = (o.Index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
             Frame.Text(_small, R(o.X) - _small.Measure(n) / 2, R(o.Y) - _small.Height / 2 - 1, n, Solid(_small, ink));
-            _hits[o.Index] = new Rect2I(R(o.X) - 12, R(o.Y) - 12, 24, 24);
+            int hr = (int)RoguetripLayout.OuterRing;
+            _hits[o.Index] = new Rect2I(R(o.X) - hr, R(o.Y) - hr, 2 * hr, 2 * hr);
         }
     }
 
@@ -353,38 +355,50 @@ public sealed partial class RoguetripScreen : ShellScreen
     private const int ScrapPad = 5, LegendCap = 7;
 
     /// <summary>
-    /// The chosen offer's own map on a scrap of paper laid on the sheet, as the host form lays its arena's (ArenaSketches.DrawScrap:
-    /// the sheet's paper lightened, torn edges, turned a degree or two, a shadow): the whole map's sketch, the job's marks ringed in
-    /// red with their words placed clear of each other, the map's name under it in the hand. Made once an offer and size.
+    /// The shown offer on a scrap of paper laid over the map's east side, as the host form lays its arena's sketch
+    /// (ArenaSketches.DrawScrap: the sheet's paper lightened, torn edges, turned a little, a shadow): its words in the form's hand
+    /// (RoguetripLayout.Scrap places them), and between them the job's own map: the whole map's sketch, its marks ringed in red
+    /// with their words printed clear of each other, the map's name in the hand under it. Kept whole under its words.
     /// </summary>
-    private void DrawJobMap(RunOffer offer, RoguetripLayout.Box box)
+    private void DrawOfferScrap(RunOffer offer, RoguetripLayout.ScrapPlan sp)
     {
-        int w = (int)box.W - 2 * ScrapPad - 2, h = (int)box.H - 2 * ScrapPad - LegendCap - 6;
-        if (w < 40 || h < 30 || _sheet is null) return;
-        if (!_jobMaps.TryGetValue((offer.Seed, w, h), out var made))
+        if (_sheet is null) return;
+        var box = sp.Map;
+        int w = (int)box.W, h = (int)box.H - LegendCap - 6;
+        (I76.Formats.Mission.ArenaSketch Sketch, RoguetripLayout.MarkPlan Marks)? made = null;
+        if (w >= 40 && h >= 30 && !_jobMaps.TryGetValue((offer.Seed, w, h), out made))
         {
-            made = null;
             try { made = RoguetripLayout.JobMap(new GameInstall(Shell.Install.Root!), Run.Spec(offer), w, h, t => _map.Measure(t) * RoguetripLayout.MapScale, RoguetripLayout.MapCell); }
             catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { GD.PrintErr($"roguetrip: the job's map: {ex.Message}"); }
             _jobMaps[(offer.Seed, w, h)] = made;
         }
-        if (made is not { } m) return;
-        var sk = m.Sketch;
-        // the scrap: the ink, the rings and the words, a margin of paper, the legend under them
-        var (ix0, iy0, ix1, iy1) = sk.InkBounds() ?? (0, 0, w - 1, h - 1);
-        float x0 = ix0, y0 = iy0, x1 = ix1 + 1, y1 = iy1 + 1;
-        foreach (var (rx, ry, _) in m.Marks.Rings) { x0 = Math.Min(x0, rx - 6); y0 = Math.Min(y0, ry - 6); x1 = Math.Max(x1, rx + 6); y1 = Math.Max(y1, ry + 6); }
-        foreach (var l in m.Marks.Labels) { x0 = Math.Min(x0, l.Rect.X); y0 = Math.Min(y0, l.Rect.Y); x1 = Math.Max(x1, l.Rect.Right); y1 = Math.Max(y1, l.Rect.Bottom); }
+        // the sketch's box at the map's place on the scrap (its ink centred across it); the scrap's rectangle in the box's pixels
+        int bx = R(box.X), by = R(box.Y);
+        var scrap = new Rect2I(R(sp.Scrap.X) - bx, R(sp.Scrap.Y) - by, R(sp.Scrap.W), R(sp.Scrap.H));
         string legend = MapName(offer.Map);
         PrintedType.LeePath ??= Shell.Install.FindFile("Lee_____.ttf");
         float lw = PrintedType.Measure(Shell.Db, legend, LegendCap, PrintedType.Face.Hand);
-        int lx = R((x0 + x1 - lw) / 2), ly = R(y1) + 3 + LegendCap;
-        var scrap = new Rect2I(R(Math.Min(x0, lx)) - ScrapPad, R(y0) - ScrapPad, 0, 0);
-        scrap = scrap with { Size = new Vector2I(R(Math.Max(x1, lx + lw)) + ScrapPad - scrap.Position.X, ly + 2 + ScrapPad - scrap.Position.Y) };
-        int bx = R(box.X + (box.W - scrap.Size.X) / 2) - scrap.Position.X, by = R(box.Y + (box.H - scrap.Size.Y) / 2) - scrap.Position.Y;
-        ArenaSketches.DrawScrap(Frame, _sheet.Pixels, ScrapPaperAt, $"roguetrip:{offer.Seed}", sk, bx, by, scrap, legend, lx, ly, LegendCap, RoguetripMapLayer.Ink,
-            (k, aliased) => JobInk(sk, m.Marks, k, aliased));
+        if (made is { } m)
+        {
+            var sk = m.Sketch;
+            var (ix0, iy0, ix1, iy1) = sk.InkBounds() ?? (0, 0, w - 1, h - 1);
+            // the legend under the drawing and its marks' words
+            float foot = Math.Max(iy1 + 1, Math.Max(m.Marks.Rings.Select(r => r.Y + 6).DefaultIfEmpty(0).Max(), m.Marks.Labels.Select(l => l.Rect.Bottom).DefaultIfEmpty(0).Max()));
+            int lx = R((ix0 + ix1 + 1 - lw) / 2), ly = R(foot) + 3 + LegendCap;
+            // the drawing (its ink, rings and words) and its legend centred down the room the scrap leaves it
+            float top = Math.Min(iy0, Math.Min(m.Marks.Rings.Select(r => r.Y - 6).DefaultIfEmpty(iy0).Min(), m.Marks.Labels.Select(l => l.Rect.Y).DefaultIfEmpty(iy0).Min()));
+            by = R(box.Y + (box.H - (ly + 2 - top)) / 2 - top);
+            scrap = new Rect2I(R(sp.Scrap.X) - bx, R(sp.Scrap.Y) - by, R(sp.Scrap.W), R(sp.Scrap.H));
+            ArenaSketches.DrawScrap(Frame, _sheet.Pixels, ScrapPaperAt, $"roguetrip-offer:{offer.Seed}", sk, bx, by, scrap, legend, lx, ly, LegendCap, RoguetripMapLayer.Ink,
+                (k, aliased) => JobInk(sk, m.Marks, k, aliased), turn: 0.3f, keep: true);
+        }
+        else if ((_blank ??= BlankSketch()) is { } blank)
+            ArenaSketches.DrawScrap(Frame, _sheet.Pixels, ScrapPaperAt, "roguetrip-offer:blank", blank, bx, by, scrap, legend, R((w - lw) / 2), h / 2, LegendCap, RoguetripMapLayer.Ink, turn: 0.3f, keep: true);
     }
+
+    /// <summary>A sketch with no ink (a job whose map could not be drawn still gets its scrap).</summary>
+    private static I76.Formats.Mission.ArenaSketch? _blank;
+    private static I76.Formats.Mission.ArenaSketch? BlankSketch() => I76.Formats.Mission.ArenaSketch.Build((_, _) => 0, [], [], [], 8, 8);
 
     /// <summary>The job map's ink: the sketch's roads and edges (its hatching left out: at this size it fills the high ground solid), the marks' rings in red marker and their words in red pencil.</summary>
     private byte[] JobInk(I76.Formats.Mission.ArenaSketch sk, RoguetripLayout.MarkPlan marks, int k, bool aliased)
@@ -517,13 +531,8 @@ public sealed partial class RoguetripScreen : ShellScreen
         // the frame's double rule round the sheet, as Control Configuration's
         lines.AddRange([(20, 37, 600, 2), (20, 437, 600, 2), (20, 37, 2, 402), (618, 37, 2, 402), (24, 41, 592, 1), (24, 434, 592, 1), (24, 41, 1, 394), (615, 41, 1, 394)]);
         string num = Run.Number.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (Mood == "choose")
-        {
-            _column = RoguetripLayout.Column(RoguetripLayout.ColumnBox, _offers.Select((o, i) => (OfferTitle(o, i), o.Flavour)).ToList(), Notes(),
-                t => _small.Measure(t), RoguetripLayout.OfferLine, RoguetripLayout.NoteLine, t => _small.Measure(t), RoguetripLayout.NoteLine);
-            if (_column.Overflow.Count > 0) GD.PrintErr($"roguetrip: the column overflows: {string.Join(" | ", _column.Overflow)}");
-        }
-        for (int i = 0; i < Count; i++) { var b = Box(i); lines.AddRange([(b.Position.X, b.Position.Y, b.Size.X, 1), (b.Position.X, b.End.Y, b.Size.X, 1)]); }
+        if (Mood != "choose")
+            for (int i = 0; i < Count; i++) { var b = Box(i); lines.AddRange([(b.Position.X, b.Position.Y, b.Size.X, 1), (b.Position.X, b.End.Y, b.Size.X, 1)]); }
         // (no button bars of the sheet's own: the buttons are the scenario form's)
         _sheet = PaperSheet.Make(Shell.Db.Background(16), true, ControllerScreen.Slots.Length, false, lines);
         Frame.LoadBackground(_sheet, 0, 0, black: false);
@@ -535,23 +544,26 @@ public sealed partial class RoguetripScreen : ShellScreen
         {
             case "choose":
                 Title("ROGUETRIP");
-                Centre(_small, 44, $"Run {num}: job {Run.Legs.Count + 1} of {RemixRun.Jobs}{(Run.Busts > 0 ? $" ({Run.Busts} busted)" : "")}. {Run.Model}: {condition}.");
-                Centre(_small, 58, Run.Map.Length == 0 ? "Pick where the run starts." : $"Leaving {MapName(Run.Map)}. Pick the next job down the road.");
-                // the region with the offers on it (left), the offers and the chosen one's own map and notes (right)
+                // the map fills the sheet, the offers' rings on it; the shown offer on its scrap over the map's east side
                 _hits.Clear();
                 DrawRegion();
-                var col = _column!;
-                for (int i = 0; i < col.Offers.Count; i++)
+                if (_offers.Count == 0) { _scrap = null; Centre(_hand, 200, "No jobs on the road from here."); }
+                else
                 {
-                    var blk = col.Offers[i];
-                    if (i == _sel) Mark(Box(i), blk.TitleLines);
-                    // written on the form: in its hand, the title and the words alike
-                    foreach (var (t, x, y) in blk.Lines) Frame.Text(_small, R(x), R(y), t, ShellFrame.OverlayInk);
+                    int sel = Math.Clamp(_sel, 0, _offers.Count - 1);
+                    var offer = _offers[sel];
+                    string run = $"Run {num}, job {Run.Legs.Count + 1} of {RemixRun.Jobs}{(Run.Busts > 0 ? $" ({Run.Busts} busted)" : "")}. {Run.Model}: {condition}. "
+                        + (Run.Map.Length == 0 ? "Pick where the run starts." : $"Leaving {MapName(Run.Map)}.");
+                    string count = $"{sel + 1} of {_offers.Count}";
+                    _scrap = RoguetripLayout.Scrap(RoguetripLayout.ScrapBox, run, count, OfferTitle(offer, sel), offer.Flavour, Notes(),
+                        CoopHelp ?? "Arrows, 1-3 or a ring: choose. Enter: take it. Esc: back.", t => _small.Measure(t), RoguetripLayout.OfferLine);
+                    if (_scrap.Overflow.Count > 0) GD.PrintErr($"roguetrip: the scrap overflows: {string.Join(" | ", _scrap.Overflow)}");
+                    DrawOfferScrap(offer, _scrap);
+                    // written on the form: in its hand (over the scrap, which is kept whole under them)
+                    foreach (var (t, x, y) in _scrap.Lines) Frame.Text(_small, R(x), R(y), t, ShellFrame.OverlayInk);
+                    var (ct, cx, cy) = _scrap.Count;
+                    Frame.Text(_small, R(cx), R(cy), ct, Solid(_small, Frame.Nearest(RoguetripMapLayer.RedPencil)));
                 }
-                if (_offers.Count == 0) Centre(_hand, 200, "No jobs on the road from here.");
-                else DrawJobMap(_offers[Math.Clamp(_sel, 0, _offers.Count - 1)], col.Map);
-                foreach (var (t, x, y) in col.Notes) Frame.Text(_small, R(x), R(y), t, ShellFrame.OverlayInk);
-                Centre(_small, 428, CoopHelp ?? "Up, Down or the map's rings choose; Enter takes the job; Esc: back.");
                 Button(Take, "TAKE THE JOB");
                 Button(Later, "BACK");
                 break;
@@ -631,7 +643,12 @@ public sealed partial class RoguetripScreen : ShellScreen
     private List<string> Notes()
     {
         if (_offers.Count == 0) return [];
-        try { return Run.Spec(_offers[Math.Clamp(_sel, 0, _offers.Count - 1)]).Text.Notes.Take(2).ToList(); }
+        try
+        {
+            // the job's other objectives shown from the start (a defence's "Keep the farms standing."), then where its places are
+            var t = Run.Spec(_offers[Math.Clamp(_sel, 0, _offers.Count - 1)]).Text;
+            return [.. t.Objectives.Skip(1).Where(o => !o.StartsWith("(hidden)", StringComparison.Ordinal)), .. t.Notes.Take(2)];
+        }
         catch (RemixError) { return []; }
     }
 
@@ -675,8 +692,8 @@ public sealed partial class RoguetripScreen : ShellScreen
         if (Mood == "choose" && _atlasState == RoguetripLayout.AtlasState.Loading && RoguetripAtlas.State(Dir) != RoguetripLayout.AtlasState.Loading) Repaint();
         foreach (var k in Shell.Keys)
         {
-            if (k is Key.Up && Count > 0) { _sel = (_sel + Count - 1) % Count; Shell.Sound(82); Repaint(); }
-            else if (k is Key.Down && Count > 0) { _sel = (_sel + 1) % Count; Shell.Sound(82); Repaint(); }
+            if (k is Key.Up or Key.Left && Count > 0) { _sel = (_sel + Count - 1) % Count; Shell.Sound(82); Repaint(); }
+            else if (k is Key.Down or Key.Right && Count > 0) { _sel = (_sel + 1) % Count; Shell.Sound(82); Repaint(); }
             else if (k is >= Key.Key1 and <= Key.Key3 && (int)(k - Key.Key1) < Count) { _sel = (int)(k - Key.Key1); Shell.Sound(82); Repaint(); }
             else if (k is Key.Enter or Key.KpEnter or Key.Space) { Act(); return; }
             else if (k is Key.Escape) { GoBack(); return; }

@@ -30,7 +30,7 @@ public sealed partial class RoguetripScreen
 
     private string? CoopHelp => CoopView is not { } v ? null
         : v.Host ? "You choose for everyone. Enter: back to the lobby, then START."
-        : "The host chooses the job: the red ring is theirs. Esc: back to the lobby.";
+        : "The host chooses (the red ring). Esc: back to the lobby.";
 
     private static string CoopWonNext => "Next: every car still running gets 30 % armour patched on and its guns reloaded; then the route map.";
 
@@ -68,7 +68,7 @@ public sealed partial class RoguetripScreen
             if (!v.Host) continue;
             if (Mood == "choose" && Count > 0)
             {
-                int to = k switch { Key.Up => (_sel + Count - 1) % Count, Key.Down => (_sel + 1) % Count, >= Key.Key1 and <= Key.Key3 when (int)(k - Key.Key1) < Count => (int)(k - Key.Key1), _ => -1 };
+                int to = k switch { Key.Up or Key.Left => (_sel + Count - 1) % Count, Key.Down or Key.Right => (_sel + 1) % Count, >= Key.Key1 and <= Key.Key3 when (int)(k - Key.Key1) < Count => (int)(k - Key.Key1), _ => -1 };
                 if (to >= 0) { CoopPick(to); continue; }
             }
             if (k is Key.Enter or Key.KpEnter or Key.Space) { CoopAct(); return true; }

@@ -428,6 +428,8 @@ public sealed class ShellFrame
         public Texture2D? Picture;
         /// <summary>The caption is a button label in the art's bold sans (<see cref="Label"/>), not the handwriting.</summary>
         public bool Label;
+        /// <summary>A picture kept whole however much of it words are set over (the roguetrip's offer scrap: its own words on it).</summary>
+        public bool Keep;
         public Rect2I Box;
         public byte Ink;
         /// <summary>The cell's pixels on the frame, and how many are still the glyph's.</summary>
@@ -436,7 +438,7 @@ public sealed class ShellFrame
         public Rect2I Shown;
         internal int Id;
         /// <summary>Shown while most of its cell is left as it was.</summary>
-        public bool Visible => Live * 2 > Cells;
+        public bool Visible => Keep ? Live > 0 : Live * 2 > Cells;
     }
 
     /// <summary>Which fonts are drawn by the text layer (null: none, the 1997 look).</summary>
@@ -490,7 +492,7 @@ public sealed class ShellFrame
     public void Caption(Rect2I box, string text, byte ink) => Claim(new HdGlyph { Caption = text, Box = box, Ink = ink });
 
     /// <summary>A picture the text layer draws into a box at the window's resolution (the modern look), kept as a glyph is.</summary>
-    public void Picture(Rect2I box, Texture2D picture) => Claim(new HdGlyph { Picture = picture, Box = box });
+    public void Picture(Rect2I box, Texture2D picture, bool keep = false) => Claim(new HdGlyph { Picture = picture, Box = box, Keep = keep });
 
     /// <summary>Every glyph that reaches into the rectangle is taken off whole (a slip laid over words hides them, not only the part under it).</summary>
     public void Uncover(Rect2I r)

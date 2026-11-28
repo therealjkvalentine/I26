@@ -196,7 +196,7 @@ public static class ArenaSketches
     /// (lx, ly) the legend's left and foot, both in the sketch box's own pixels; the box's top left goes at (bx, by).
     /// </summary>
     public static void DrawScrap(ShellFrame frame, byte[] art, (int X, int Y) paperAt, string stem, ArenaSketch s, int bx, int by,
-        Rect2I scrap, string legend, int lx, int ly, int cap, Color legendInk, Func<int, bool, byte[]>? inks = null)
+        Rect2I scrap, string legend, int lx, int ly, int cap, Color legendInk, Func<int, bool, byte[]>? inks = null, float turn = 1, bool keep = false)
     {
         bool modern = frame.Modern;
         int k = modern ? Scale : 1;
@@ -205,7 +205,7 @@ public static class ArenaSketches
         string key = $"{stem}:{s.BoxWidth}x{s.BoxHeight}:{scrap}:{ScrapPaper}";
         if (modern && Scraps.TryGetValue(key, out var have))
         {
-            frame.Picture(new Rect2I(bx + have.At.Position.X, by + have.At.Position.Y, have.At.Size.X, have.At.Size.Y), have.Tex);
+            frame.Picture(new Rect2I(bx + have.At.Position.X, by + have.At.Position.Y, have.At.Size.X, have.At.Size.Y), have.Tex, keep);
             return;
         }
         int W = canvas.Size.X * k, H = canvas.Size.Y * k;
@@ -216,7 +216,7 @@ public static class ArenaSketches
         // a degree or two either way, the same for an arena every time
         uint hsh = 2166136261;
         foreach (char ch in stem.ToLowerInvariant()) hsh = (hsh ^ ch) * 16777619;
-        float ang = (1f + (hsh % 100) / 100f * 0.8f) * ((hsh & 0x100) != 0 ? 1 : -1) * MathF.PI / 180;
+        float ang = turn * (1f + (hsh % 100) / 100f * 0.8f) * ((hsh & 0x100) != 0 ? 1 : -1) * MathF.PI / 180;
         float ca = MathF.Cos(ang), sa = MathF.Sin(ang);
         float mx = scrap.Position.X + scrap.Size.X / 2f, my = scrap.Position.Y + scrap.Size.Y / 2f;
         float X0 = scrap.Position.X, Y0 = scrap.Position.Y, X1 = scrap.End.X, Y1 = scrap.End.Y;
@@ -318,7 +318,7 @@ public static class ArenaSketches
         img.GenerateMipmaps();
         var tex = ImageTexture.CreateFromImage(img);
         Scraps[key] = (tex, canvas);
-        frame.Picture(new Rect2I(bx + canvas.Position.X, by + canvas.Position.Y, canvas.Size.X, canvas.Size.Y), tex);
+        frame.Picture(new Rect2I(bx + canvas.Position.X, by + canvas.Position.Y, canvas.Size.X, canvas.Size.Y), tex, keep);
     }
 
     private static byte[] InkLayer(ArenaSketch s, string stem, int k, bool aliased)
