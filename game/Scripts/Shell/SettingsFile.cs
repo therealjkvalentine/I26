@@ -15,11 +15,48 @@ public sealed class SettingsFile
     private readonly List<(string Section, string Key)> _order = [];
     private readonly Dictionary<(string, string), object> _values = [];
 
-    public bool HasSectionKey(string section, string key) => _values.ContainsKey((section, key));
+    /// <summary>Every key asked about (<see cref="HasSectionKey"/>, <see cref="GetValue"/>) since <see cref="Track"/>, present or not: the keys a reader knows.</summary>
+    public HashSet<(string Section, string Key)>? Asked { get; private set; }
+
+    /// <summary>From now on every key asked about is noted in <see cref="Asked"/>.</summary>
+    public SettingsFile Track() { Asked = []; return this; }
+
+    public bool HasSectionKey(string section, string key)
+    {
+        Asked?.Add((section, key));
+        return _values.ContainsKey((section, key));
+    }
 
     /// <summary>The key's value, else <paramref name="fallback"/> (absent: an empty value).</summary>
-    public SettingsValue GetValue(string section, string key, object? fallback = null) =>
-        _values.TryGetValue((section, key), out var v) ? new(v) : fallback is SettingsValue f ? f : new(fallback);
+    public SettingsValue GetValue(string section, string key, object? fallback = null)
+    {
+        Asked?.Add((section, key));
+        return _values.TryGetValue((section, key), out var v) ? new(v) : fallback is SettingsValue f ? f : new(fallback);
+    }
+
+    /// <summary>The key's value as stored, without noting it as asked.</summary>
+    public bool TryGet(string section, string key, out object value) => _values.TryGetValue((section, key), out value!);
+
+    /// <summary>A copy of the keys and values in their order (not what was asked).</summary>
+    public SettingsFile Copy()
+    {
+        var c = new SettingsFile();
+        foreach (var (s, k, v) in Entries) c.SetValue(s, k, v);
+        return c;
+    }
+
+    /// <summary>Whether two stored values are the same (a byte block by its bytes, a number by its value, else the engine's text).</summary>
+    public static bool Same(object? a, object? b) => (a, b) switch
+    {
+        (null, null) => true,
+        (null, _) or (_, null) => false,
+        (byte[] x, byte[] y) => x.AsSpan().SequenceEqual(y),
+        (long x, long y) => x == y,
+        (double x, double y) => x.Equals(y),
+        (bool x, bool y) => x == y,
+        (string x, string y) => x == y,
+        _ => a.GetType() == b.GetType() && new SettingsValue(a).ToString() == new SettingsValue(b).ToString(),
+    };
 
     public void SetValue(string section, string key, object value)
     {
