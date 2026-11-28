@@ -248,6 +248,7 @@ public class HostMigrationTests(ITestOutputHelper output)
     /// stopped a second (20 ticks) past that savestate.
     /// </summary>
     [Fact]
+    [Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
     public void TheSuccessorsReplayIsTheHostsGameExactly()
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -632,6 +633,7 @@ public class HostMigrationTests(ITestOutputHelper output)
     /// asked to take over: the game ends for it and for the others with the lost connection's message.
     /// </summary>
     [Fact]
+    [Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
     public void AnUnreadableSavestateEndsTheGameWithAMessageNotACrash()
     {
         if (HostTests.InstallDir is not { } install) return;

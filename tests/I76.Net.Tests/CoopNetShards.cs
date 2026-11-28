@@ -7,12 +7,14 @@ namespace I76.Net.Tests;
 // so the class's total (about four minutes) was the project's floor. Each game binds its own ports and shares nothing but the
 // read-only installs. The bodies stay in CoopNetTests (partial, in three files); add a theory row there and here.
 
+[Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
 public class CoopNetIntroTests(ITestOutputHelper output)
 {
     [Fact]
     public void CarsInViewOfTheIntroStayOnTheGroundOnTheClient() => new CoopNetTests(output).CarsInViewOfTheIntroStayOnTheGroundOnTheClient();
 }
 
+[Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
 public class CoopNetStoryTests(ITestOutputHelper output)
 {
     [Theory]
@@ -21,6 +23,7 @@ public class CoopNetStoryTests(ITestOutputHelper output)
     public void AStoryMissionPlaysOverTheNetwork(string game, string mission) => new CoopNetTests(output).AStoryMissionPlaysOverTheNetwork(game, mission);
 }
 
+[Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
 public class CoopNetSceneTests(ITestOutputHelper output)
 {
     [Fact]
@@ -33,6 +36,7 @@ public class CoopNetSceneTests(ITestOutputHelper output)
     public void AMovieStandsTheGameStillForEveryoneUntilTheHostsCopyIsOver() => new CoopNetTests(output).AMovieStandsTheGameStillForEveryoneUntilTheHostsCopyIsOver();
 }
 
+[Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
 public class CoopNetReplayTests(ITestOutputHelper output)
 {
     [Theory]

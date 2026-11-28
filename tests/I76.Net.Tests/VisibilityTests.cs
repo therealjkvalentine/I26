@@ -164,6 +164,7 @@ public class VisibilityTests(ITestOutputHelper output)
     /// every spawn event and must learn each car that comes after its accept by asking the server about it.
     /// </summary>
     [Fact]
+    [Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
     public void EveryoneSeesEveryoneThroughJoinsLeavesAndRejoins()
     {
         if (HostTests.InstallDir is not { } install) return;

@@ -8,7 +8,7 @@ namespace I76.Game.Tests;
 /// nothing by its end; a puff the pool takes back fades out over a moment rather than being cut; one leaving its draw distance thins
 /// out before it. Without the engine; the sources are checked to use the rules.
 /// </summary>
-[Collection("SmokeStatics")]
+[Collection("OriginalBehavior")]   // OriginalBehavior.Apply sets the smoke statics too: one collection with the settings tests
 public class SmokeFadeTests
 {
     private static string Repo(params string[] path)

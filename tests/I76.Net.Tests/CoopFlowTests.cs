@@ -129,6 +129,7 @@ public partial class CoopFlowTests(ITestOutputHelper output)
 
     /// <summary>Hal is in the mission and stands still; Ann watches the briefing: Hal's game hears whom it waits for, and that it is over when she comes.</summary>
     [Fact]
+    [Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
     public void TheStartSaysWhomItWaitsFor()
     {
         if (Install is not { } install) return;
