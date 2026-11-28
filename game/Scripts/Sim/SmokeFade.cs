@@ -3,7 +3,7 @@ namespace I76.Game.Sim;
 /// <summary>
 /// How a modern puff ends: never while it is still visibly opaque. A puff that ends with its life (Smoke Linger Normal's damage smoke and
 /// burning wrecks, Normal's rocket and Ball O'Flame trails) swells a little more and its opacity eases to nothing over the last part of its
-/// life (<see cref="Out"/>, <see cref="Swell"/>), so it fades and spreads away (1.6 times its end size by its end, the last quarter of its life fading) rather than vanishing at about half its opacity, as the shader's
+/// life (<see cref="Out"/>, <see cref="Swell"/>), so it fades and spreads away (3 times its end size by its end, the last quarter of its life fading) rather than vanishing at about half its opacity, as the shader's
 /// erosion alone left it. Under Long the puff lives on as haze (SmokeHaze), which has its own fade, so neither applies. A puff the pool needs
 /// back (<see cref="Retire"/>: the pool near full) and one leaving its draw distance (<see cref="Edge"/>) fade out the same way. The original's
 /// sprites (the 1997 look) end at their 20th frame as they always did. Rendering only: nothing here reaches the simulation or the wire.
@@ -14,7 +14,7 @@ public static class SmokeFade
     public static readonly float OutFrom = Tune(0, 0.75f, 0.2f, 0.95f);
 
     /// <summary>How much larger than its end size a puff is when it has faded out (it goes on spreading as it thins).</summary>
-    public static readonly float SwellBy = Tune(1, 0.6f, 0f, 1.5f);
+    public static readonly float SwellBy = Tune(1, 2f, 0f, 3f);
 
     /// <summary>I76_SMOKE_FADE="from,swell" sets <see cref="OutFrom"/> and <see cref="SwellBy"/> for a run (a tuning sheet).</summary>
     private static float Tune(int k, float d, float lo, float hi) =>
