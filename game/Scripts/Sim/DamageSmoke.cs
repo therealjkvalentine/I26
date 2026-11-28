@@ -100,13 +100,13 @@ public partial class DamageSmoke : Node3D
         return n;
     }
     /// <summary>
-    /// A puff within its life as drawn: its shader age, size and density. Under Normal it ends with its life, so it swells and fades out
-    /// over the last of it (SmokeFade); under Long it lives on as haze from where it is, so it is drawn as it is.
+    /// A puff within its life as drawn: its shader age, size and density. Under Normal it ends with its life, so it grows slowly the whole
+    /// of it and fades out over the last of it (SmokeFade); under Long it lives on as haze from where it is, so it is drawn as it is.
     /// </summary>
     private static (float Life, float Size, float Dens) Young(in MPuff p)
     {
         float lf = p.Age / p.Life, size = SmokeHaze.PuffSize(0.8f, p.End, lf);
-        return SmokeHaze.On ? (lf, size, p.Dens) : (lf, size * SmokeFade.Swell(lf), p.Dens * SmokeFade.Out(lf));
+        return SmokeHaze.On ? (lf, size, p.Dens) : (lf, SmokeFade.Size(0.8f, p.End, lf), p.Dens * SmokeFade.Out(lf));
     }
     private readonly MultiMesh[] _slabMm = new MultiMesh[SlabFar.Length];
     private readonly float[][] _slabBuf = new float[SlabFar.Length][];
@@ -635,7 +635,7 @@ public partial class DamageSmoke : Node3D
             Dark = level < 1 ? level * 0.4f : Mathf.Lerp(0.4f, 1f, Mathf.Clamp((level - 1f), 0f, 1f)), Seed = r3,
         };
         // [port] smoke_linger: the whole life longer, so it swells and erodes away over the longer time
-        p.Life = Math.Min(p.Life, 4f) * SmokeLinger.Factor;
+        p.Life = Math.Min(p.Life, 4f) * SmokeLinger.LifeFactor;
         // Smoke Linger Long: denser and darker from the start (Normal unchanged)
         p.Dens = SmokeHaze.StartDens(p.Dens); p.Dark = SmokeHaze.StartDark(p.Dark);
     }

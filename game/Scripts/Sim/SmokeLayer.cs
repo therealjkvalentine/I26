@@ -74,7 +74,7 @@ public partial class SmokeLayer : Node3D
     public static float CapNow => SmokeHaze.LayerCap(Cap, CapHooked);
 
     // room for every smoke's pool at the longest [port] smoke_linger (SmokeLinger: the pools grow with it)
-    private const int Capacity = 30000, Floats = 12, MaxLights = 16, UboFloats = 96 + MaxLights * 12 + 8;
+    private const int Capacity = 48000, Floats = 12, MaxLights = 16, UboFloats = 96 + MaxLights * 12 + 8;
     private static readonly int Scale = int.TryParse(System.Environment.GetEnvironmentVariable("I76_SMOKE_SCALE"), out int sc) && sc >= 1 ? sc : 2;
     private static bool _ready, _failed, _enabled;
     private static readonly object Lock = new();

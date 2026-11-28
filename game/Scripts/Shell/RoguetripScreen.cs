@@ -157,29 +157,35 @@ public sealed partial class RoguetripScreen : ShellScreen
         _title = Shell.Db.Font(0x43);
         _caps = Shell.Db.Font(0x47);
         _map = Shell.Db.Font(RoguetripLayout.MapFont);
-        // the modern look: the region's lines and rings at the window's resolution (the 1997 look: the frame's pixels); in co-op too
-        if (!Shell.Faithful)
-        {
-            _layer = new RoguetripMapLayer
-            {
-                Plan = () => Mood == "choose" ? _plan : null, Covered = () => Shell.ModalOpen || Shell.OverlayOpen, OnAtlas = () => _atlasShown,
-            };
-            Shell.AddLayerOverFrame(_layer);
-            // (added second, so it lies under the drawing: each layer goes in just over the frame)
-            _atlasLayer = new RoguetripAtlasLayer { Picture = () => Mood == "choose" && _atlasShown ? RoguetripAtlas.Texture(Dir) : null, Covered = () => Shell.ModalOpen || Shell.OverlayOpen };
-            Shell.AddLayerOverFrame(_atlasLayer);
-        }
-        // a co-op roguetrip's route map and debrief, read from the host's run (RoguetripScreen.Coop.cs)
+        // a co-op roguetrip's route map and debrief, read from the host's run (RoguetripScreen.Coop.cs); its sheet goes from
+        // the choice to the debrief and back on one screen, so the map's layers are made whatever it shows first
+        if (CoopView is not null && !Shell.Faithful) MapLayers();
         if (CoopEnter()) return;
         // a won job's salvage and garage: the trip's own screens on the run's inventory
         if (Run.Phase == "salvage") { Salvage(); return; }
         if (Mood == "choose") _offers = Run.Offers(RemixNodes.Builtin(), Shell.Install.IsNitro);
         _sel = 0;
+        // the modern look: the region's lines and rings at the window's resolution (the 1997 look: the frame's pixels)
+        if (!Shell.Faithful && Mood == "choose") MapLayers();
         Repaint();
         // a run made by another version of the generator rolls other jobs from the same number: say so
         if (Notice is null && Run.Builder != RemixBuilder.Version && Mood == "choose")
             Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Closed = Repaint, Text = $"This run was made by builder v{Run.Builder}; this game's is v{RemixBuilder.Version}, so its jobs differ." });
         if (Notice is { Length: > 0 } n) Shell.Modal(new NoticePopup { Sprite = 17, Ok = new Rect2I(119, 61, 42, 16), Text = n, Closed = Repaint });
+    }
+
+    /// <summary>The region's drawing and the atlas under it, as layers over the frame (the modern look); they show only on the choice.</summary>
+    private void MapLayers()
+    {
+        if (_layer is not null) return;
+        _layer = new RoguetripMapLayer
+        {
+            Plan = () => Mood == "choose" ? _plan : null, Covered = () => Shell.ModalOpen || Shell.OverlayOpen, OnAtlas = () => _atlasShown,
+        };
+        Shell.AddLayerOverFrame(_layer);
+        // (added second, so it lies under the drawing: each layer goes in just over the frame)
+        _atlasLayer = new RoguetripAtlasLayer { Picture = () => Mood == "choose" && _atlasShown ? RoguetripAtlas.Texture(Dir) : null, Covered = () => Shell.ModalOpen || Shell.OverlayOpen };
+        Shell.AddLayerOverFrame(_atlasLayer);
     }
 
     public override void Leave()
