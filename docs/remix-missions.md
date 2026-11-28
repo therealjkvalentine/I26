@@ -444,11 +444,69 @@ the car as it began: `RemixRun.Retry`). The pause pad's Abort has no Replay in a
 ### Salvage between jobs
 
 After a won job the trip's own FIELD SALVAGE and garage run on the run's inventory (`TripInventory`, kept in run.yaml): the job's
-wrecks feed a salvage pool levelled as the trip mission whose map it is (T04 and T12 as T03 and T11; the stock mission's scripted
-salvage, its .fsi, left out), the trip's thinning, its repair order (finished after the next job, as the trip's), the van. The
+wrecks feed a salvage pool (no tier clamp since builder v7: "Rosters and salvage" below; the stock mission's scripted salvage, its .fsi,
+left out, the job's prize in its place), the trip's thinning, its repair order (finished after the next job, as the trip's), the van. The
 roguetrip's own: every part left in the field when DONE is pressed is scrapped for armour plate, a tenth of the car's full armour
 each, the weakest side first, then the chassis (`RemixRun.Patch`); the guns are reloaded, as the trip's are. The next job's car is
 the garage's (served from memory as vehrun.vcf, its parts' state from the inventory), its armour and chassis carried.
+
+### Rosters and salvage
+
+The owner, after a won job in a 595ci V-10 with turrets: "none of this salvage is anywhere near the level it should be for the number of
+cars i fought and my current gear?" Builder v6's job (run 850764, job 3: T01's raid at challenge 1.4; `i76 remix salvage --run-file
+run.yaml --legacy` plays it again headless) fielded 13 cars from the director's heat pools, whatever the player drove (2 to 7 levels
+under the V-10 on the ladder below), and levelled their wrecks as the trip mission of the map: T01's clamp (level 2) walked every engine
+down to the 261ci six, every suspension to Stock, every gun to the 30cal and every dropper to the oil slick, which also merged the 147
+parts of 13 wrecks into ten groups that the trip's thinning cut to about 21 items, none above trip level 7. Builder v7:
+
+- **The ladder** (`RemixRoster`, `src/I76.Formats/Remix/RemixRoster.cs`). Every base-game car file is ranked by its parts' trip levels:
+  `PartTiers` is the original's salvage tier table (the trip level from which the original lets a part out of a wreck: the 261ci 1, the
+  305ci 5, the 432ci 9, the 595ci V-10 13; Stock 1 to EtherX Rally 12; drums 1 to aircraft brakes 10; the 30cal MG 1 to the 25mm
+  turret 14). A car's level is the mean of its engine's, suspension's, brakes' and best gun's (the wheels left out: every enemy rolls on
+  stock tyres). 60 cars a job may field (not the player's Piranhas, helicopters, tanks, emplacements, scripted f-variants, gunless cars,
+  the convoy leads or the police, which stay the director's own lists), levels 1.75 (valepre3) to 10.25 (vdlight2). The table is stems
+  and numbers only (`i76 remix ladder --table` writes it from a stock install; `--check` and `RemixRosterTests` hold it to the install):
+  the same on every machine whatever an install's ADDON holds; the Nitro Pack's own cars are never fielded.
+- **The gear.** What the player drives on the same scale, per slot (engine, suspension, brakes, wheels, best gun; "E.S.B.W.G", e.g.
+  the owner's 13.12.10.11.10, level 11.25): the parts in the run's car as its garage left them (the run file's inventory), else the car
+  file picked (a garage-saved file under a new name as its model's first variant). Each offer carries it (`RunOffer.Gear`); the
+  reproduction line adds `--gear` (`i76 remix roll --run N --job K --picks ... --gear E.S.B.W.G`).
+- **The roster.** Each car the director sets on the player comes from the ladder around a centre at the gear's level: half a level
+  under it at challenge 1.0, 2.5 levels on per 1.0 of challenge (0.8: a level under; 1.4: half a level over). 55 % are drawn up to two
+  levels under the centre, 30 % up to one over, 15 % one to two and a half over (the ones worth salvaging); a heavier group (a roadblock,
+  a late crew) a level on; the car among those within three quarters of a level of the draw, at least the six nearest. From the second
+  job, or at challenge 1.0, the template's last car is the **lead**: about a level and a half over the centre (half a level more each job
+  after the second), chosen to carry a part at or above the player's in some slot. The roster draws on its own SplitMix64 stream from the
+  job's seed (the stock pick is still drawn), so a job's places, start and steps are the stock roll's; only the cars and how many differ.
+- **The budget.** Back to Spanner's score x the challenge x the gear's scale: the ladder's line of strength on level, at the gear over at
+  the melee Piranha's (the car the challenge was calibrated in), held to 0.7..1.5; the fill scores ladder cars at their measured
+  strengths. Measured (`i76 remix salvage --survey 500`, jobs 1-4 at 0.8-1.4): the challenge against the player's own car (its measured
+  strength) over the job's nominal, median 1.04 in the melee Piranha (v6 1.00), 0.86 in the trip's first Piranha vppt01 (v6 1.34: the
+  stock pools set cars five levels over it), 1.11 in the owner's V-10 build (v6 0.74).
+- **Salvage follows the fight.** Every destroyed enemy gives its parts as before (the wheels, engine, suspension, brakes, guns and
+  specials, at their health after the original's component wipe: a wreck's parts arrive under half, mostly in the red). A roguetrip's
+  pool has no tier clamp (`SalvagePool.Roguetrip`): the roster already set the cars at the player's gear, so a wreck gives what it
+  carried. The trip's thinning is kept as the original's (each group by part name: tyres four, a special one, anything else 3, 1 or 2):
+  it was the clamp's merging of every part into a few bottom groups that cut the field, not the thinning. The owner's job won in v7
+  offers about 52 items from 14 wrecks (v6: 21 from 13), the best at trip level 14.
+- **The floor: the prize.** A job at challenge 1.0 or over writes its lead car's part in the slot where it is furthest above the player
+  (`prize:` in the description). A won job adds it to the field beside the wrecks, as a stock mission adds its scripted salvage (its
+  .fsi), in the stock random condition except the quarter (full 5 %, three quarters 25 %, half 70 %): never in the red. It is the
+  lead's own part; a job under 1.0 has none. Over 60 played jobs for each of three cars, every won job at 1.0 or over had a usable part
+  at or above the player's gear in some slot.
+- **Busts** give no salvage (as before). **Repairs**: the garage's repair order runs in a run as in the trip (finished after the next won
+  job: the owner's run queued the 30cal turret at 99 of 200 after job 2 and had it at 200 after job 3). Parts left in the field are still
+  scrapped for armour plate.
+- **Co-op.** No field salvage in co-op, but the roster: the crew's gear is each slot's mean over the lobby's car files (a melee form's
+  part changes are not counted), so the cars sit at the crew's average car while the crew's size sets how many come. It is a roster input,
+  so it travels with the job (`CoopJob.Gear`), written at the end of `RoguetripState` (an older reader stops before it; a builder v6 game
+  refuses a v7 job by its number anyway): **host and guest must both run builder v7**.
+- **Tools.** `i76 remix salvage --run N [--picks A,Bb,C] [--car F.vcf | --gear E.S.B.W.G] [--legacy]` prints, per job of a run, the cars
+  fielded (stem, level against the gear, strength, parts) and what a clean win offers (every hostile destroyed early, played headless,
+  thinned over 200 draws: the count, the best level, how often a usable part at the gear comes, one draw's list); `--run-file run.yaml`
+  measures the job a run file played last (`--write-run OUT` writes the run with that draw's field); `--survey N --players a.vcf,run.yaml
+  [--sim K] [--csv F]` the distributions. `i76 remix check --car F.vcf` (or `--gear`) adds each job's roster against the gear and a clean
+  win's salvage (about how many items, the best level, the prize). `i76 remix ladder [--table|--check]` the ladder.
 
 ### Reproducing a job
 
@@ -579,7 +637,7 @@ server's `NetMeleeServer.Roguetrip.cs`; the game's `MainNetRoguetrip.cs`, `Rogue
   with every armour and chassis side at least half of full (`CoopRun.Floor`), the parts and guns as built. The script's "player dead" is
   the whole crew dead at once (co-op's rule), so the run ends only when everyone is killed; any other failure is a bust, as single
   player's (`RemixRun.Classify`). The host's Back to Lobby during a job walks away from it (a bust). A job is played once: no Replay.
-- **The enemies grow with the crew.** The job is rolled at its challenge times 1 + 0.75 a player after the first (`CoopJob.Scale`: two
+- **The enemies grow with the crew.** The cars are drawn around the crew's average car ("Rosters and salvage"). The job is rolled at its challenge times 1 + 0.75 a player after the first (`CoopJob.Scale`: two
   1.75, three 2.5, four 3.25); the director's fill adds cars to its groups (14 at most). Measured at challenge 1.0, one job of each
   template: 5 to 9 hostile cars for one, 7 to 11 for two, 11 to 14 for four (run 4242's first offer, an ambush at 0.8: 5 and 10).
   Co-op Scaling (EXTRA ENEMIES) still copies on top when the host sets it.

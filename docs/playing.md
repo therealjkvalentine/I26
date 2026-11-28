@@ -63,7 +63,11 @@ jobs on the trip's maps, one car, its damage carried from job to job (docs/remix
 (the scenario form), ENTER AREA asks for a run number (blank for a new one; the same number gives the same jobs), then a map of
 the region offers the first jobs. Esc steps back one screen at a time, to MELEE. A run in progress is kept between sessions:
 ROGUETRIP goes straight back to it. One-off generated jobs stay on the SCENARIO form as RANDOM JOB. The main menu also answers
-the arrow keys and Enter (as a pad's D-pad and A).
+the arrow keys and Enter (as a pad's D-pad and A). The gangs drive cars of the game near your own: the better your car's engine,
+suspension, brakes and guns (as the garage leaves them after each job), the better the cars a job sets on you, and the better the parts
+their wrecks leave in FIELD SALVAGE (in the condition the fight left them, mostly battered: queue the good ones for repair). From the
+second job a lead car a step above the rest carries something at or above your own in some slot; win a job at challenge 1.0 or more and
+that part is in the field too, never in the red.
 
 **Roguetrip in co-op.** Host it as any co-op game: MELEE > MULTI MELEE > HOST, the MELEE / CO-OP button to CO-OP, then ROGUETRIP, the
 last row of AREA OF PLAY, and BROADCAST GAME. The others join from the roster as for any co-op game and pick their cars in the lobby
@@ -75,7 +79,7 @@ car's damage carries from job to job as long as you keep the same car. Killed in
 says so) and back for the next with your car patched to half armour; the run ends only when the whole crew is killed. A failed job
 otherwise is a bust (the next a step harder). After each job everyone is back in the lobby on the debrief; the host's CONTINUE (or
 Enter) goes on to the next choice: there is no field salvage or garage in co-op, a won job patches 30 % armour onto each car still
-running and reloads its guns. The host keeps the run (user://remix/coop-run.yaml): host ROGUETRIP again and the run goes on, with the
+running and reloads its guns. The gangs' cars match the crew's average car. The host keeps the run (user://remix/coop-run.yaml): host ROGUETRIP again and the run goes on, with the
 same or fewer players. Players who leave mid-job do not end it; new players can join between jobs in the lobby.
 
 The install is looked for in this order: `--install DIR`, the `I76_INSTALL` environment variable, the executable's

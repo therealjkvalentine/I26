@@ -1,4 +1,5 @@
 using System.Globalization;
+using I76.Formats.Vfs;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -61,6 +62,11 @@ public sealed class RemixRun
     public RunOffer? Current { get; set; }
 
     [YamlIgnore] public bool Over => Phase is "over" or "done";
+    /// <summary>
+    /// The player's gear the next job's roster is drawn around (docs/remix-missions.md "Rosters and salvage"): the parts in the run's car
+    /// as its garage left them, else the car file picked (RemixRoster.GearOfCar).
+    /// </summary>
+    [YamlIgnore] public string Gear => (RemixRoster.GearOfInventory(Inventory) ?? RemixRoster.GearOfCar(Car.Length > 0 ? Car : "vppirna1.vcf")).ToString();
     /// <summary>The challenge of the next job: one step a job played, and one more for each bust.</summary>
     [YamlIgnore] public double NextChallenge => Challenges[Math.Clamp(Legs.Count + Busts, 0, Challenges.Length - 1)];
     /// <summary>The job being played or last played, from 1.</summary>
@@ -101,7 +107,7 @@ public sealed class RemixRun
             if (o.Any(x => x.Map == t.Base && x.Template == pick)) continue;
             usedTemplates.Add(pick);
             int seed = 1 + rng.Next(999_999_998);
-            var offer = new RunOffer { Map = t.Base, Name = t.Name.Length > 0 ? t.Name : t.Base.ToUpperInvariant(), Template = pick, Seed = seed, Challenge = NextChallenge };
+            var offer = new RunOffer { Map = t.Base, Name = t.Name.Length > 0 ? t.Name : t.Base.ToUpperInvariant(), Template = pick, Seed = seed, Challenge = NextChallenge, Gear = Gear };
             // the flavour: the job's own first objective, without its label ("Roguetrip 12, job 2: ")
             try { var first = Spec(offer, tables).Text.Objectives[0]; offer.Flavour = first.IndexOf(": ", StringComparison.Ordinal) is var k and > 0 ? first[(k + 2)..] : first; offer.Flavour = char.ToUpperInvariant(offer.Flavour[0]) + offer.Flavour[1..]; }
             catch (RemixError) { continue; }
@@ -116,6 +122,7 @@ public sealed class RemixRun
         {
             Tables = tables, Id = Stem, Challenge = offer.Challenge, Map = offer.Map, Template = offer.Template, Nitro = true,
             Label = $"Roguetrip {Number.ToString(CultureInfo.InvariantCulture)}, job {(Legs.Count + 1).ToString(CultureInfo.InvariantCulture)}",
+            Gear = offer.Gear.Length > 0 ? offer.Gear : null, Job = Legs.Count + 1,
         }) is var s ? Retitle(s) : null!;
 
     private RemixSpec Retitle(RemixSpec s)
@@ -282,6 +289,20 @@ public sealed class RemixRun
     public static string SalvageStem(string map) => map.ToLowerInvariant() switch { "t04" => "t03", "t12" => "t11", var m => m };
 
     /// <summary>
+    /// The prize of the job built under <paramref name="stem"/> in the generated missions' folder (its description beside it, STEM.job.yaml):
+    /// its lead car's part, given on a win; none when it has none or cannot be read.
+    /// </summary>
+    public static IReadOnlyList<string> JobPrize(string stem)
+    {
+        try
+        {
+            if (GameInstall.UserMissionDir is not { } dir || Path.Combine(dir, stem + ".job.yaml") is var p && !File.Exists(p)) return [];
+            return RemixSpec.Parse(File.ReadAllText(p)).Prize ?? [];
+        }
+        catch (Exception) { return []; }   // (a job without its description gives no prize; the field is the wrecks')
+    }
+
+    /// <summary>
     /// The armour and chassis the garage patches from scrap (the roguetrip's own: docs/deviations.md): every salvage item left in
     /// the field is broken up for plate, a tenth of the car's full armour each, armour first, then the chassis with what is left.
     /// </summary>
@@ -327,7 +348,7 @@ public sealed class RemixRun
     /// </summary>
     public static string LaunchLine(RemixRun run, RunOffer offer, RemixSpec spec, string car, string commit) =>
         string.Create(CultureInfo.InvariantCulture,
-            $"remix: RUN {run.Number:000000} JOB {run.Legs.Count + 1}/{Jobs} #{offer.Seed} builder v{RemixBuilder.Version} map {offer.Map} ({offer.Name}) template {offer.Template} challenge {offer.Challenge:0.0} car {car} commit {commit} (i76 remix roll --run {run.Number} --job {run.Legs.Count + 1} --picks {run.PicksLine(offer)})");
+            $"remix: RUN {run.Number:000000} JOB {run.Legs.Count + 1}/{Jobs} #{offer.Seed} builder v{RemixBuilder.Version} map {offer.Map} ({offer.Name}) template {offer.Template} challenge {offer.Challenge:0.0} car {car} commit {commit} (i76 remix roll --run {run.Number} --job {run.Legs.Count + 1} --picks {run.PicksLine(offer)}{(offer.Gear.Length > 0 ? " --gear " + offer.Gear : "")})");
 
     /// <summary>
     /// The picks that lead to a job, for i76 remix roll --run: the offer taken at each job, a b after one that was busted (a bust
@@ -346,10 +367,10 @@ public sealed class RemixRun
     /// A run walked to one of its jobs (i76 remix roll --run): the picks as PicksLine writes them, each job before the last won (or
     /// busted, with a b), the last one's offer and description. Throws RemixError for a pick that is not offered.
     /// </summary>
-    public static (RemixRun Run, RunOffer Offer, RemixSpec Spec) Walk(int number, string picks, IReadOnlyList<RemixNodes>? tables = null, bool nitro = false)
+    public static (RemixRun Run, RunOffer Offer, RemixSpec Spec) Walk(int number, string picks, IReadOnlyList<RemixNodes>? tables = null, bool nitro = false, string car = "vppirna1.vcf", string? gear = null)
     {
         tables ??= RemixNodes.Builtin();
-        var run = Start(number, "vppirna1.vcf", "", "", 0);
+        var run = Start(number, car, "", "", 0);
         var steps = picks.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (steps.Length == 0) throw new RemixError("--picks: at least the offer to play (0, 1 or 2)");
         for (int i = 0; i < steps.Length; i++)
@@ -358,7 +379,7 @@ public sealed class RemixRun
             int k = int.Parse(bust ? steps[i][..^1] : steps[i], CultureInfo.InvariantCulture);
             var offers = run.Offers(tables, nitro);
             if (k < 0 || k >= offers.Count) throw new RemixError($"job {i + 1}: offer {k} of {offers.Count}");
-            if (i == steps.Length - 1) { run.Take(offers[k]); return (run, offers[k], run.Spec(offers[k], tables)); }
+            if (i == steps.Length - 1) { if (gear is not null) offers[k].Gear = gear; run.Take(offers[k]); return (run, offers[k], run.Spec(offers[k], tables)); }
             run.Take(offers[k]);
             run.Finish(bust ? Outcome.Bust : Outcome.Won, 0, null);
             run.Debriefed();
@@ -425,6 +446,8 @@ public sealed class RunOffer
     public int Seed { get; set; }
     public double Challenge { get; set; }
     public string Flavour { get; set; } = "";
+    /// <summary>The player's gear the job's roster is drawn around ("E.S.B.W.G", RemixRoster.Gear; a co-op job's the crew's), "" for none.</summary>
+    public string Gear { get; set; } = "";
 }
 
 /// <summary>A job played on a run, for the summary.</summary>

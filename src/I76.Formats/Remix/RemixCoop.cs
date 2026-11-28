@@ -10,9 +10,10 @@ namespace I76.Formats.Remix;
 /// <summary>
 /// One job of a co-op roguetrip (docs/remix-missions.md "Roguetrip in co-op"): everything the generator takes, so that the host and each
 /// client build the same mission from their own installs rather than sending it. The same record on two machines of the same build gives
-/// the same files; <see cref="Hash"/> is what the host sends for the clients to check theirs against.
+/// the same files; <see cref="Hash"/> is what the host sends for the clients to check theirs against. <see cref="Gear"/> is the crew's gear the
+/// roster is drawn around (<see cref="CrewGear"/>; docs/remix-missions.md "Rosters and salvage"), "" for the stock pools (an older host's).
 /// </summary>
-public sealed record CoopJob(int Run, int Builder, int Job, string Map, string Template, int Seed, double Challenge, int Players)
+public sealed record CoopJob(int Run, int Builder, int Job, string Map, string Template, int Seed, double Challenge, int Players, string Gear = "")
 {
     /// <summary>The stem a co-op job is built under (never the single player's <see cref="RemixRun.Stem"/>: a guest's own run keeps its job).</summary>
     public const string Stem = "xcoop";
@@ -30,6 +31,7 @@ public sealed record CoopJob(int Run, int Builder, int Job, string Map, string T
         {
             Tables = tables, Id = Stem, Challenge = Challenge * Scale(Players), Map = Map, Template = Template, Nitro = true,
             Label = $"Roguetrip {Run.ToString(CultureInfo.InvariantCulture)}, job {Job.ToString(CultureInfo.InvariantCulture)}",
+            Gear = Gear.Length > 0 ? Gear : null, Job = Job,
         });
         s.Title = $"ROGUETRIP {Math.Min(RemixRun.Jobs, Job)}/{RemixRun.Jobs}";
         return s;
@@ -59,8 +61,14 @@ public sealed record CoopJob(int Run, int Builder, int Job, string Map, string T
     public static string Mismatch(string hostBuild, string myBuild) =>
         $"This game's ROGUETRIP job differs from the host's (host build {(hostBuild.Length > 0 ? hostBuild : "unknown")}, this build {(myBuild.Length > 0 ? myBuild : "unknown")}): play on the same build of I26 and an untouched install";
 
+    /// <summary>
+    /// The crew's gear (the co-op rule): each slot the mean of the players' cars' (RemixRoster.GearOfCar: the lobby's car files; a melee
+    /// form's part changes are not counted), so the roster sits at the crew's average car while the crew's size sets how many come.
+    /// </summary>
+    public static string CrewGear(IEnumerable<string> cars) => RemixRoster.Gear.Mean(cars.Where(c => c.Length > 0).Select(c => (RemixRoster.Gear?)RemixRoster.GearOfCar(c)))?.ToString() ?? "";
+
     public override string ToString() => string.Create(CultureInfo.InvariantCulture,
-        $"run {Run} job {Job}/{RemixRun.Jobs} #{Seed} v{Builder} {Map} {Template} challenge {Challenge:0.0} x{Scale(Players):0.00} for {Players}");
+        $"run {Run} job {Job}/{RemixRun.Jobs} #{Seed} v{Builder} {Map} {Template} challenge {Challenge:0.0} x{Scale(Players):0.00} for {Players}{(Gear.Length > 0 ? " gear " + Gear : "")}");
 }
 
 /// <summary>A co-op player's car through the run, by the player's name: its file and its damage carried.</summary>
@@ -109,10 +117,10 @@ public sealed class CoopRun
     public List<RunOffer> Offers(IReadOnlyList<RemixNodes>? tables = null) => Run.Phase == "choose" ? Run.Offers(tables ?? RemixNodes.Builtin(), nitro: false) : [];
 
     /// <summary>The job an offer is, for <paramref name="players"/>.</summary>
-    public CoopJob Job(RunOffer offer, int players) => new(Run.Number, RemixBuilder.Version, Run.Legs.Count + 1, offer.Map, offer.Template, offer.Seed, offer.Challenge, Math.Max(1, players));
+    public CoopJob Job(RunOffer offer, int players) => new(Run.Number, RemixBuilder.Version, Run.Legs.Count + 1, offer.Map, offer.Template, offer.Seed, offer.Challenge, Math.Max(1, players), offer.Gear);
 
     /// <summary>The job being played (phase playing), or null.</summary>
-    public CoopJob? Playing => Run.Phase == "playing" && Run.Current is { } c ? new(Run.Number, Run.Builder, Run.Legs.Count + 1, c.Map, c.Template, c.Seed, c.Challenge, Math.Max(1, Players)) : null;
+    public CoopJob? Playing => Run.Phase == "playing" && Run.Current is { } c ? new(Run.Number, Run.Builder, Run.Legs.Count + 1, c.Map, c.Template, c.Seed, c.Challenge, Math.Max(1, Players), c.Gear) : null;
 
     public CrewCar? Of(string name) => Crew.FirstOrDefault(c => c.Name.Equals(name, StringComparison.Ordinal));
 

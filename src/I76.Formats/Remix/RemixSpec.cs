@@ -50,6 +50,11 @@ public sealed class RemixSpec
     /// <summary>The stock leave-map threads dropped, by their exit path's label (a start beside an exit).</summary>
     public List<string> DropExits { get; set; } = [];
     /// <summary>
+    /// A roguetrip job's prize (docs/remix-missions.md "Rosters and salvage"): salvage keys of its lead car's best parts, given on a win as a
+    /// stock mission's scripted salvage (its .fsi) is, in a usable condition; null for any other job. Read by the game, not the build.
+    /// </summary>
+    public List<string>? Prize { get; set; }
+    /// <summary>
     /// The stock cars no kept thread and no template names (the base's mission threads drove them): remove (the default; they
     /// would only stand where the base parked them) or keep (as decor).
     /// </summary>

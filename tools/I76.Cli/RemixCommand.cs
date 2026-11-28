@@ -23,6 +23,8 @@ public static class RemixCommand
         if (argv.Count >= 4 && argv[1] == "driveout") return RemixDriveOutCommand.Run(install, argv);
         if (argv.Count >= 3 && argv[1] == "roadsurvey") return RemixRoadSurvey.Run(install, argv);
         if (argv.Count >= 3 && argv[1] == "mapsketch") return RemixMapSketch.Run(install, argv);
+        if (argv.Count >= 2 && argv[1] == "ladder") return RemixRosterCommand.Ladder(install, argv);
+        if (argv.Count >= 2 && argv[1] == "salvage") return RemixSalvageCommand.Run(install, argv);
         if (argv.Count < 3 || argv[1] != "build") { Console.Error.WriteLine("usage: i76 remix build SPEC.yaml...|--builtin [--out DIR] | map BASE [--json FILE]"); return 2; }
         int oi = argv.IndexOf("--out");
         string outDir = oi >= 0 ? argv[oi + 1] : GameInstall.UserMissionDir ?? "remix";
@@ -86,6 +88,8 @@ public static class RemixCommand
             }
             catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { problems = [$"build: {ex.Message}"]; }
             string what = $"{name} ({spec.Base} {spec.Objective.Template})";
+            // a roguetrip's roster and salvage (docs/remix-missions.md "Rosters and salvage"): with --gear or --car, or always with --verbose
+            if (argv.Contains("--verbose") || RemixSalvageCommand.GearArg(argv) is not null) Console.WriteLine($"{what}: {RemixSalvageGlance.Line(new AssetVfs(install), spec, RemixRoster.Gear.Parse(RemixSalvageCommand.GearArg(argv)))}");
             if (problems.Count == 0) { if (argv.Contains("--verbose")) Console.WriteLine($"{what}: ok"); continue; }
             bad++;
             foreach (var p in problems) { Console.WriteLine($"{what}: {p}"); var k = System.Text.RegularExpressions.Regex.Replace(p, @"[0-9.()\-]+", "#"); kinds[k] = kinds.GetValueOrDefault(k) + 1; }
@@ -282,7 +286,8 @@ public static class RemixCommand
     private static RemixDirector.JobAsk Ask(List<string> argv, string id, double challenge)
     {
         string? Opt(string name) => argv.IndexOf(name) is var i and >= 0 && i + 1 < argv.Count ? argv[i + 1] : null;
-        return new RemixDirector.JobAsk { Id = id, Challenge = challenge, Template = Opt("--template"), Map = Opt("--map") };
+        return new RemixDirector.JobAsk { Id = id, Challenge = challenge, Template = Opt("--template"), Map = Opt("--map"), Gear = RemixSalvageCommand.GearArg(argv),
+            Job = Opt("--job") is { } jb ? int.Parse(jb, System.Globalization.CultureInfo.InvariantCulture) : 1 };
     }
 
     private static int Roll(GameInstall install, List<string> argv)
@@ -297,7 +302,7 @@ public static class RemixCommand
             string picks = Opt("--picks") ?? "0";
             try
             {
-                var (run, offer, s) = RemixRun.Walk(number, picks);
+                var (run, offer, s) = RemixRun.Walk(number, picks, gear: RemixSalvageCommand.GearArg(argv));
                 if (Opt("--job") is { } jk && int.Parse(jk, System.Globalization.CultureInfo.InvariantCulture) != run.Legs.Count + 1)
                     Console.Error.WriteLine($"note: --picks {picks} leads to job {run.Legs.Count + 1}, not job {jk}");
                 Console.Error.WriteLine($"run {number:000000} job {run.Legs.Count + 1}/{RemixRun.Jobs}: #{offer.Seed} {offer.Map} ({offer.Name}) {offer.Template} challenge {offer.Challenge:0.0} builder v{RemixBuilder.Version}");

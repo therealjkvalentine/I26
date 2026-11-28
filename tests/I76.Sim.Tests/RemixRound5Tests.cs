@@ -149,9 +149,12 @@ public class RemixRound5Tests
         Assert.Contains($"#{offer.Seed}", line);
         Assert.Contains($"builder v{RemixBuilder.Version}", line);
         Assert.Contains("commit abc1234", line);
-        string picks = line[(line.IndexOf("--picks ", StringComparison.Ordinal) + 8)..].TrimEnd(')');
+        // (builder v7: the player's gear the roster was drawn around follows the picks)
+        string tail = line[(line.IndexOf("--picks ", StringComparison.Ordinal) + 8)..].TrimEnd(')');
+        string picks = tail.Split(" --gear ")[0], gear = tail.Split(" --gear ")[1];
         Assert.Equal($"1b,{o2.Count - 1}", picks);
-        var (_, again, aspec) = RemixRun.Walk(31337, picks, tables);
+        Assert.Equal(RemixRoster.GearOfCar("vppirna1.vcf").ToString(), gear);
+        var (_, again, aspec) = RemixRun.Walk(31337, picks, tables, gear: gear);
         Assert.Equal(offer.Seed, again.Seed);
         Assert.Equal(RemixDirector.ToYaml(spec), RemixDirector.ToYaml(aspec));
         var (top, bottom) = RemixRun.Label(run, offer, spec);

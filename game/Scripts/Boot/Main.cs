@@ -1277,7 +1277,8 @@ public partial class Main : Node3D
 					if ((of.Flags[i] & I76.Sim.Missions.Objectives.Hidden) != 0) continue;
 					obs.Add((I76.Formats.Remix.RemixBuilder.Plain(ot.Objectives[i].Text), (of.Flags[i] & I76.Sim.Missions.Objectives.Succeeded) != 0, (of.Flags[i] & I76.Sim.Missions.Objectives.Failed) != 0));
 				}
-			// a won job's wrecks: the trip's thinning, without the stock mission's own scripted salvage (its .fsi)
+			// a won job's wrecks: the trip's thinning, without the stock mission's own scripted salvage
+			// (its .fsi); the job's prize (its lead car's best part, at challenge 1.0 and over) beside them, never in the red
 			List<I76.Sim.Trip.SalvageItem>? items = null;
 			if (won && _salvage is { } rpool && _builder?.Vfs is { } rvfs)
 			{
@@ -1285,6 +1286,7 @@ public partial class Main : Node3D
 				{
 					var rng = new System.Random();
 					items = rpool.Finish(n => n.EndsWith(".fsi", System.StringComparison.OrdinalIgnoreCase) ? null : rvfs.TryRead(n), () => rng.Next(0x8000));
+					if (items is not null) items.AddRange(I76.Formats.Remix.RemixRun.JobPrize(I76.Formats.Remix.RemixRun.Stem).Select(k => new I76.Sim.Trip.SalvageItem(k, I76.Sim.Trip.SalvageItem.Prize, true)));
 				}
 				catch (System.Exception ex) { GD.PrintErr($"roguetrip salvage: not taken: {ex.Message}"); }
 			}
@@ -1448,14 +1450,15 @@ public partial class Main : Node3D
 			if (setup.Script is { } salvScript) { var pool = _salvage; salvScript.Host.Salvaged += f => pool.Add(f, -1, true); }
 		}
 		// a roguetrip's job: the parts' state from the run's garage (the trip's CarState), then the damage carried from the last job
-		// (RunCarry: armour and chassis too, the port's); its wrecks feed a salvage pool at the level of the trip mission whose map it is
+		// (RunCarry: armour and chassis too, the port's); its wrecks feed a salvage pool without the trip's tier clamp (the roster set the
+		// cars at the player's gear: docs/remix-missions.md "Rosters and salvage")
 		if (_launch is { Roguetrip: true } rtl && world.Player is { } rtp)
 		{
 			if (rtl.State is { } rts) rts.Apply(rtp);
 			if (rtl.Carry is { } carry) I76.Sim.Trip.RunCarry.Apply(carry, rtp);
 			if (rtl.RunBase is { Length: > 0 } rb)
 			{
-				_salvage = new I76.Sim.Trip.SalvagePool(I76.Formats.Remix.RemixRun.SalvageStem(rb));
+				_salvage = I76.Sim.Trip.SalvagePool.Roguetrip(I76.Formats.Remix.RemixRun.SalvageStem(rb));
 				_salvage.Watch(setup.Damage, world.Player);
 			}
 		}

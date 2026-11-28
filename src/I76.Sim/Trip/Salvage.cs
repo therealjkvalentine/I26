@@ -4,7 +4,11 @@ using I76.Sim.Vehicles;
 namespace I76.Sim.Trip;
 
 /// <summary>One salvage item (the vsf's SALV record): the part's file key, its health, and whether the shell rolls a random condition (health −1, flag 1).</summary>
-public sealed record SalvageItem(string Name, int Health, bool RandomCondition);
+public sealed record SalvageItem(string Name, int Health, bool RandomCondition)
+{
+    /// <summary>The health a roguetrip job's prize arrives with: a random condition, never under half (TripInventory.AddSalvage).</summary>
+    public const int Prize = -2;
+}
 
 /// <summary>
 /// The mission's field salvage: one pool per
@@ -26,7 +30,8 @@ public sealed class SalvagePool
     public int Kind { get; }
     private readonly string _stem;
 
-    /// <param name="levelOffset">Trip+'s Loot up (the play fork's; docs/deviations.md "Trip+"): added to the mission number the clamp reads; 0 the original's.</param>
+    /// <param name="levelOffset">Trip+'s Loot up (the play fork's; docs/deviations.md "Trip+"): added to the mission number the clamp reads; 0 the original's.
+    /// A roguetrip's pool (<see cref="Roguetrip"/>) lets every part of the table through.</param>
     public SalvagePool(string missionStem, bool noSalvageManagement = false, int levelOffset = 0)
     {
         _stem = missionStem.ToLowerInvariant();
@@ -37,6 +42,19 @@ public sealed class SalvagePool
     }
 
     public IEnumerable<SalvageItem> Items => _groups.SelectMany(g => g.Items);
+
+    /// <summary>The clamp level that lets every part of the table through (the highest trip level is 16).</summary>
+    public const int Unclamped = 17;
+
+    /// <summary>
+    /// A roguetrip job's pool (docs/remix-missions.md "Rosters and salvage"): the trip mission whose map it is for the stem (T04 and T12 as
+    /// T03 and T11), but no tier clamp: the roster already put the cars at the player's gear, so a wreck gives what it carried.
+    /// </summary>
+    public static SalvagePool Roguetrip(string stem)
+    {
+        var p = new SalvagePool(stem);
+        return new SalvagePool(stem, false, Unclamped - p.Level);
+    }
 
     /// <summary>The groups as bytes, for a checkpoint (the game keeps them beside the session's snapshot).</summary>
     public byte[] Save()
@@ -70,14 +88,7 @@ public sealed class SalvagePool
     }
 
     /// <summary>The type from the file key: .wdf 0 wheel, .gdf 1 weapon, eng… 2, sus… 3, bra… 4, spc… 5; −1 unknown.</summary>
-    public static int TypeOf(string path)
-    {
-        var p = path.ToLowerInvariant();
-        if (p.EndsWith(".wdf")) return 0;
-        if (p.EndsWith(".gdf")) return 1;
-        if (p.Contains('.')) return -1;
-        return p.StartsWith("eng") ? 2 : p.StartsWith("sus") ? 3 : p.StartsWith("bra") ? 4 : p.StartsWith("spc") ? 5 : -1;
-    }
+    public static int TypeOf(string path) => I76.Formats.Remix.PartTiers.TypeOf(path);
 
     /// <summary>
     /// The type from the name, a wheel turned into the plain
@@ -171,30 +182,7 @@ public sealed class SalvagePool
         return o;
     }
 
-    // ---- the tier clamp ----
-
-    private sealed record Tier(string Name, int TripMin, int MeleeMin, bool Always);
-
-    /// <summary>Per salvage type: where in the name the entry names are compared and copied, and the entries in table order (each "always" row starts a family).</summary>
-    private static readonly (int Offset, Tier[] Entries)[] Tables =
-    [
-        (7, [new("a", 1, 1, true), new("b", 3, 1, false), new("c", 7, 3, false), new("d", 11, 5, false)]),
-        (0, [
-            new("gmlight", 1, 1, true), new("gmmedium", 3, 1, false), new("gclight", 5, 2, false), new("gcmedium", 7, 3, false), new("gmheavy", 9, 4, false), new("gcheavy", 12, 6, false), new("gchades", 15, 7, false),
-            new("tmlight", 7, 3, true), new("tmmedium", 7, 3, false), new("tclight", 14, 7, false), new("tcmedium", 14, 7, false), new("tmheavy", 9, 4, false), new("tcheavy", 14, 7, false), new("tchades", 15, 7, false),
-            new("gdumb", 1, 1, true), new("gsheat", 5, 2, false), new("gsradar", 10, 5, false), new("gscherub", 14, 7, false),
-            new("tdumb", 9, 4, true), new("tsheat", 9, 4, false), new("tsradar", 10, 5, false), new("tscherub", 14, 7, false),
-            new("gflight", 2, 1, true), new("gfmedium", 4, 2, false), new("gfheavy", 8, 4, false), new("gfpyro", 12, 6, false),
-            new("tflight", 14, 7, true), new("tfmedium", 14, 7, false), new("tfheavy", 14, 7, false), new("tfpyro", 14, 7, false),
-            new("ggrenade", 2, 1, true), new("gwhiteph", 6, 3, false), new("gcluster", 10, 5, false), new("gezkill", 13, 6, false),
-            new("goilslck", 1, 1, true), new("gblox", 4, 2, false), new("glandmin", 9, 4, false), new("gfirdrop", 13, 6, false), new("gceracer", 16, 7, false),
-        ]),
-        (3, [new("01", 1, 1, true), new("02", 5, 2, false), new("03", 9, 4, false), new("04", 13, 6, false)]),
-        (3, [new("01", 1, 1, true), new("02", 4, 2, false), new("03", 8, 4, false), new("04", 12, 6, false)]),
-        (3, [new("01", 1, 1, true), new("02", 2, 1, false), new("03", 6, 3, false), new("04", 10, 5, false)]),
-        (3, [new("05", 1, 1, true), new("02", 3, 1, false), new("04", 5, 2, false), new("07", 6, 3, false), new("01", 7, 3, false),
-             new("06", 8, 4, false), new("09", 10, 5, false), new("03", 11, 5, false), new("08", 13, 6, false)]),
-    ];
+    // ---- the tier clamp (the table: I76.Formats.Remix.PartTiers, which the roguetrip's rosters also read) ----
 
     /// <summary>
     /// The name an item arrives as, or null if no entry matches (the item is
@@ -205,7 +193,7 @@ public sealed class SalvagePool
     /// </summary>
     public static string? Clamp(string name, int type, int level, int kind)
     {
-        var (off, entries) = Tables[type];
+        var (off, entries) = I76.Formats.Remix.PartTiers.Tables[type];
         if (name.Length < off) return null;
         int k = Array.FindIndex(entries, e => string.CompareOrdinal(name, off, e.Name, 0, e.Name.Length) == 0);
         if (k < 0) return null;
