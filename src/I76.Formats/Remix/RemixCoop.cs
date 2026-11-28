@@ -194,7 +194,7 @@ public sealed class CoopRun
     /// patches it, <see cref="AfterWin"/>); a car killed comes back for the next at the floor (<see cref="Floor"/>). Then the run's own
     /// <see cref="RemixRun.Finish(RemixRun.Outcome, int, RunCar?, string)"/>: the run ends only when the whole crew is dead (the outcome says).
     /// </summary>
-    public void Finish(RemixRun.Outcome outcome, int kills, IEnumerable<(string Name, string Car, RunCar? State, bool Dead)> crew, string why, IEnumerable<CoopObjective> objectives)
+    public void Finish(RemixRun.Outcome outcome, int kills, IEnumerable<(string Name, string Car, RunCar? State, bool Dead)> crew, string why, IEnumerable<CoopObjective> objectives, int civilians = 0)
     {
         foreach (var (name, car, state, dead) in crew)
         {
@@ -205,7 +205,7 @@ public sealed class CoopRun
             c.State = state is null ? null : dead ? Floor(state) : outcome == RemixRun.Outcome.Won ? AfterWin(state) : state;
         }
         LastObjectives = [.. objectives];
-        Run.Finish(outcome, kills, null, why);
+        Run.Finish(outcome, kills, null, why, civilians);
     }
 
     /// <summary>Past the debrief: a won job's salvage is the patch above (done at the end), so a won job goes straight on to the next choice.</summary>

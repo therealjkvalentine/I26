@@ -26,6 +26,7 @@ public static class RemixCommand
         if (argv.Count >= 3 && argv[1] == "mapsketch") return RemixMapSketch.Run(install, argv);
         if (argv.Count >= 2 && argv[1] == "ladder") return RemixRosterCommand.Ladder(install, argv);
         if (argv.Count >= 2 && argv[1] == "salvage") return RemixSalvageCommand.Run(install, argv);
+        if (argv.Count >= 2 && argv[1] == "traffic") return RemixTrafficCommand.Run(install, argv);
         if (argv.Count < 3 || argv[1] != "build") { Console.Error.WriteLine("usage: i76 remix build SPEC.yaml...|--builtin [--out DIR] | map BASE [--json FILE]"); return 2; }
         int oi = argv.IndexOf("--out");
         string outDir = oi >= 0 ? argv[oi + 1] : GameInstall.UserMissionDir ?? "remix";
@@ -89,6 +90,12 @@ public static class RemixCommand
                 // the boundaries (no start, seat of eight or first drive where the leave-map routine warns, nor at the map's edge) and the spacing of its marks
                 problems.AddRange(I76.Sim.Missions.RemixBounds.Problems(I76.Sim.Missions.RemixBounds.Of(vfs, asmb, spec.Id, spec, 8)));
                 problems.AddRange(RemixSpacing.Of(spec).Problems);
+                // civilian traffic (docs/remix-missions.md "Civilian traffic"): paved routes, clear starts, the caps
+                if (spec.Traffic is { Count: > 0 } tr)
+                {
+                    problems.AddRange(RemixTraffic.Check(spec, new I76.Formats.Mission.MissionFile(install.FindMission(spec.Base)!)));
+                    if (argv.Contains("--verbose")) Console.WriteLine($"{name}: traffic {tr.Count} civilians ({string.Join(", ", tr.Select(t => $"{spec.Cars[t.Car].Vcf} on {t.Route} at {t.Speed} after {t.Delay} s"))})");
+                }
             }
             catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { problems = [$"build: {ex.Message}"]; }
             string what = $"{name} ({spec.Base} {spec.Objective.Template})";

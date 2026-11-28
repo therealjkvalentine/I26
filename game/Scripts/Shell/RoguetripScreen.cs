@@ -110,7 +110,7 @@ public sealed partial class RoguetripScreen : ShellScreen
             try { if (run.Current is { } cur) failures = run.Spec(cur).Text.Failures.Count; } catch (RemixError) { }
             var outcome = RemixRun.Classify(result.Won, result.FailMessage, failures, result.PlayerDead);
             string why = result.Won ? "" : result.Why.Length > 0 ? result.Why : outcome == RemixRun.Outcome.Dead ? "You were killed." : "The job went wrong.";
-            run.Finish(outcome, result.Kills, result.Car, why);
+            run.Finish(outcome, result.Kills, result.Car, why, result.Civilians);
             _lastObjectives = result.Objectives;
             if (outcome == RemixRun.Outcome.Won)
             {

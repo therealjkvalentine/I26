@@ -3429,7 +3429,14 @@
    "text": "Pick your shots. Watch for civilians. Let's get them.",
    "rating": "good",
    "nitro": false,
-   "unused": "civilians",
+   "moments": [
+    "contact",
+    "fight"
+   ],
+   "needs": [
+    "plural",
+    "civilians"
+   ],
    "total": 33790,
    "gain": 0.866111,
    "seed": 14,
@@ -18769,7 +18776,13 @@
    "text": "Head for the truck stop. Watch for civilians.",
    "rating": "good",
    "nitro": false,
-   "unused": "civilians",
+   "moments": [
+    "go"
+   ],
+   "needs": [
+    "place:truck stop",
+    "civilians"
+   ],
    "total": 27505,
    "gain": 1.0,
    "seed": 80,
@@ -19235,7 +19248,14 @@
    "text": "Watch for civilians. Let's get them.",
    "rating": "good",
    "nitro": false,
-   "unused": "civilians",
+   "moments": [
+    "contact",
+    "fight"
+   ],
+   "needs": [
+    "plural",
+    "civilians"
+   ],
    "total": 23262,
    "gain": 0.866111,
    "seed": 86,

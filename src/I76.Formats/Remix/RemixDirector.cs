@@ -714,9 +714,14 @@ public static class RemixDirector
             g.Add();
         }
         spec.Text.Notes.Add($"{job}: {map.Base.ToUpperInvariant()}, challenge {Scored() / RemixChallenge.Spanner:0.0} (Back to Spanner 1.0).");
+        // civilian traffic on the map's paved routes in some jobs (docs/remix-missions.md "Civilian traffic"; a stream of its own)
+        RemixTraffic.Plan(spec, map, seed);
         spec.Landmarks.AddRange(Landmarks(map, spec));
         // the spoken lines, on a stream of their own (the rest of the roll is as it was)
-        foreach (var (slot, line) in RemixVoice.Plan(voice.SelectMany(v => v()), seed))
+        // with traffic the lines that tell the player to watch for civilians are true
+        var slots = voice.SelectMany(v => v());
+        if (spec.Traffic is { Count: > 0 }) slots = slots.Select(s => s with { Facts = F(s.Facts, "civilians") });
+        foreach (var (slot, line) in RemixVoice.Plan(slots, seed))
         {
             spec.Voice.Add(new VoiceChoice(slot.Moment, slot.Facts, line?.Id));
             if (line is not null) spec.Radio.Words[line.Sound] = line.Text;   // the marks file lists the job's lines (the game builds them as it loads)

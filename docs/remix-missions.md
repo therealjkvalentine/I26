@@ -513,6 +513,48 @@ parts of 13 wrecks into ten groups that the trip's thinning cut to about 21 item
   [--sim K] [--csv F]` the distributions. `i76 remix check --car F.vcf` (or `--gear`) adds each job's roster against the gear and a clean
   win's salvage (about how many items, the best level, the prize). `i76 remix ladder [--table|--check]` the ladder.
 
+### Civilian traffic
+
+The owner: "don't forget to place civillian cars on some roads during some roguetrip missions too!" (builder v9; `RemixTraffic`,
+`src/I76.Formats/Remix/RemixTraffic.cs`; every generated job, RANDOM JOB's too).
+
+- **The stock game's traffic.** T02, T03 and T06 drive civilians (their scripts' `normal1`..`normal9` actors and T03's milkman: norstag,
+  norclyd, norvike, norvan1, norvan2, normarx, a bus; nobody's side, no guns): each sits a few seconds (T02: 15, 45, 75 s), then
+  `goto`s a road path at 30 (the bus at 20), with `setAvoid 0`, `setSkill 1 1`, `setAgg 1`, and at the path's end (or near a teleport
+  node) is `teleport`ed back to the path's start when it is not within 300 m of the player; T14 drives a tractor, a goon and a bus
+  the same way. The trip neither fails nor scolds a player for killing one; the S04 scenario counts Groove's civilian kills
+  (`isGroovesFault` then `inc`) and has Groove remark on the first (gdsgc78) and on any after (gdsgc77). Every dead car but the
+  player's feeds the field salvage (`SalvagePool.Watch`), civilians included. (Round four's idle stock cars, removed from the base
+  missions, were the stock missions' own actors whose threads were gone; the traffic below is new cars with threads of their own.)
+- **Which jobs.** The node tables' routes that are paved road: 1200 m or longer, 85 % of their points every 10 m within 22 m of a
+  paved road's centre line (`i76 remix traffic` measures them; `RemixTraffic.Paved`, a table of route names written by
+  `--table` and held to the install by a test): T02's crossroad west, T03's highway, T05's 380, T08's two, T10's two, T13's two,
+  T14's west road; the other maps' routes are dirt or wander off the road. A route qualifies for a job when both its ends are 400 m
+  or more from the player's start and every place of the job. Then the job has traffic with a chance by template (intercept, ambush,
+  escort, tail 0.8; deliver, raid 0.6; defend 0.45; times 0.8 with one such route, 1 with two or more), drawn on a stream of its own.
+  Measured over 500 rolled jobs: 69 have traffic (14 %), 2.8 civilians each.
+- **The cars.** Two to four (never more than 4, nor the job's cars past 16 with the hostiles): norclyd, norpony, norstag, norvan1,
+  norvan2, norvike at 20-28, now and then norbus or normarx at 16 (the stock loop's 30 is fast for a town road); each on one of the
+  routes, either way along it, their delays 35 s apart on one route. Each waits hidden at the map's lot (a row past the job's own
+  cars) until its delay and until nobody is within 400 m of its route's start, is put there and drives the route; at its end it waits
+  until nobody is within 400 m of it or of the route's start, and is put back: the stock loop. Nobody's side: the enemies ignore them
+  as the stock game's do, they are not targets, they do not count among the run's kills, and their wrecks feed the salvage as every
+  wreck does (the stock rule: a civilian's parts are the base engine, brakes and tyres). Headless (`i76 remix traffic --seeds 1-60`):
+  every civilian of the 7 jobs with traffic drove its route and came round within 420 s; the sim's tick 0.116 ms with them against
+  0.096 without.
+- **Shooting them.** No penalty (the owner: "civilian cars don't need a penalty unless part of the mission"; the stock trip has none
+  either): the job is not failed or busted, nothing is lost and no police come. The job's script counts the civilians the player
+  destroys (`isGroovesFault`, each human's own in co-op) and Groove remarks on the first and on any after, S04's clips; the run records
+  them apart from the kills (`civilians` in run.yaml and its legs, `RemixKills`). No template makes protecting civilians part of a job.
+- **The radio and the notepad.** With traffic the `civilians` fact is true, so Taurus's approved "Watch for civilians" lines can be
+  said (at contact or the fight: "Pick your shots. Watch for civilians. Let's get them." and "Watch for civilians. Let's get them.",
+  with more than one enemy; at the start "Head for the truck stop. Watch for civilians." where the job goes to the truck stop); the
+  line check holds the fact to the description. The notepad's notes end "Civilians on 380: pick your shots." (the road's number when
+  the routes name one, else "the roads"). The radar shows them as the stock game shows its civilians.
+- **Checked.** `i76 remix check` holds every job's traffic to the map (`RemixTraffic.Check`: the route paved, its ends clear, the caps,
+  the cars civilian files on nobody's side); `RemixTrafficTests`; co-op hosts and guests build the job from the same numbers
+  (`RoguetripCoopTests`).
+
 ### Reproducing a job
 
 Every generated job's launch writes one line to the game log and (a roguetrip's) the run file:
