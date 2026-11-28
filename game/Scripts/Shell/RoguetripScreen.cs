@@ -602,7 +602,7 @@ public sealed partial class RoguetripScreen : ShellScreen
                     // carries nothing (RoguetripLayout.Page)
                     (I76.Formats.Mission.ArenaSketch Sketch, RoguetripLayout.MarkPlan Marks)? Map(int w, int h) => JobMapAt(offer, w, h);
                     _page = RoguetripLayout.Page(RoguetripLayout.PageArea, Map, OfferTitle(offer, sel), count, offer.Flavour, Notes(), run,
-                        CoopHelp ?? "Arrows, 1-3 or a ring: choose. Enter: take it. Esc: back.", t => _hand.Measure(t), t => _small.Measure(t), NotepadBeside);
+                        t => _hand.Measure(t), t => _small.Measure(t), NotepadBeside);
                     if (_page.Overflow.Count > 0) GD.PrintErr($"roguetrip: the offer's page overflows: {string.Join(" | ", _page.Overflow)}");
                     DrawOfferPage(offer, _page);
                     // written on the slip: in the form's hand, the title in its big hand (over the pictures, kept whole under them)
@@ -610,6 +610,10 @@ public sealed partial class RoguetripScreen : ShellScreen
                     var (ct, cx, cy) = _page.Count;
                     Frame.Text(_small, R(cx), R(cy), ct, Solid(_small, Frame.Nearest(RoguetripMapLayer.RedPencil)));
                 }
+                // the help in the sheet's foot, left of the buttons (as round six had it under the sheet)
+                int hy = 444;
+                foreach (var hl in Wrap(_small, CoopHelp ?? "Up, Down, 1-3 or the map's rings choose; Enter takes the job; Esc: back.", Take.Position.X - 30))
+                { Frame.Text(_small, 26, hy, hl, ShellFrame.OverlayInk); hy += 12; }
                 Button(Take, "TAKE THE JOB");
                 Button(Later, "BACK");
                 break;

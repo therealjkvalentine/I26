@@ -432,19 +432,21 @@ public static class RoguetripLayout
 
     /// <summary>The slip's words for a width: the title (big), the offer's words, the objectives and notes, the run's line, the help.</summary>
     public static (List<SlipLine> Lines, float H, (string Text, float X, float Y) Count) SlipText(float w, string title, string count, string words, IReadOnlyList<string> notes,
-        string run, string help, Func<string, float> big, Func<string, float> small)
+        string run, Func<string, float> big, Func<string, float> small)
     {
         var lines = new List<SlipLine>();
         float inner = w - 2 * SlipPadX, cw = small(count), y = SlipPadTop;
-        var t = Wrap(title, inner - cw - 6, big);
-        foreach (var l in t) { lines.Add(new SlipLine(l, SlipPadX, y, true)); y += TitleLine; }
+        // the run's line as a small header beside the "1 of 3", then the title, the offer's words, its objectives and notes
+        var head = Wrap(run, inner - cw - 6, small);
+        if (head.Count > 0) { lines.Add(new SlipLine(head[0], SlipPadX, y, false)); y += SlipLineH; }
+        foreach (var l in Wrap(string.Join(" ", head.Skip(1)), inner, small)) { lines.Add(new SlipLine(l, SlipPadX, y, false)); y += SlipLineH; }
+        y += 2;
+        foreach (var l in Wrap(title, inner, big)) { lines.Add(new SlipLine(l, SlipPadX, y, true)); y += TitleLine; }
         y += 1;
         foreach (var l in Wrap(words, inner, small)) { lines.Add(new SlipLine(l, SlipPadX, y, false)); y += SlipLineH; }
         if (notes.Count > 0) y += 3;
         foreach (var n in notes) foreach (var l in Wrap(n, inner, small)) { lines.Add(new SlipLine(l, SlipPadX, y, false)); y += SlipLineH; }
-        y += 3;
-        foreach (var l in Wrap(run + " " + help, inner, small)) { lines.Add(new SlipLine(l, SlipPadX, y, false)); y += SlipLineH; }
-        return (lines, y + SlipPadFoot, (count, w - SlipPadX - cw, SlipPadTop + 2));
+        return (lines, y + SlipPadFoot, (count, w - SlipPadX - cw, SlipPadTop));
     }
 
     /// <summary>
@@ -452,10 +454,10 @@ public static class RoguetripLayout
     /// that covers no mark's ring or word nor any route (the map's marks and routes, sheet pixels) and stays inside the area, the one
     /// covering the least of the sketch's ink; null when none does.
     /// </summary>
-    public static (Box Slip, List<SlipLine> Lines, (string, float, float) Count)? PlaceSlip(Box area, IReadOnlyList<Box> keep, IReadOnlyList<Segment> routes, Func<Box, int> ink,
+    public static (Box Slip, List<SlipLine> Lines, (string, float, float) Count, int Cost)? PlaceSlip(Box area, IReadOnlyList<Box> keep, IReadOnlyList<Segment> routes, Func<Box, int> ink,
         Func<float, (List<SlipLine> Lines, float H, (string, float, float) Count)> text, IReadOnlyList<float> widths)
     {
-        (Box, List<SlipLine>, (string, float, float))? best = null;
+        (Box, List<SlipLine>, (string, float, float), int)? best = null;
         int bestCost = int.MaxValue;
         foreach (float w in widths)
         {
@@ -472,7 +474,7 @@ public static class RoguetripLayout
                 // the least ink covered, then the widest (fewest lines), then the nearest an edge
                 float edge = Math.Min(Math.Min(x - l, r - x), Math.Min(y - t, b - y));
                 int cost = ink(c) * 4 + (int)(area.W - w) + (int)edge;
-                if (cost < bestCost) { bestCost = cost; best = (c, lines, count); }
+                if (cost < bestCost) { bestCost = cost; best = (c, lines, count, cost); }
             }
         }
         return best;
@@ -484,37 +486,53 @@ public static class RoguetripLayout
     /// (<paramref name="beside"/>: always so, the alternative layout). <paramref name="map"/> makes the job's map at a size (null: none).
     /// </summary>
     public static PagePlan Page(Box area, Func<int, int, (I76.Formats.Mission.ArenaSketch Sketch, MarkPlan Marks)?> map, string title, string count, string words,
-        IReadOnlyList<string> notes, string run, string help, Func<string, float> big, Func<string, float> small, bool beside = false)
+        IReadOnlyList<string> notes, string run, Func<string, float> big, Func<string, float> small, bool beside = false)
     {
         var overflow = new List<string>();
-        float[] widths = [area.W, area.W * 0.84f, area.W * 0.7f, area.W * 0.6f];
-        (List<SlipLine>, float, (string, float, float)) Text(float w) => SlipText(w, title, count, words, notes, run, help, big, small);
+        // down to 45 % of the page: a tall map at the page's height leaves a narrow side free for the slip, wrapped longer
+        float[] widths = [area.W, area.W * 0.84f, area.W * 0.7f, area.W * 0.6f, area.W * 0.52f, area.W * 0.45f];
+        (List<SlipLine>, float, (string, float, float)) Text(float w) => SlipText(w, title, count, words, notes, run, big, small);
         void Check(List<SlipLine> lines, float w)
         {
             foreach (var l in lines) if ((l.Big ? big(l.Text) : small(l.Text)) > w - 2 * SlipPadX + 0.01f) overflow.Add(l.Text);
         }
-        if (!beside && map((int)area.W, (int)area.H) is { } full)
+        if (!beside)
         {
-            // the drawing where it is made (centred), else pushed to the foot, the top, the right or the left of the page (a wide map
-            // leaves room above or below it, a tall one beside it), so the slip finds a place
-            var (cx0, cy0, cx1, cy1) = Content(full.Sketch, full.Marks);
-            var offsets = new List<(float, float)> { (0, 0), (0, area.H - cy1), (0, -cy0), (area.W - cx1, 0), (-cx0, 0) };
-            foreach (var (dx, dy) in offsets)
+            // the drawing at the page's size (a little smaller when that frees a column for the slip: a tall map's), where it is
+            // made, else pushed to the foot, the top, the right or the left of the page (a wide map leaves room above or below it, a
+            // tall one beside it); of all those, the one whose slip covers the least, a smaller drawing costing a little more
+            PagePlan? chosen = null;
+            int chosenCost = int.MaxValue;
+            foreach (float f in new[] { 1f, 0.88f, 0.76f })
             {
-                var sk = new Box(area.X + dx, area.Y + dy, area.W, area.H);
-                var (keep, routes) = Obstacles(full.Marks, sk);
-                int Ink(Box c)
+                int sw = (int)(area.W * f), sh = (int)(area.H * f);
+                if (map(sw, sh) is not { } full) continue;
+                var (cx0, cy0, cx1, cy1) = Content(full.Sketch, full.Marks);
+                float mx = (area.W - sw) / 2, my = (area.H - sh) / 2;
+                var offsets = new List<(float, float)> { (mx, my), (mx, area.H - cy1), (mx, -cy0), (area.W - cx1, my), (-cx0, my) };
+                foreach (var (dx, dy) in offsets)
                 {
-                    int n = 0;
-                    for (int y = (int)c.Y; y < (int)c.Bottom; y += 2) for (int x = (int)c.X; x < (int)c.Right; x += 2) if (full.Sketch.Inked(x - (int)sk.X, y - (int)sk.Y)) n++;
-                    return n;
+                    var sk = new Box(area.X + dx, area.Y + dy, sw, sh);
+                    var (keep, routes) = Obstacles(full.Marks, sk);
+                    int Ink(Box c)
+                    {
+                        int n = 0;
+                        for (int y = (int)c.Y; y < (int)c.Bottom; y += 2) for (int x = (int)c.X; x < (int)c.Right; x += 2) if (full.Sketch.Inked(x - (int)sk.X, y - (int)sk.Y)) n++;
+                        return n;
+                    }
+                    if (PlaceSlip(area, keep, routes, Ink, Text, widths) is { } p)
+                    {
+                        int cost = p.Cost + (int)((1 - f) * 1500);
+                        if (cost >= chosenCost) continue;
+                        chosenCost = cost;
+                        chosen = new PagePlan(sk, p.Slip, Shift(p.Lines, p.Slip), Shift(p.Count, p.Slip), false, overflow);
+                    }
                 }
-                if (PlaceSlip(area, keep, routes, Ink, Text, widths) is { } p)
-                {
-                    var (lines, cnt) = (p.Lines, p.Count);
-                    Check(lines, p.Slip.W);
-                    return new PagePlan(sk, p.Slip, Shift(lines, p.Slip), Shift(cnt, p.Slip), false, overflow);
-                }
+            }
+            if (chosen is not null)
+            {
+                foreach (var l in chosen.Lines) if ((l.Big ? big(l.Text) : small(l.Text)) > chosen.Slip.W - 2 * SlipPadX + 0.01f) overflow.Add(l.Text);
+                return chosen;
             }
         }
         // the slip in a band of its own at the area's foot, as wide as the area; the map above it

@@ -491,13 +491,13 @@ for the mission detail map and notes/objectives".
   edges, turned a third of a degree, a shadow: `ArenaSketches.DrawScrap`) carrying **the job's own map as large as the half allows**
   (the whole map's sketch at 260 x 368 px; its marks ringed in red, 6 px, their words in printed capitals 9 px high, clear of each other,
   of the rings and, where they can be, of the job's routes). On it lies a **notepad slip** (whiter paper in the modern look, ruled in
-  pale blue with a red margin, as the notepad the objectives are read on; `RoguetripLayout.Page`): the title and challenge in the form's
-  big hand with "1 of 3" in red, the offer's words, the job's other objectives shown from the start and its notes, then the run's line and
-  the help in the small hand, tightly set, every word whole. The slip goes where the map carries nothing that matters: of four widths
-  and every place on the page (the corners and edges first, then a 12 px grid), one that covers no ring, no mark's word and no route,
+  pale blue with a red margin, as the notepad the objectives are read on; `RoguetripLayout.Page`): the run's line small at its head beside "1 of 3" in red,
+  the title and challenge in the form's big hand, the offer's words, the job's other objectives shown from the start and its notes,
+  tightly set, every word whole (the help line is in the sheet's foot, left of the buttons). The slip goes where the map carries nothing that matters: of six widths
+  (the page's down to 45 % of it, wrapping longer: a tall map at the page's height leaves a narrow side free) and every place on the page (the corners and edges first, then a 12 px grid), one that covers no ring, no mark's word and no route,
   covering the least of the sketch's ink; the map is first tried where it is drawn, then pushed to the page's foot, top, right or left
   (a wide map leaves room above or below it, a tall one beside it). Only where nothing is free does the map give up a band at the
-  page's foot for the slip (22 of 157 rolled offers). Up and Down, Left and Right, 1-3, a click on a ring or the pad's focus on one
+  page's foot for the slip (none of 157 rolled offers: the drawing is also tried at 88 % and 76 % of the page, pushed aside, to free a column). Up and Down, Left and Right, 1-3, a click on a ring or the pad's focus on one
   change the offer shown; Enter or TAKE THE JOB takes it. In co-op the guest's page follows the host's highlight and says the host
   chooses. `I76_ROGUE_NOTEPAD=beside` lays every page out the other way (the slip always in its band under a smaller map), for comparing.
 - **The job's map, lettered once for all three views** (the page above, the loading card and the map, M): one routine places its words

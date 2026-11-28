@@ -103,6 +103,7 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
         var big = db.Font(L.TitleFont);
         var map = db.Font(L.MapFont);
         int pages = 0, band = 0, words = 0, besideDropped = 0;
+        var inkShare = new List<float>();
         float minMap = float.MaxValue;
         var bases = new HashSet<string>();
         var extremes = new List<(float Aspect, string What)>();
@@ -119,8 +120,7 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
                 string runLine = $"Run {run.Number}, job {run.Legs.Count + 1} of 4 (1 busted). ABX Leprechaun: armour 100%, chassis 100%, ammo 100%. Leaving Fort Stockton.";
                 foreach (bool beside in new[] { false, true })
                 {
-                    string help = beside ? "The host chooses (the red ring). Esc: back to the lobby." : "Arrows, 1-3 or a ring: choose. Enter: take it. Esc: back.";
-                    var page = L.Page(L.PageArea, Map, RoguetripScreen.OfferTitle(o, sel), $"{sel + 1} of {offers.Count}", o.Flavour, Notes(spec), runLine, help,
+                    var page = L.Page(L.PageArea, Map, RoguetripScreen.OfferTitle(o, sel), $"{sel + 1} of {offers.Count}", o.Flavour, Notes(spec), runLine,
                         t => big.Measure(t), t => small.Measure(t), beside);
                     string what = $"run {run.Number} offer {sel + 1} ({o.Map} {o.Template}){(beside ? " beside" : "")}";
                     Assert.True(page.Overflow.Count == 0, $"{what}: {string.Join(" | ", page.Overflow)}");
@@ -129,7 +129,7 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
                         Assert.True(new L.Box(l.X, l.Y, (l.Big ? big : small).Measure(l.Text), l.Big ? big.Height : small.Height - 1).Within(page.Slip), $"{what}: '{l.Text}' leaves the slip");
                     Assert.True(new L.Box(page.Count.X, page.Count.Y, small.Measure(page.Count.Text), small.Height).Within(page.Slip));
                     // nothing cut: the title, the offer, the notes, the run's line and the help, every word, in order
-                    Assert.Equal(string.Join(" ", new[] { RoguetripScreen.OfferTitle(o, sel), o.Flavour }.Concat(Notes(spec)).Append(runLine).Append(help).SelectMany(t => t.Split(' ', StringSplitOptions.RemoveEmptyEntries))),
+                    Assert.Equal(string.Join(" ", new[] { runLine, RoguetripScreen.OfferTitle(o, sel), o.Flavour }.Concat(Notes(spec)).SelectMany(t => t.Split(' ', StringSplitOptions.RemoveEmptyEntries))),
                         string.Join(" ", page.Lines.Select(l => l.Text)));
                     if (Map((int)page.SketchBox.W, (int)page.SketchBox.H) is { } m)
                     {
@@ -146,12 +146,21 @@ public class RoguetripLayoutTests(ITestOutputHelper output)
                         if (!beside && m.Sketch.InkBounds() is var (x0, y0, x1, y1)) extremes.Add(((x1 - x0 + 1f) / (y1 - y0 + 1f), $"run {run.Number} offer {sel + 1} {o.Map}"));
                         words += m.Marks.Labels.Count;
                     }
-                    if (!beside) { pages++; if (page.Band) band++; minMap = Math.Min(minMap, page.SketchBox.H); }
+                    if (!beside)
+                    {
+                        pages++;
+                        if (page.Band) band++;
+                        minMap = Math.Min(minMap, page.SketchBox.H);
+                        // laid on the map, the map has the whole page (at least 55 % of it in any case)
+                        Assert.True(page.SketchBox.W * page.SketchBox.H >= 0.55f * L.PageArea.W * L.PageArea.H || page.Band, $"{what}: the map has {page.SketchBox.W * page.SketchBox.H / (L.PageArea.W * L.PageArea.H):P0} of the page");
+                        if (Map((int)page.SketchBox.W, (int)page.SketchBox.H) is { } dm && dm.Sketch.InkBounds() is var (ix0, iy0, ix1, iy1))
+                            inkShare.Add((ix1 - ix0 + 1f) * (iy1 - iy0 + 1f) / (L.PageArea.W * L.PageArea.H));
+                    }
                 }
             }
         }
         extremes.Sort();
-        output.WriteLine($"{pages} pages ({band} with the slip in a band of its own), {words} mark words, maps {string.Join(" ", bases.OrderBy(b => b))}; the map at least {minMap:0} px high; the alternative left out {besideDropped} mark words");
+        output.WriteLine($"{pages} pages ({band} with the slip in a band of its own), {words} mark words, maps {string.Join(" ", bases.OrderBy(b => b))}; the map at least {minMap:0} px high; the alternative left out {besideDropped} mark words; the map's drawing covers {inkShare.Order().ElementAt(inkShare.Count / 2):P0} of the page (median), {inkShare.Min():P0} at the least");
         output.WriteLine($"tallest: {extremes[0].What} ({extremes[0].Aspect:0.00}); widest: {extremes[^1].What} ({extremes[^1].Aspect:0.00})");
         Assert.Equal(16, bases.Count);
     }
