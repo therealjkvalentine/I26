@@ -239,6 +239,7 @@ public static class RemixBuilder
     public static string Stamp(RemixSpec spec, byte[] baseFile)
     {
         var yaml = new YamlDotNet.Serialization.SerializerBuilder().DisableAliases().Build().Serialize(spec);   // no anchors: a description and its parsed copy stamp alike
+        yaml = yaml.Replace("\r\n", "\n");   // the serializer ends lines with Environment.NewLine: the same job stamps alike on every platform
         return $"remix {Version} spec {Hash(Encoding.UTF8.GetBytes(yaml))} base {spec.Base.ToLowerInvariant()} {Hash(baseFile)}";
     }
 
