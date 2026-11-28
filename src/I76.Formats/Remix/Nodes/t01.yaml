@@ -20,7 +20,7 @@ nodes:
   - {name: east_spur, kinds: [pickup, hideout], at: [4610, 37280], called: the end of the dirt road east of the highway}
   - {name: east_field, kinds: [hideout], at: [4890, 37285], called: the open ground past the end of the east dirt road}
   - {name: west_loop, kinds: [pickup, hideout, home], at: [2885, 38578], called: the loop road west of town}
-  - {name: farm_west, kinds: [pickup, yard], at: [3285, 37020], called: the west end of the farm road}
+  - {name: farm_west, kinds: [pickup, yard], at: [3315, 37020], called: the west end of the farm road}
   - {name: farm_east, kinds: [pickup, hideout, yard], at: [4238, 37020], called: the east end of the farm road}
   - {name: town_east, kinds: [home, hideout, yard], at: [4895, 38565], called: the dirt road east of town}
   - {name: north_spur, kinds: [pickup], at: [3489, 38820], called: the dirt road north of the loop road}
@@ -37,7 +37,7 @@ entries:
   - {name: town_east, at: [[4895, 38565], [4838, 38662]]}
   - {name: north_dirt, at: [[4368, 38918], [4247, 38894]]}
 routes:
-  - {name: highway_north, heading: 25, points: [[3488, 36116], [3630, 36389], [3670, 36700], [3640, 37015], [3853, 37202], [3889, 37505], [3770, 37773], [3577, 37955], [3315, 38063], [3063, 38109], [3328, 38233], [3577, 38370], [3740, 38555], [3888, 38757], [3701, 38999], [3718, 39278], [4003, 39399], [4028, 39697], [3925, 39987], [3741, 40226], [3720, 40579]]}
+  - {name: highway_north, heading: 25, points: [[3488, 36116], [3630, 36389], [3670, 36700], [3640, 37015], [3853, 37202], [3889, 37505], [3770, 37773], [3577, 37955], [3315, 38063], [3063, 38109], [3328, 38233], [3577, 38370], [3740, 38555], [3888, 38757], [3701, 38999], [3718, 39278], [4003, 39399], [4028, 39697], [3925, 39987], [3741, 40226]]}
   - {name: through_town, escort: true, called: the dirt road east of town, heading: 25, points: [[3488, 36116], [3609, 36338], [3668, 36584], [3656, 36854], [3661, 37109], [3868, 37240], [3890, 37494], [3833, 37735], [3595, 37830], [3476, 38046], [3219, 38057], [3088, 38141], [3328, 38233], [3534, 38367], [3656, 38555], [3895, 38609], [4093, 38680], [4360, 38680], [4626, 38680], [4879, 38639], [4895, 38565]]}
   - {name: loop_to_north, escort: true, called: the dirt road north of the east end of town, heading: 80, points: [[2885, 38578], [3148, 38614], [3405, 38583], [3656, 38555], [3895, 38609], [4093, 38680], [4214, 38848], [4368, 38918]]}
 clusters:

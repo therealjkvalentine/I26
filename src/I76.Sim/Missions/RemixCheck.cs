@@ -246,7 +246,11 @@ public static class RemixCheck
     }
 
     /// <summary>What a walk of a job came to: the script's result (null: still running at the horizon), its failure line, the seconds, a trace of its steps.</summary>
-    public sealed record WalkResult(bool? Won, int Fail, float Seconds, string Trace);
+    public sealed record WalkResult(bool? Won, int Fail, float Seconds, string Trace)
+    {
+        /// <summary>The nearest any human came to a leave-map exit's trigger on the routine's square (infinity with no exits).</summary>
+        public float NearestExit { get; init; } = float.PositiveInfinity;
+    }
 
     /// <summary>
     /// A job walked as a player would play it to its end (docs/remix-missions.md "Roguetrip in co-op"): each step's place teleported to a few
@@ -257,9 +261,11 @@ public static class RemixCheck
     /// player's does. <paramref name="kill"/> destroys these seats at these seconds (nobody's kill), for the death rules.
     /// </summary>
     public static WalkResult Walk(AssetVfs vfs, ModelAssembler asm, string mission, RemixSpec spec, int seats = 1, string car = "vppirna1.vcf",
-        IReadOnlyList<(int Seat, float At)>? kill = null, float? horizon = null, bool walk = true)
+        IReadOnlyList<(int Seat, float At)>? kill = null, float? horizon = null, bool walk = true, IReadOnlyList<(int Seat, float At, float X, float Z)>? put = null)
     {
         var path = vfs.Install.FindMission(mission) ?? throw new FileNotFoundException(mission);
+        var exits = RemixBounds.Exits(path, spec);
+        float nearestExit = float.PositiveInfinity;
         var world = new MissionWorld(vfs, asm, path);
         var coop = seats > 1 ? new CoopSetup(Enumerable.Repeat<string?>(null, seats).ToList()) { RespawnDelay = 1e6f } : null;
         var setup = MissionSetup.Build(vfs, world, asm, car, rand: new Rng.CrtRand(1), coop: coop);
@@ -288,6 +294,9 @@ public static class RemixCheck
             float now = t * s.TickSeconds;
             int open = Array.FindIndex(objectives.Flags, f => (f & (Objectives.Hidden | Objectives.Succeeded | Objectives.Failed)) == 0) + 1;
             if (open > walked) { walked = open; stepAt = now + 6; trace.Append($" {now:0}s:step{open}"); }
+            if (put is not null)
+                foreach (var (seat, at, px, pz) in put)
+                    if (now >= at && killed.Add(1000 + seat * 100 + (int)at) && seat < humans.Count) { Put(setup, humans[seat], px, pz); trace.Append($" {now:0}s:seat{seat}put"); }
             if (kill is not null)
                 foreach (var (seat, at) in kill)
                     if (now >= at && killed.Add(seat) && seat < humans.Count && setup.Entities.FirstOrDefault(e => e.Vehicle == humans[seat]) is { Dead: false } he)
@@ -321,6 +330,7 @@ public static class RemixCheck
             (s.Combat?.Damage as Damage.DamageModel)?.Events.Clear();
             for (int k = 0; k < humans.Count; k++)
                 if (Weapons.Combat.IsDead(humans[k]) && killed.Add(100 + k)) trace.Append($" {now:0}s:seat{k}wrecked");
+            foreach (var hm in humans) if (!Weapons.Combat.IsDead(hm)) nearestExit = MathF.Min(nearestExit, RemixBounds.ExitDistance(exits, new System.Numerics.Vector2((float)hm.Pos.X, (float)hm.Pos.Z)));
             if (!walk || t % 10 != 0) continue;
             foreach (var e in hostile)
             {
@@ -334,7 +344,7 @@ public static class RemixCheck
         }
         var end = setup.Script.Host.End;
         trace.Append($" end {(s.Script!.Result is { } w ? (w ? "won" : $"failed:{end?.FailMessage}") : "running")} at {setup.Script.Host.Now:0}s; {string.Join(",", objectives.Flags.Select(Objectives.Describe))}");
-        return new WalkResult(s.Script.Result, end?.FailMessage ?? -1, setup.Script.Host.Now, trace.ToString().Trim());
+        return new WalkResult(s.Script.Result, end?.FailMessage ?? -1, setup.Script.Host.Now, trace.ToString().Trim()) { NearestExit = nearestExit };
     }
 
     private static string Part(List<RemixRoles.Role> roles, string name) => roles.First(r => r.Car == name).Part;
@@ -403,7 +413,7 @@ public static class RemixCheck
     public const float ExitClearance = 300;
 
     /// <summary>The start and every zone the player must reach, by the mark the map gives them.</summary>
-    private static IEnumerable<(string Label, double[] At)> PlayerPlaces(RemixSpec spec)
+    internal static IEnumerable<(string Label, double[] At)> PlayerPlaces(RemixSpec spec)
     {
         if (spec.Start?.At is { Length: 2 } st) yield return ("START", st);
         foreach (var (label, z) in Zones(spec))
@@ -411,7 +421,7 @@ public static class RemixCheck
     }
 
     /// <summary>Where objective step k takes the player (null: nowhere in particular: shake a tail, catch a convoy).</summary>
-    private static double[]? StepPlace(RemixSpec spec, int k)
+    internal static double[]? StepPlace(RemixSpec spec, int k)
     {
         var o = spec.Objective;
         double[]? P(ZoneSpec? z) => z is not null && spec.Places.TryGetValue(z.Place, out var pts) && pts.Count > 0 ? pts[0] : null;
