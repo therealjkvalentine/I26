@@ -68,6 +68,15 @@ public class LanSearchTests
         Assert.Equal(Discovery.Query(), got[1..]);
     }
 
+    /// <summary>A base port at the very top (a server on an ephemeral port near 65535) searches the ports that exist and does not throw (it made DiscoveryTests flake on an unlucky ephemeral port).</summary>
+    [Fact]
+    public void ASearchFromTheTopPortAsksOnlyThePortsThatExist()
+    {
+        using var browser = new SessionBrowser();
+        browser.SearchLan(65535);
+        browser.SearchLan(65534);
+    }
+
     /// <summary>A browser the tests keep on loopback asks no real network (no datagram leaves the machine from a test).</summary>
     [Fact]
     public void ABrowserOnLoopbackAsksNoRealNetwork()

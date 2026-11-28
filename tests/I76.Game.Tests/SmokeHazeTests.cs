@@ -10,7 +10,7 @@ namespace I76.Game.Tests;
 /// haze whose smoke (density times area) is kept as it widens and merges, that fades to nothing at the threshold, and whose budget
 /// raises the threshold when the haze covers too much of the screen. Without the engine.
 /// </summary>
-[Collection("SmokeStatics")]
+[Collection("OriginalBehavior")]   // OriginalBehavior.Apply sets the smoke statics too: one collection with the settings tests
 public class SmokeHazeTests
 {
     [Fact]

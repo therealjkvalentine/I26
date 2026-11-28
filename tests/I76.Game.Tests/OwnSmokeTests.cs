@@ -12,6 +12,7 @@ namespace I76.Game.Tests;
 /// smokes stays the original's: a health gauge below 0.75, which armour alone brings down while the engine, suspension and brake are
 /// whole, and any damage to one of those three takes to black at once.
 /// </summary>
+[Collection("OriginalBehavior")]   // OwnSmoke.EngineOnly is one of the statics OriginalBehavior.Apply sets
 public class OwnSmokeTests
 {
     private static VehicleDamage Car(int frontArmour, int engineHp)

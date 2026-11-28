@@ -9,6 +9,7 @@ namespace I76.Net.Tests;
 // Three of the six rows of BotsSurviveTwoMigrationsAndPlayOn are gone (they added no parameter value the other three lack:
 // graceful and dropped hosts, restricted and open, teams, with and without computer drivers, both player caps).
 
+[Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
 public class HostMigrationBotsB(ITestOutputHelper output)
 {
     [Theory]
@@ -17,6 +18,7 @@ public class HostMigrationBotsB(ITestOutputHelper output)
         new HostMigrationTests(output).BotsSurviveTwoMigrationsAndPlayOn(bots, ai, restricted, graceful, maxPlayers, teams);
 }
 
+[Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
 public class HostMigrationBotsD(ITestOutputHelper output)
 {
     [Theory]
@@ -25,6 +27,7 @@ public class HostMigrationBotsD(ITestOutputHelper output)
         new HostMigrationTests(output).BotsSurviveTwoMigrationsAndPlayOn(bots, ai, restricted, graceful, maxPlayers, teams);
 }
 
+[Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
 public class HostMigrationBotsE(ITestOutputHelper output)
 {
     [Theory]
@@ -33,6 +36,7 @@ public class HostMigrationBotsE(ITestOutputHelper output)
         new HostMigrationTests(output).BotsSurviveTwoMigrationsAndPlayOn(bots, ai, restricted, graceful, maxPlayers, teams);
 }
 
+[Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
 public class HostMigrationNextRoundA(ITestOutputHelper output)
 {
     [Theory]
@@ -41,6 +45,7 @@ public class HostMigrationNextRoundA(ITestOutputHelper output)
     public void TheNewHostsNextRoundHasTheBotsToo(bool restricted) => new HostMigrationTests(output).TheNewHostsNextRoundHasTheBotsToo(restricted);
 }
 
+[Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
 public class HostMigrationNextRoundB(ITestOutputHelper output)
 {
     [Theory]

@@ -87,6 +87,7 @@ public class AnetMeleeTests(ITestOutputHelper output)
     /// addresses the host gave him, both sides probing, with no introduction.
     /// </summary>
     [LoopbackAliasFact]
+    [Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
     public void AGameListedOnAnetMigratesAcrossNats()
     {
         if (HostTests.InstallDir is not { } install) return;
@@ -152,6 +153,7 @@ public class AnetMeleeTests(ITestOutputHelper output)
     /// one finds her, and Bob's game ends as a lost connection within the give-up time, not hanging in "Migrating".
     /// </summary>
     [LoopbackAliasFact]
+    [Trait("Load", "Sensitive")]   // real server threads and sockets under wall-clock deadlines: flakes on a busy machine; feature runs skip it (--filter "Load!=Sensitive"), a release check runs it
     public void ASuccessorBehindASymmetricNatLeavesTheOthersToFallBack()
     {
         if (HostTests.InstallDir is not { } install) return;

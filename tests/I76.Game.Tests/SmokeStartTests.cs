@@ -9,7 +9,7 @@ namespace I76.Game.Tests;
 /// denser and narrower at the source than section IW's, the long fade kept, each on the Developer panel; and the mirrors' smoke, which a
 /// cap of 0 left at nothing whenever the main view had no smoke of its own.
 /// </summary>
-[Collection("SmokeStatics")]
+[Collection("OriginalBehavior")]   // OriginalBehavior.Apply sets the smoke statics too: one collection with the settings tests
 public class SmokeStartTests
 {
     private static Dictionary<string, string> Cfg(ShellSettings s)

@@ -447,7 +447,7 @@ public sealed class SessionBrowser : IDisposable
         double now = _clock();
         // the networks are looked up again every few seconds (a cable plugged in, Wi-Fi joined while the roster is open)
         if (now >= _subnetsAt) { _subnetsAt = now + 5; _subnets = Subnets(); }
-        for (int p = basePort; p < basePort + Discovery.PortsSearched; p++)
+        for (int p = basePort; p < basePort + Discovery.PortsSearched && p <= IPEndPoint.MaxPort; p++)   // a base near the top (an ephemeral test port) searches fewer
         {
             _net.SendBroadcast(_query, p);
             foreach (var net in _subnets) _net.SendUnconnectedMessage(_query, new IPEndPoint(net, p));
