@@ -477,17 +477,21 @@ a ring or a box choose; Enter or a second click takes the job.
 
 Its layout (`RoguetripLayout`, game/Scripts/Shell; held by `RoguetripLayoutTests` over rolled runs on every map, each offer chosen):
 
-- **Words placed, none on another.** Each town's name, highway number and state name is set beside its mark in the shell's small sans
-  (font 0x47, 10 px; the hand of the offers was 12 px): the four sides of the dot, then the corners, then further out, the first place
+- **Words placed, none on another.** Each town's name, highway number and state name is printed beside its mark as the stock forms print
+  their labels (Arial Bold capitals, 6 px high; the cell the small sans's measure scaled by 0.86): the four sides of the dot, then the
+  corners, then further out, the first place
   that lies inside the region's box, on no word, offer ring or other mark, crossing the fewest lines. The named towns, the through
-  highways' numbers and the states are always placed; a quiet town's name (Seagraves, Lubbock...) only where it touches no line, and a
+  highways' numbers and the states are always placed; a quiet town's name (SEAGRAVES, TAHOKA...) only where it touches no line, and a
   short spur's number (82) only where there is room. A town under an offer's ring loses its dot, not its name (the ring's number is there).
 - **Drawn at the screen's resolution.** In the modern look the lines, dots and rings are a layer of their own (`RoguetripMapLayer`),
-  antialiased at any window size (3440 x 1440 included), and the words go to the text layer; the highways a lighter brown than before.
+  antialiased at any window size (3440 x 1440 included), and the printed words go to the text layer; the highways a lighter brown.
   The 1997 look draws the same plan into the 640 x 480 pixels.
+- **Written by hand, printed by type.** What a person wrote on the form is in its hand (font 0x44, as the stock forms' entries): the run
+  line, each offer's title and words, the chosen job's notes. What is printed is in the forms' printed lettering: the title, the buttons,
+  the map's words, the scrap's marks.
 - **The offers wrapped whole.** An offer's first line (number, map, job, challenge) wraps at spaces, so the challenge stands whole; its
-  words follow in the small sans, every line of them; the chosen job's notes (in the same sans) sit whole at the column's foot, and the
-  job's map takes the room between (104 px high at the least over the test's runs).
+  words follow, every line of them; the chosen job's notes sit whole at the column's foot, and the job's map takes the room between (93
+  px high at the least over the test's runs). The region is as wide as its map (268 px), the column the rest (306 px).
 - **The job's map on a scrap of paper**, laid on the sheet as the melee host form lays its arena's (`ArenaSketches.DrawScrap`: the
   sheet's paper lightened, torn edges, turned a degree or two, a shadow; the map's name in the hand under it). Its marks are red rings;
   marks within a ring's width share one ring and its words ("START / HOME"; three or more, or a long pair, each word on its own beside
@@ -505,9 +509,13 @@ under the region: put the picture in the user folder's `remix` folder as `roguet
 `roguetrip-atlas.txt` beside it, the picture's control points, one a line: `latitude longitude x y` (degrees, north and east positive;
 the picture's pixels from its top left; `#` starts a comment), three or more, towns whose dots are easy to find. The game fits an affine
 map from latitude and longitude to the picture by least squares (`RoguetripLayout.AtlasFit`; the game log says how near the fit comes
-to its own points), resamples the region box's part of it once a session off the main thread (4 texels a pixel), and draws it under
-the trip's maps, the run's road and the offers; the region's own lines, towns and words are then left to the atlas. In the 1997 look
-the atlas is laid on the sheet multiplied (its paper becomes the sheet's) and matched to the palette. Nothing of an atlas ships.
+to its own points), resamples the region box's part of it off the main thread (4 texels a pixel; a 7000 px scan takes a second or
+two), takes its paper (the brightest tenth's level) to white and fades its edges over 6 px, and keeps the result beside it
+(`roguetrip-atlas.fit-*.png`, named by the picture's size and time and the points), so a later session reads that at once. It is laid
+on the sheet multiplied, as print on paper (the sheet's paper shows through; the 1997 look matches the product to the palette), under
+the trip's maps, the run's road and the offers, which get a halo of paper (the rings' insides cleared) so they read over its roads;
+the region's own lines, towns and words are then left to the atlas. Until the atlas is ready (being read), and without it or when it
+cannot be read, the drawn map shows; the screen draws itself again the moment it is ready. Nothing of an atlas ships.
 
 ### Template `ambush`
 
