@@ -18,6 +18,7 @@ public static class RemixCommand
         if (argv.Count >= 2 && argv[1] == "check") return Check(install, argv);
         if (argv.Count >= 2 && argv[1] == "score") return Score(install, argv);
         if (argv.Count >= 2 && argv[1] == "pace") return Pace(install, argv);
+        if (argv.Count >= 2 && argv[1] == "bounds") return RemixBoundsCommand.Run(install, argv);
         if (argv.Count >= 2 && argv[1] is "trip" or "roguetrip") return Trip(install, argv);
         if (argv.Count >= 3 && argv[1] == "structures") return RemixStructures.Run(install, argv);
         if (argv.Count >= 4 && argv[1] == "driveout") return RemixDriveOutCommand.Run(install, argv);
@@ -83,6 +84,9 @@ public static class RemixCommand
                 // the drives it asks for, against its pacing budget, and every place inside a structure driven out of
                 problems.AddRange(RemixPacing.Measure(install, spec).Problems);
                 problems.AddRange(I76.Sim.Missions.RemixDriveOut.Check(vfs, asmb, spec));
+                // the boundaries (no start, seat of eight or first drive where the leave-map routine warns, nor at the map's edge) and the spacing of its marks
+                problems.AddRange(I76.Sim.Missions.RemixBounds.Problems(I76.Sim.Missions.RemixBounds.Of(vfs, asmb, spec.Id, spec, 8)));
+                problems.AddRange(RemixSpacing.Of(spec).Problems);
             }
             catch (Exception ex) when (ex is RemixError or IOException or InvalidDataException) { problems = [$"build: {ex.Message}"]; }
             string what = $"{name} ({spec.Base} {spec.Objective.Template})";
@@ -112,6 +116,8 @@ public static class RemixCommand
         foreach (var t in tables)
         {
             var (problems, places) = RemixNodeCheck.Run(install, t);
+            // the boundaries' margins: no start, place or convoy road where the leave-map routine warns, nor at the map's edge
+            problems.AddRange(I76.Sim.Missions.RemixBoundsTable.Check(install, t));
             // each place inside or under a structure: a job started there (its doors off, its wall section out, its friendly car
             // parked) built and driven out of toward its way out
             foreach (var n in t.Nodes.Where(n => n.IsInside))

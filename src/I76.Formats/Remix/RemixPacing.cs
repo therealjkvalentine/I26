@@ -251,6 +251,36 @@ public static class RemixPacing
 
         private readonly Dictionary<(int, int), double> _memo = [];
 
+        /// <summary>The way a player drives from one point to another: along the roads (each end joined across country) when that is quicker, else straight.</summary>
+        public List<double[]> Line(double[] a, double[] b)
+        {
+            Drive(a, b, out _);
+            var (ia, da) = Nearest(a);
+            var (ib, db) = Nearest(b);
+            double straight = Dist((a[0], a[1]), (b[0], b[1]));
+            if (ia < 0 || ib < 0) return [a, b];
+            double roadS = da / FieldSpeed + Path(ia, ib) / RoadSpeed + db / FieldSpeed;
+            if (roadS > straight / FieldSpeed) return [a, b];
+            var prev = new Dictionary<int, int>();
+            var dist = new Dictionary<int, double> { [ia] = 0 };
+            var pq = new PriorityQueue<int, double>();
+            pq.Enqueue(ia, 0);
+            while (pq.TryDequeue(out int u, out double du))
+            {
+                if (u == ib) break;
+                if (du > dist[u]) continue;
+                foreach (var (v, w) in _adj[u])
+                {
+                    double nd = du + w;
+                    if (nd < dist.GetValueOrDefault(v, double.PositiveInfinity)) { dist[v] = nd; prev[v] = u; pq.Enqueue(v, nd); }
+                }
+            }
+            var o = new List<double[]>();
+            for (int k = ib; ; k = prev[k]) { o.Add([_pts[k].X, _pts[k].Z]); if (k == ia || !prev.ContainsKey(k)) break; }
+            o.Reverse();
+            return [a, .. o, b];
+        }
+
         private double Path(int a, int b)
         {
             if (a == b) return 0;

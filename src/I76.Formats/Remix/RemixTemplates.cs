@@ -763,11 +763,13 @@ public static class RemixTemplates
                   - do: startTimer(clock)
 
             """);
-        string Fails() =>
+        // "led them home" counts only once the hideout is revealed (objective 2 open): a hideout the player has not been told of is no
+        // place he can fail at (a position-based end before its step opens: docs/remix-missions.md "Boundaries")
+        string Fails(bool ledHome = true) =>
             "      - wait:\n" + Death
             + (o.Deadline > 0 ? $"          - when: timeGreater(clock, {o.Deadline})\n            then: failAllObj(6, 3)\n            goto: stop\n" : "")
-            + $"          - when: isWithinNav(hide, user, {hide.Radius}) && isWithinEnemy(user, {clear})\n            then: failAllObj(6, {led})\n            goto: stop\n";
-        y.Append(Fails());
+            + (ledHome ? $"          - when: isWithinNav(hide, user, {hide.Radius}) && isWithinEnemy(user, {clear})\n            then: failAllObj(6, {led})\n            goto: stop\n" : "");
+        y.Append(Fails(ledHome: false));
         y.Append("          - when: lost == 1\n" + Then(12, new[] { "success(1)", "reveal(2)" }.Concat(Open(c, 2)).Concat(Gates(c, c.Spec.Gates.Trap)).Concat(Say(c, c.Spec.Radio.Trap))));
         y.Append(Fails());
         y.Append(Ending(c, $"isWithinNav(hide, user, {hide.Radius})", ["success(2)"]));

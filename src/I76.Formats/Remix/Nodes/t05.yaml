@@ -24,8 +24,7 @@ nodes:
   - {name: south_road, kinds: [home, hideout], at: [8560, 42800], called: the dirt road south of the oil wells}
   - {name: east_cross, kinds: [hideout], at: [10600, 44880], called: the crossroads on the east side}
   - {name: south_spur, kinds: [pickup, hideout, home], at: [8570, 42347], called: half way down the long dirt road south}
-  - {name: spur_bend, kinds: [pickup, hideout], at: [9380, 42962], called: the dirt spur south of the bend}
-  - {name: southwest, kinds: [pickup, hideout, home], at: [6205, 41523], called: 'the southwest road, near its end'}
+  - {name: southwest, kinds: [pickup, hideout, home], at: [6205, 41538], called: 'the southwest road, near its end'}
   - {name: east_far, kinds: [pickup, home], at: [11133, 44880], called: the north road east of the crossroads}
   # places of note: under the Sincere station's canopy, the canyon floor under the high bridge, the road along the rim
   - {name: canopy, kinds: [start, pickup, home], at: [10504, 44907], heading: 180, sort: canopy, inside: {object: bfsince1, nth: 0}, out: [10504, 44884], called: 'under the Sincere station canopy at the east crossroads'}
@@ -42,5 +41,5 @@ entries:
   - {name: northwest, at: [[6340, 44815], [6570, 44660]]}
   - {name: west_mid, at: [[7300, 43910], [7505, 43910]]}
 routes:
-  - {name: road_380, points: [[11900, 44880], [11000, 44880], [10500, 44880], [10000, 44840], [9530, 44645], [9000, 44530], [8500, 44530], [8000, 44530], [7650, 44560]], heading: 270}
-  - {name: up_from_south, points: [[8570, 41747], [8570, 42059], [8570, 42368], [8570, 42675], [8446, 42929], [8146, 43015], [7992, 43280], [7906, 43574], [7596, 43627], [7375, 43810], [7473, 43910]], heading: 0}
+  - {name: road_380, points: [[11000, 44880], [10500, 44880], [10000, 44840], [9530, 44645], [9000, 44530], [8500, 44530], [8000, 44530]], heading: 270}
+  - {name: up_from_south, points: [[8570, 42368], [8570, 42675], [8446, 42929], [8146, 43015], [7992, 43280], [7906, 43574], [7596, 43627], [7375, 43810], [7473, 43910]], heading: 0}

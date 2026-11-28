@@ -405,7 +405,7 @@ on average, 150 s for one leg, 240 s for a long one: an escort's legs, a raid's 
 
 The director places the start near the job's first place (350-1300 m in a straight line, from the table's starts and its nodes, the
 places of note six times as likely), the next places 600-1500 m on (a home node near the pickup rather than back at the map's other
-end; a hideout 900-1500 m from the start), cuts an escort's route at about four minutes at the escorted car's pace, and puts its
+end; a hideout 900-1400 m from the start), cuts an escort's route at about four minutes at the escorted car's pace, and puts its
 ambush a third of the way. Measured (300 rolled jobs; the stock missions: the player's placement to the nearest enemy car, and between
 enemy groups): first contact median 92 s before, 47 s after (stock 58 s); between events median 104 s before, 62 s after (stock 54 s);
 over budget 49 % before, 0 after. Tatum Tail and Back to Spanner declare their own long budgets (a winding drive; a race).
@@ -662,3 +662,56 @@ About nine in ten radio moments get a spoken line; place lines are rare, as few 
 
 The round-five radio cut (`06sgc15@1625-2895`) never reached the player: the CB queue cut every name at 15 characters, its span
 with it. A cut's name is now kept whole (`CbRadio.Queued`).
+
+## Boundaries
+
+The owner: "careful that we don't end missions by being CLOSE to the boundaries when we start them close to the boundaries". Every way a
+generated job can end by where a car is (`RemixBounds`, `src/I76.Sim/Missions/RemixBounds.cs`):
+
+| What | Where it comes from | Kept in generated jobs | Test, radius | Outcome |
+|---|---|---|---|---|
+| Leaving the map | the stock leave-map library routine, one thread per exit (`exit1`, `exit2` ...; the `exitNa` paths are the drive-off, not watched) | every template, every map (T01 2 exits, T02 4, T03 2, T05 7, T06 4, T07 1, T08 4, T09 2, T10 5, T11 6, T12 4, T13 4, T14 4, T15 2, T16 2, T17 1), less a description's `drop_exits` | a square on the exit path's first point (isWithinSqNav): CB warnings at 275 and 175, the mission failed at 50 (`failAllObj(6, 2)`), then the car driven off along the exit | failure line 2 ("You can't just leave."): RANDOM JOB and the scenarios fail; a roguetrip's job is a **bust** (`RemixRun.Classify`), its debrief saying the line. Co-op: that player is put back beside a teammate (the routine per human); the job fails only with nobody to come back to |
+| The map's edge | the engine (the original's: docs/deviations.md "Off the map") | — | no rule; off the map's tiles the ground falls to 0, and a drop of more than 35 m kills the car | a death (single player: the run's end; co-op: out of the job). Most edges are walls the car cannot climb |
+| A convoy through | intercept / ambush template | yes | the convoy's lead within its exit's radius (120) | failure 3: a bust. The convoy's position, not the player's |
+| Led them home | tail template | yes, now only once the hideout is revealed (objective 2): before, reaching an unrevealed hideout with a pursuer near failed the job | at the hideout with an enemy within the lost radius | failure: a bust |
+| Escape, way out, home, finish | raid, deliver, intercept, ambush, escort finish | yes | counted only once its step is open (the finish `finish_after` seconds after) | a win |
+| A leash | none: the generator adds none (T17's stock leash is a mission thread, dropped) | — | — | — |
+
+**What was found** (`i76 remix bounds --seeds 1-2000 --grid 5 --places`, 2,549 jobs: 2,000 rolled, 5 of every map's every template,
+every start and place of note as a forced start; each measured with a co-op crew of eight, the routine's own square measure):
+- before: 309 jobs (12.1 %) with a start, seat or first drive inside a leave-map warning, or a 200 m wander off the first drive into the
+  fail; 282 (11.1 %) packed (below). The cause was the node tables' convoy roads, which ran past exits into the drive-off stubs: T02's
+  crossroad road ran from beyond its east exit (the convoy parked 350 m past it) to beyond its west exit, T05's 380 began past its
+  east exit, T14's two western and northeastern roads, T10's road through Tatum passing two exits, T05's spur south of the bend on an
+  exit road; a few starts and places 265-348 m from an exit (T14's northeast) or at the map's edge (T17's northwest, T01's farm road).
+- after: 0 of 2,539 at risk (the grid lost T05's ambush and T17's intercept, whose only roads ran by an exit or past the only starts);
+  packed 12, every one a forced start set down at the job's own pickup (the measure's, not the director's). A co-op run's first
+  offers for two players (1,500 runs, 4,500 jobs): 698 (15.5 %) at risk and 528 packed before, none after.
+
+**The rules** (version 7 of the builder: run and job numbers roll other jobs than before; in co-op host and guest update together):
+- **Margins** (`RemixBoundsTable`; `i76 remix check --nodes` and `RemixBoundsTests`): every start, place, cluster and escort road's ends
+  **350 m** from every exit's trigger on the routine's square: the first warning (275) plus the farthest seat of a crew of eight in
+  formation (52 m, measured over 2,549 starts) and a little; every convoy road point, its parking and its end **300 m**, so a chase
+  along it, and a 200 m wander off it, never reaches the fail (50); starts and places **100 m** from the end of the map's tiles. Tables
+  broken by them were put right by hand (roads trimmed inside their exits, places moved 15-30 m and T14's northeast start down its road, T10's road through Tatum and T05's
+  spur south of the bend dropped).
+- **A job** (`RemixBounds.Problems`, in `i76 remix check` and the tests): the start 350 m from every exit; every seat of a crew of eight
+  outside the first warning; every place the player must reach 300 m; the drive to the first event (along the roads, its first 1.3 km)
+  outside the first warning, and a 200 m wander off it toward the nearest exit short of the fail; the start and the seats 100 m from
+  the map's edge.
+- **The outcome**: near is a warning and nothing more; leaving is the stock routine's own gate (50 m of the exit's trigger, after its two
+  warnings), a bust with its line. The trigger was not moved outward ("only by actually crossing out"): the exit paths' direction does
+  not say which side is off the map (T06's exit3 path runs north into the map), so the original's gate is kept. In co-op the rule is per
+  player (put back) and ends the job only with every living player gone, as for every co-op mission.
+
+## Spacing
+
+Round five holds a job's drives to a most (its pacing budget); `RemixSpacing` holds them to a least, so a job is not over in seconds or
+its marks told apart on the map. The stock trip missions' own spacing (`i76 remix pace --stock`): first contact median 58 s (as low as 7 s,
+T12's tanker, and 14 s, T14), between enemy groups median 54 s (as low as 15-23 s). The floors: any two of a job's marks **350 m** apart
+(a place the job sends the player back to, a home, an escape or the finish near the start or the goal, is near by design and not
+counted), the first event **350 m** from the start (round five's start rule, which a fallback could break), and an intercept's start
+**250 m** off its convoy's own road (the convoy would drive into the player at once: the owner's run 850764, job 2, whose start sat on
+T02's crossroad road between the convoy and its way out, all four marks in one row). The director now picks an intercept's road and
+start together so that one is clear of the other (`RemixDirector`, "intercept"). `i76 remix check` fails a job under a floor;
+`i76 remix bounds` prints the at-risk and packed jobs and counts.

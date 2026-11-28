@@ -10,11 +10,11 @@ cast:
   - {name: Cloaker, side: gang}
 stock_action: [[3195, 47115], [2985, 46150], [2975, 46530], [2820, 45560]]
 starts:
-  - {name: northwest, at: [2020, 47905], heading: 130, called: at the northwest end of the oil field road}
+  - {name: northwest, at: [2149, 47768], heading: 130, called: near the northwest end of the oil field road}
   - {name: north, at: [2406, 47665], heading: 90, called: on the oil field road north of the pumps}
   - {name: south, at: [2914, 46440], heading: 30, called: on the oil field road south of the pumps}
 nodes:
-  - {name: northwest, kinds: [hideout, home], at: [2020, 47905], called: the northwest end of the oil field road}
+  - {name: northwest, kinds: [hideout, home], at: [2149, 47768], called: near the northwest end of the oil field road}
   - {name: north_ground, kinds: [hideout], at: [2620, 47865], called: the open ground north of the oil field road}
   - {name: north, kinds: [pickup, home], at: [2406, 47665], called: the oil field road north of the pumps}
   - {name: north_pumps, kinds: [pickup, yard], at: [2863, 47657], called: the north pumps}
@@ -28,7 +28,7 @@ entries:
   - {name: south, at: [[3325, 45745], [3250, 45846]]}
   - {name: east, at: [[3215, 46843], [3148, 46736]]}
 routes:
-  - {name: out_south, heading: 130, exit: [3240, 45889], points: [[2020, 47905], [2199, 47730], [2457, 47666], [2737, 47667], [2994, 47607], [3114, 47324], [3168, 47065], [3205, 46824], [3034, 46602], [2885, 46347], [2995, 46152], [3217, 46032], [3240, 45889]]}
+  - {name: out_south, heading: 130, exit: [3217, 46032], points: [[2020, 47905], [2199, 47730], [2457, 47666], [2737, 47667], [2994, 47607], [3114, 47324], [3168, 47065], [3205, 46824], [3034, 46602], [2885, 46347], [2995, 46152], [3217, 46032]]}
   - {name: up_the_field, escort: true, called: the northwest end of the oil field road, heading: 30, points: [[2914, 46440], [3074, 46649], [3226, 46893], [3139, 47133], [3089, 47382], [2942, 47639], [2674, 47669], [2406, 47665], [2149, 47768], [2020, 47905]]}
 clusters:
   - name: north_pumps
