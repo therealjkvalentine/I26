@@ -246,14 +246,16 @@ public partial class NapalmModern : Node3D
         float flick = 0.8f + 0.2f * Mathf.Sin((float)_t * 41f + s.Style) * Mathf.Sin((float)_t * 17f) + 0.1f * _rng.Randf();
         float sc = StyleSize[s.Style];
         bool on = s.Alive && s.Reach > 0.5f;
+        float tl = ThrownLight.EffectNow;   // Graphic Detail's Thrown Light
         if (on)
         {
             s.Nozzle ??= NewLight(); s.Impact ??= NewLight();
             s.Nozzle.Position = s.C[0] + Vector3.Up * 0.3f;
-            s.Nozzle.LightEnergy = 1.4f * flick * sc; s.Nozzle.OmniRange = 5f * sc + 2f; s.Nozzle.Visible = true;
+            s.Nozzle.LightCullMask = s.Impact.LightCullMask = ThrownLight.MaskNow();
+            s.Nozzle.LightEnergy = 1.4f * flick * sc * tl; s.Nozzle.OmniRange = 5f * sc + 2f; s.Nozzle.Visible = true;
             bool hit = s.FirstHit >= 0 && s.FirstHit < s.Count - 1;
             s.Impact.Visible = hit || s.Glow > 0f;
-            if (hit) { s.Impact.Position = s.HitAt + Vector3.Up * 0.8f; s.Impact.LightEnergy = 2.6f * flick * sc; s.Impact.OmniRange = 7f * sc + 2f; }
+            if (hit) { s.Impact.Position = s.HitAt + Vector3.Up * 0.8f; s.Impact.LightEnergy = 2.6f * flick * sc * tl; s.Impact.OmniRange = 7f * sc + 2f; }
         }
         else
         {
@@ -261,7 +263,8 @@ public partial class NapalmModern : Node3D
             if (s.Impact is not null)
             {
                 s.Impact.Visible = s.Glow > 0f;
-                s.Impact.Position = s.HitAt + Vector3.Up * 0.8f; s.Impact.LightEnergy = 2.6f * flick * sc * s.Glow;
+                s.Impact.LightCullMask = ThrownLight.MaskNow();
+                s.Impact.Position = s.HitAt + Vector3.Up * 0.8f; s.Impact.LightEnergy = 2.6f * flick * sc * s.Glow * tl;
             }
         }
     }

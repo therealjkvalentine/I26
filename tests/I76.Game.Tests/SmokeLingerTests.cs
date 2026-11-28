@@ -5,8 +5,8 @@ using Xunit;
 namespace I76.Game.Tests;
 
 /// <summary>
-/// [port] smoke_linger (SmokeLinger): how long the modern look's smoke hangs in the air, in percent of each smoke's own life, 150 by
-/// default, 100 to 300; the pools that hold the puffs grow with it; visual only.
+/// [port] smoke_linger (SmokeLinger): how long the modern look's smoke hangs in the air, in percent of each smoke's own life, 200 by
+/// default (150 until the end of each puff was eased out, SmokeFade), 100 to 300; the pools that hold the puffs grow with it; visual only.
 /// </summary>
 [Collection("SmokeStatics")]
 public class SmokeLingerTests
@@ -19,12 +19,12 @@ public class SmokeLingerTests
     }
 
     [Fact]
-    public void TheDefaultIsHalfAsLongAgainAndIsNotWritten()
+    public void TheDefaultIsTwiceAsLongAndIsNotWritten()
     {
-        Assert.Equal(150, SmokeLinger.Default);
-        Assert.Equal(150, new ShellSettings().SmokeLinger);
+        Assert.Equal(200, SmokeLinger.Default);
+        Assert.Equal(200, new ShellSettings().SmokeLinger);
         Assert.Empty(Cfg(new ShellSettings()));
-        foreach (int p in new[] { 100, 125, 200, 300 })
+        foreach (int p in new[] { 100, 125, 150, 300 })
         {
             var text = Cfg(new ShellSettings { SmokeLinger = p });
             Assert.Equal(new Dictionary<string, string> { ["smoke_linger"] = p.ToString(System.Globalization.CultureInfo.InvariantCulture) }, text);
@@ -35,11 +35,11 @@ public class SmokeLingerTests
     }
 
     [Theory]
-    [InlineData(null, 150)]
-    [InlineData("", 150)]
-    [InlineData("long", 150)]
+    [InlineData(null, 200)]
+    [InlineData("", 200)]
+    [InlineData("long", 200)]
     [InlineData("100", 100)]
-    [InlineData("200", 200)]
+    [InlineData("150", 150)]
     [InlineData("50", 100)]     // never shorter than the lives as they were
     [InlineData("999", 300)]
     public void TheFilesWordIsClamped(string? word, int percent) => Assert.Equal(percent, SmokeLinger.Parse(word));
@@ -74,17 +74,17 @@ public class SmokeLingerTests
         int was = SmokeLinger.Percent;
         try
         {
-            OriginalBehavior.Apply(new ShellSettings { SmokeLinger = 200 });
-            Assert.Equal(200, SmokeLinger.Percent);
-            OriginalBehavior.Apply(new ShellSettings());
+            OriginalBehavior.Apply(new ShellSettings { SmokeLinger = 150 });
             Assert.Equal(150, SmokeLinger.Percent);
+            OriginalBehavior.Apply(new ShellSettings());
+            Assert.Equal(200, SmokeLinger.Percent);
         }
         finally { SmokeLinger.Percent = was; }
         var e = Assert.Single(I76.Game.Ui.DevSettings.All, e => e.Key == "smoke_linger");
         Assert.Equal(DevWhenLive, e.When);
         // the original's lives unmarked, the port's longer ones marked
         Assert.Equal(["100", "125*", "150*", "200*", "300*"], e.Values);
-        Assert.Equal("150*", e.Values[e.Get(new ShellSettings())]);
+        Assert.Equal("200*", e.Values[e.Get(new ShellSettings())]);
         Assert.Equal("200*", e.Values[e.Get(new ShellSettings { SmokeLinger = 180 })]);
     }
 

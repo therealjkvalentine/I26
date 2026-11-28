@@ -367,7 +367,8 @@ public partial class FireDrops : Node3D
             float t = (float)_t + best.Variant;
             float flick = 0.72f + 0.12f * MathF.Sin(t * 13.1f) + 0.09f * MathF.Sin(t * 7.3f + 1.3f) + 0.07f * MathF.Sin(t * 23.7f + 4.1f);
             li.GlobalPosition = (best.Joined ? (best.From + best.Pos) / 2 : best.Pos) + Vector3.Up * 1.2f;
-            li.LightEnergy = best.Level * 2.6f * flick;
+            li.LightEnergy = best.Level * 2.6f * flick * ThrownLight.EffectNow;   // Graphic Detail's Thrown Light
+            li.LightCullMask = ThrownLight.MaskNow();
             li.OmniRange = 6f + (best.Joined ? 4f : 0f);
             li.Visible = true;
         }

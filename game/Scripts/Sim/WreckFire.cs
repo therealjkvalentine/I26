@@ -156,7 +156,8 @@ public partial class WreckFire : Node3D
         // a fire's flicker: three unrelated sines, never quite repeating; dimmer, steadier embers after the flames
         float t = (float)_age * 1f + _phase;
         float flick = 0.72f + 0.12f * Mathf.Sin(t * 13.1f) + 0.09f * Mathf.Sin(t * 7.3f + 1.3f) + 0.07f * Mathf.Sin(t * 23.7f + 4.1f);
-        _light.LightEnergy = flames * 3.2f * flick + heat * 0.7f * (0.9f + 0.1f * Mathf.Sin(t * 2.3f));
+        _light.LightEnergy = (flames * 3.2f * flick + heat * 0.7f * (0.9f + 0.1f * Mathf.Sin(t * 2.3f))) * ThrownLight.EffectNow;   // Graphic Detail's Thrown Light
+        _light.LightCullMask = ThrownLight.MaskNow();
         _light.OmniRange = 6f + 5f * flames;
         _light.Visible = modern && _light.LightEnergy > 0.02f;
         // the smoke in the air has drifted off: done
