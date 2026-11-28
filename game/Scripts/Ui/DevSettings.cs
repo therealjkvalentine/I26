@@ -207,6 +207,8 @@ public static class DevSettings
             s => { I76.Game.Sim.DashLight.Percent = s.DashLight; I76.Game.Sim.DashLight.Refresh(); }),
         new("headlamp_throw", HeadlampThrowNames, s => Nearest(HeadlampThrowSteps, s.HeadlampThrow), (s, v) => s.HeadlampThrow = HeadlampThrowSteps[v], DevWhen.Live,
             s => I76.Game.Sim.HeadlampThrow.Percent = s.HeadlampThrow),
+        new("gun_smoke", ["off", "light" + M, "heavy" + M], s => (int)s.GunSmoke, (s, v) => s.GunSmoke = (I76.Game.Sim.GunSmoke.Level)v, DevWhen.Live,
+            s => I76.Game.Sim.GunSmoke.Setting = s.GunSmoke),
         new("thrown_light", ["original", "bright" + M], s => s.ThrownLightBright ? 1 : 0, (s, v) => s.ThrownLightBright = v != 0, DevWhen.Live,
             s => I76.Game.Sim.ThrownLight.Bright = s.ThrownLightBright),
         new("muzzle_reach", MuzzleReachNames, s => Nearest(MuzzleReachSteps, s.MuzzleReach), (s, v) => s.MuzzleReach = MuzzleReachSteps[v], DevWhen.Live,

@@ -138,7 +138,7 @@ public class SmokeFadeTests
         foreach (var file in new[] { "DamageSmoke.cs", "RocketSmoke.cs" })
         {
             string src = Repo("game", "Scripts", "Sim", file);
-            Assert.Contains("SmokeHaze.On ? (lf, size", src);
+            Assert.True(src.Contains("SmokeHaze.On ? (lf, size") || src.Contains("SmokeHaze.On && !p.Brief ? (lf, size"));
             Assert.Contains("SmokeFade.Out(lf)", src);
             Assert.Contains("SmokeFade.Size(", src);
             Assert.Contains("SmokeFade.Retire(p.Gone)", src);

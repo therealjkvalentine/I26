@@ -66,7 +66,8 @@ public partial class DamageSmoke : Node3D
     // Haze: past its life under Smoke Linger Long (SmokeHaze): S its size, K its growth (area a second), Mass its smoke (density times
     // area), Into the puff it is handing its smoke to (-1 none) and Mass0 what it had when it began to; an adopted one (Adopt) Waits
     // that long in the haze, unseen and still, then shows over FadeIn
-    private struct MPuff { public bool Live, Far, Haze; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Dark, Seed, Lift, S, K, Mass, Mass0, Wait, FadeIn, Gone; public int Into; }
+    private struct MPuff { public bool Live, Far, Haze; public double X, Y, Z; public float Vx, Vy, Vz, Age, Life, End, Dens, Dark, Seed, Lift, S, K, Mass, Mass0, Wait, FadeIn, Gone, Start; public int Into; public bool Brief; }
+    // Start: its size at birth (0.8 m, a gun's puff smaller); Brief: a gun's puff (GunPuff): it ends with its life under Long too, and the air holds it
     // Gone: seconds left of its fade when the pool takes it back (SmokeFade.Retire; 0 none)
     private readonly MPuff[] _mp = new MPuff[CapM];
     private int _mnext;
@@ -106,7 +107,7 @@ public partial class DamageSmoke : Node3D
     private static (float Life, float Size, float Dens) Young(in MPuff p)
     {
         float lf = p.Age / p.Life, size = SmokeHaze.PuffSize(0.8f, p.End, lf);
-        return SmokeHaze.On ? (lf, size, p.Dens) : (lf, SmokeFade.Size(0.8f, p.End, lf), p.Dens * SmokeFade.Out(lf));
+        return SmokeHaze.On && !p.Brief ? (lf, size, p.Dens) : (lf, SmokeFade.Size(p.Start, p.End, lf), p.Dens * SmokeFade.Out(lf));
     }
     private readonly MultiMesh[] _slabMm = new MultiMesh[SlabFar.Length];
     private readonly float[][] _slabBuf = new float[SlabFar.Length][];
@@ -386,7 +387,7 @@ public partial class DamageSmoke : Node3D
             if ((p.Age += (float)dt) >= p.Life)
             {
                 // Smoke Linger Long: past its life the puff spreads on as a thinning haze (SmokeHaze), and goes only once it is faint
-                if (!hazeOn) { p.Live = false; continue; }
+                if (!hazeOn || p.Brief) { p.Live = false; continue; }
                 if (!p.Haze) { p.Haze = true; p.S = p.End; p.K = SmokeHaze.Growth(p.End, p.Dens); p.Mass = p.Mass0 = p.Dens * p.End * p.End; p.Into = -1; }
                 if (!HazeStep(i, ref p, (float)dt, threshold)) { p.Live = false; continue; }
                 liveM++; haze++;
@@ -397,8 +398,9 @@ public partial class DamageSmoke : Node3D
             // rises and slows, and the car's push bleeds off into the wind: the trail streams back
             float up = 2.0f * p.Lift * (1f - lf) * (1f - lf);
             p.Vy += (up - p.Vy) * Math.Min(1f, 1.2f * (float)dt);
-            float k = Math.Min(1f, 0.9f * (float)dt);
+            float k = Math.Min(1f, (p.Brief ? GunSmoke.Drag : 0.9f) * (float)dt);
             p.Vx += (Wind.X - p.Vx) * k; p.Vz += (Wind.Z - p.Vz) * k;
+            if (p.Brief) p.Vy += (0.3f - p.Vy) * k;   // a gun's puff: the air holds it, a little warm rise
             p.X += dt * p.Vx; p.Y += dt * p.Vy; p.Z += dt * p.Vz;
         }
         _liveM = liveM;
@@ -565,6 +567,28 @@ public partial class DamageSmoke : Node3D
     }
 
     /// <summary>
+    /// A firing gun's puff (GunSmoke): at <paramref name="at"/> (game axes), leaving with <paramref name="vel"/>, light grey-white, its size,
+    /// density and life from <paramref name="g"/>; it grows and fades out over its life (SmokeFade) and ends with it under Long too. Never a
+    /// slot still showing: when the pool has none free the puff is not made (the pool retires its oldest ahead of the ring).
+    /// </summary>
+    public static void GunPuff(System.Numerics.Vector3 at, System.Numerics.Vector3 vel, GunSmoke.Puff g)
+    {
+        if (Current is not { _ready: true, _modern: true } s) return;
+        int pool = SmokeHaze.On ? CapM : SmokeLinger.Pool(CapBase);
+        s._mnext %= pool;
+        for (int tries = 0; tries < 256 && s._mp[s._mnext].Live; tries++) s._mnext = (s._mnext + 1) % pool;
+        if (s._mp[s._mnext].Live) return;
+        ref var p = ref s._mp[s._mnext];
+        s._mnext = (s._mnext + 1) % pool;
+        float r1 = (float)s._rng.NextDouble(), r2 = (float)s._rng.NextDouble(), r3 = (float)s._rng.NextDouble();
+        p = new MPuff
+        {
+            Live = true, Brief = true, X = at.X, Y = at.Y, Z = at.Z, Vx = vel.X, Vy = vel.Y, Vz = vel.Z,
+            Life = g.Life * (0.85f + 0.3f * r1), Start = g.Start, End = g.Final * (0.85f + 0.3f * r2) / SmokeFade.Grow, Dens = g.Dens, Dark = 0f, Seed = r3, Lift = 0f,
+        };
+    }
+
+    /// <summary>
     /// Smoke Linger Long (SmokeHaze): another smoke's puff taken on into this haze when its own life ends: a rocket's or a mortar
     /// round's trail (RocketSmoke), an explosion's smoke (ModernFx). <paramref name="at"/> and <paramref name="vel"/> in game axes;
     /// <paramref name="size"/> and <paramref name="dens"/> as the puff was last drawn, <paramref name="life"/> its own life (the shader's
@@ -632,7 +656,7 @@ public partial class DamageSmoke : Node3D
             Live = true, Far = far, X = g.X - vel.X * back, Y = g.Y, Z = g.Z - vel.Z * back,
             Vx = vel.X * 0.15f + (r4 - 0.5f) * 0.8f * SmokeHaze.Scatter, Vy = (1.2f + r5) * lift, Vz = vel.Z * 0.15f + (r5 - 0.5f) * 0.8f * SmokeHaze.Scatter,
             Life = 2f + 2f * r1 * r4 + 1.2f * r2 * (level / 2f), End = (1.6f + 2.6f * r2 * r2 + 0.6f * r4) * sizeMul, Dens = dens, Lift = lift,
-            Dark = level < 1 ? level * 0.4f : Mathf.Lerp(0.4f, 1f, Mathf.Clamp((level - 1f), 0f, 1f)), Seed = r3,
+            Dark = level < 1 ? level * 0.4f : Mathf.Lerp(0.4f, 1f, Mathf.Clamp((level - 1f), 0f, 1f)), Seed = r3, Start = 0.8f,
         };
         // [port] smoke_linger: the whole life longer, so it swells and erodes away over the longer time
         p.Life = Math.Min(p.Life, 4f) * SmokeLinger.LifeFactor;

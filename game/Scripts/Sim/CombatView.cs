@@ -635,12 +635,23 @@ public partial class CombatView : Node3D
         mf.Node.Visible = true;
         ModernFx.SetMuzzleFlash(mf.Node, 0, (float)GD.Randf(), e);
         _muzzleFlashes[s.Weapon] = (mf.Node, _t, e);
-        // smoke at most ten times a second a gun, so a machine gun leaves a haze rather than a wall
-        if (!_lastSmoke.TryGetValue(s.Weapon, out var last) || _t - last > 0.1)
+        // smoke at most ten times a second a gun, so a machine gun leaves a haze rather than a wall (the look before [port] gun_smoke;
+        // light and heavy draw the smoke layer's puffs instead: GunPuff)
+        if (GunSmoke.Now == GunSmoke.Level.Off && (!_lastSmoke.TryGetValue(s.Weapon, out var last) || _t - last > 0.1))
         {
             _lastSmoke[s.Weapon] = _t;
             _fx.GunSmoke(G(s.Muzzle + s.Forward * (l * 0.5f)), Coords.ToGodot(s.Forward), w * 2);
         }
+    }
+
+    private readonly Dictionary<Weapon, double> _lastGunPuff = [];
+
+    /// <summary>A gun's smoke puff ([port] gun_smoke): at most one every GunSmoke.Puff.Every seconds a gun, at the muzzle.</summary>
+    private void GunPuff(ShotFired s, GunSmoke.Puff gp)
+    {
+        if (_lastGunPuff.TryGetValue(s.Weapon, out var last) && _t - last < gp.Every) return;
+        _lastGunPuff[s.Weapon] = _t;
+        DamageSmoke.GunPuff(s.Muzzle + s.Forward * 0.4f, GunSmoke.Start(s.Shooter.Vel, s.Forward), gp);
     }
 
     /// <summary>The modern muzzle lights on each weapon (MuzzleReach), re-lit by every shot: the near, the far and the cabin's, shown for the flash's life.</summary>
@@ -918,6 +929,8 @@ public partial class CombatView : Node3D
                             _evenFlashes.Add((_t + System.Math.Max(0, s.Lead - (Alpha?.Invoke() ?? 1f) * SimClock.Tick), s, ml));
                         else Animate(ml, s.Muzzle + s.Forward * 0.3f, CarOf?.Invoke(s.Shooter), s.Weapon.MuzzlePos + s.Weapon.MuzzleRot.Forward * 0.3f);
                     }
+                    // [port] gun_smoke: the guns' smoke through the smoke layer, from the cockpit too (GunSmoke)
+                    if (IsModern && MuzzleLook(s.Weapon.Def.MuzzleFlash) is not null && GunSmoke.For(s.Weapon.Def.Kind, GunSmoke.Now) is { } gp) GunPuff(s, gp);
                     if (IsModern && !IsDropped(s.Weapon.Def.Kind) && s.Weapon.Def.Class != 5 && G(s.Muzzle).DistanceTo(CameraPos()) < 250)
                         MuzzleLight(s);
                     break;
