@@ -41,6 +41,27 @@ public partial class MissionPicture : Control
     public IReadOnlyList<string> Notes { get; init; } = [];
     /// <summary>A remix map's landmarks (a town, a fort) on the 640 x 480 sheet: a small square, lettered in the roads' sepia; with them the road key.</summary>
     public IReadOnlyList<(Vector2 At, string Label)> Landmarks { get; init; } = [];
+    /// <summary>Where a remix map's sketch inks the sheet (sheet pixels): the marks' words keep off it where they can.</summary>
+    public Func<int, int, bool>? Inked { get; init; }
+
+    /// <summary>A remix map's marks' and landmarks' words (RoguetripLayout.JobMarks, the routine the choice screen's job map uses), laid out once.</summary>
+    private I76.Game.Shell.RoguetripLayout.MarkPlan? _labels;
+    /// <summary>The marks' and landmarks' lettering sizes at the sheet's own scale (640 x 480), and a mark's outer ring.</summary>
+    public const int MarkSize = 15, LandSize = 13;
+    public const float MarkRing = 13;
+
+    /// <summary>
+    /// The map's words placed (sheet pixels): each mark's (merged where marks share a place: "START / HOME") beside its ring, clear of
+    /// every other word, ring, landmark and the route between the marks, as little on the roads and walls as it can, further out with a
+    /// leader where it must; then the landmarks' names where room is left (they yield: one with no room is left out).
+    /// </summary>
+    public static I76.Game.Shell.RoguetripLayout.MarkPlan LabelPlan(IReadOnlyList<(Vector2 At, string Label)> marks, IReadOnlyList<(Vector2 At, string Label)> landmarks,
+        IReadOnlyList<Vector2[]> routes, Func<string, float> markWidth, float markH, Func<string, float> landWidth, float landH, Func<int, int, bool>? inked)
+    {
+        var bounds = new I76.Game.Shell.RoguetripLayout.Box(30, 62, 580, 388);
+        return I76.Game.Shell.RoguetripLayout.JobMarks([.. marks.Select(m => (m.Label, m.At.X, m.At.Y))], bounds, markWidth, markH, MarkRing, inked,
+            [.. routes.Select(r => r.Select(p => (p.X, p.Y)).ToArray())], [.. landmarks.Select(l => (l.Label, l.At.X, l.At.Y))], landWidth, landH);
+    }
     /// <summary>Drawn only (a loading screen's picture): no key closes it.</summary>
     public bool Passive { get; init; }
     /// <summary>The key that closed it, to be acted on as usual.</summary>
@@ -149,17 +170,13 @@ public partial class MissionPicture : Control
             DrawString(Lee!, o + new Vector2(44, fy) * s, note, HorizontalAlignment.Left, 552 * s, tiny, ink);
             fy += 12;
         }
-        // the landmarks, for bearings: a small square in the roads' sepia, the name beside it smaller than a mark's
+        // the words' places (once: measured at the sheet's own size, so the layout is the same at any window size)
         var sepia = Color.Color8(92, 58, 26);
-        int land = Mathf.Max(1, Mathf.RoundToInt(13 * s));
-        foreach (var (at, label) in Landmarks)
-        {
-            var p = o + at * s;
-            DrawRect(new Rect2(p - new Vector2(3, 3) * s, new Vector2(6, 6) * s), sepia);
-            float lw = Lee!.GetStringSize(label, HorizontalAlignment.Left, -1, land).X;
-            var lp = at.X * s + 8 * s + lw > 630 * s ? p + new Vector2(-8 * s - lw, 4 * s) : p + new Vector2(8 * s, 4 * s);
-            DrawString(Lee, lp, label, HorizontalAlignment.Left, -1, land, sepia);
-        }
+        int land = Mathf.Max(1, Mathf.RoundToInt(LandSize * s));
+        _labels ??= LabelPlan(Marks, Landmarks, Routes, t => Lee!.GetStringSize(t, HorizontalAlignment.Left, -1, MarkSize).X, Lee!.GetHeight(MarkSize),
+            t => Lee!.GetStringSize(t, HorizontalAlignment.Left, -1, LandSize).X, Lee!.GetHeight(LandSize), Inked);
+        // the landmarks, for bearings: a small square in the roads' sepia
+        foreach (var (lx, ly, _) in _labels.Landmarks) DrawRect(new Rect2(o + (new Vector2(lx, ly) - new Vector2(3, 3)) * s, new Vector2(6, 6) * s), sepia);
         // the road key (a whole map's roads are drawn by kind) in the top left corner, under the sheet's edge
         if (Landmarks.Count > 0 || Title is not null)
         {
@@ -173,15 +190,26 @@ public partial class MissionPicture : Control
                 ky += 11;
             }
         }
-        foreach (var (at, label) in Marks)
+        foreach (var (rx, ry, label) in _labels.Rings)
         {
-            var p = o + at * s;
-            // a mark the player must make for: a double ring, so it stands out from the landmarks and the start
-            if (!label.StartsWith("START", StringComparison.Ordinal)) DrawArc(p, 13 * s, 0, Mathf.Tau, 28, ink, Mathf.Max(1f, 1f * s));
+            var p = o + new Vector2(rx, ry) * s;
+            // a mark the player must make for: a double ring, so it stands out from the landmarks and the start (a shared ring with
+            // START in it is a place to make for too)
+            if (label != "START") DrawArc(p, 13 * s, 0, Mathf.Tau, 28, ink, Mathf.Max(1f, 1f * s));
             DrawArc(p, 9 * s, 0, Mathf.Tau, 24, ink, Mathf.Max(1f, 1.5f * s));
-            float lw = Lee!.GetStringSize(label, HorizontalAlignment.Left, -1, small).X;
-            var lp = at.X * s + 14 * s + lw > 630 * s ? p + new Vector2(-14 * s - lw, 5 * s) : p + new Vector2(14 * s, 5 * s);
-            DrawString(Lee, lp, label, HorizontalAlignment.Left, -1, small, ink);
+        }
+        // the leaders, then every word over a halo of the paper (the route and the roads run under the lettering)
+        var paper = RemixMapPicture.Paper;
+        foreach (var l in _labels.Labels)
+            if (I76.Game.Shell.RoguetripLayout.Leader(l, l.Kind == "landmark" ? 4 : MarkRing) is var (x0, y0, x1, y1))
+                DrawLine(o + new Vector2(x0, y0) * s, o + new Vector2(x1, y1) * s, l.Kind == "landmark" ? sepia : ink, Mathf.Max(1f, 1f * s), true);
+        foreach (var l in _labels.Labels)
+        {
+            bool mark = l.Kind != "landmark";
+            int size = mark ? small : land;
+            var at = o + new Vector2(l.Rect.X, l.Rect.Y) * s + new Vector2(0, Lee!.GetAscent(size));
+            DrawStringOutline(Lee, at, l.Text, HorizontalAlignment.Left, -1, size, Mathf.Max(2, Mathf.RoundToInt(4 * s)), paper);
+            DrawString(Lee, at, l.Text, HorizontalAlignment.Left, -1, size, mark ? ink : sepia);
         }
     }
 

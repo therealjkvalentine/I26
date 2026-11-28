@@ -40,7 +40,7 @@ public partial class RemixLoadingCard : Control
             AddChild(box);
             box.AddChild(new MissionPicture
             {
-                What = MissionPicture.Kind.Map, Picture = pic.Picture, Lee = _lee, Marks = pic.Marks, Title = pic.Title, Routes = pic.Lines,
+                What = MissionPicture.Kind.Map, Picture = pic.Picture, Lee = _lee, Marks = pic.Marks, Title = pic.Title, Routes = pic.Lines, Inked = pic.Inked,
                 Landmarks = pic.Landmarks, Passive = true, Closed = _ => { },
             });
         }
