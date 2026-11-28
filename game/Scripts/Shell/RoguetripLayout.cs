@@ -26,7 +26,25 @@ public static class RoguetripLayout
     public sealed record Segment(float X0, float Y0, float X1, float Y1, Ink Kind);
 
     /// <summary>A word set down: its text, the box its cell fills (Frame.Text's top left and the font's height), what it names.</summary>
-    public sealed record Placed(string Text, Box Rect, string Kind);
+    public sealed record Placed(string Text, Box Rect, string Kind)
+    {
+        /// <summary>The mark the word names (a job map's ring or landmark), for its leader line.</summary>
+        public float AX { get; init; } = float.NaN;
+        public float AY { get; init; } = float.NaN;
+    }
+
+    /// <summary>
+    /// A word set away from its mark gets a short leader: from the ring's edge (<paramref name="ring"/> out) to the word's nearest
+    /// point, when that is more than a few pixels beyond the ring. Null when the word sits close by (or names no mark).
+    /// </summary>
+    public static (float X0, float Y0, float X1, float Y1)? Leader(Placed l, float ring)
+    {
+        if (float.IsNaN(l.AX)) return null;
+        float nx = Math.Clamp(l.AX, l.Rect.X, l.Rect.Right), ny = Math.Clamp(l.AY, l.Rect.Y, l.Rect.Bottom);
+        float dx = nx - l.AX, dy = ny - l.AY, d = MathF.Sqrt(dx * dx + dy * dy);
+        if (d <= ring + 7) return null;
+        return (l.AX + dx / d * (ring + 1), l.AY + dy / d * (ring + 1), nx - dx / d * 1.5f, ny - dy / d * 1.5f);
+    }
 
     /// <summary>A mark: a town's dot, a trip map's ring ("map"), one the run has been to ("visited").</summary>
     public sealed record Dot(float X, float Y, string Kind);
@@ -63,6 +81,8 @@ public static class RoguetripLayout
     public static readonly Box MapBox = Sheet;
     /// <summary>The shown offer's scrap, laid over the map's east side (the trip's maps all lie west of it: the view is centred on them in the rest).</summary>
     public static readonly Box ScrapBox = new(334, 46, 274, 382);
+    /// <summary>The offer's page inside the scrap's paper: the job's map fills it, the notepad slip lies on it.</summary>
+    public static readonly Box PageArea = new(ScrapBox.X + 7, ScrapBox.Y + 7, ScrapBox.W - 14, ScrapBox.H - 14);
     /// <summary>An offer's ring and the chosen one's outer ring, shell pixels.</summary>
     public const float Ring = 10, OuterRing = 14;
 
@@ -116,7 +136,19 @@ public static class RoguetripLayout
     /// The chosen job's map as the screen draws it (box pixels, w x h): the whole map's sketch (ArenaSketch.Whole) and its marks'
     /// words placed (<see cref="JobMarks"/>). Null without the map's terrain.
     /// </summary>
-    public static (I76.Formats.Mission.ArenaSketch Sketch, MarkPlan Marks)? JobMap(I76.Formats.Vfs.GameInstall install, RemixSpec spec, int w, int h, Func<string, float> measure, float textH)
+    public static (I76.Formats.Mission.ArenaSketch Sketch, MarkPlan Marks)? JobMap(I76.Formats.Vfs.GameInstall install, RemixSpec spec, int w, int h, Func<string, float> measure, float textH, float ring = 4)
+    {
+        if (Sketch(install, spec, w, h) is not { } d) return null;
+        // the words inside the sketch's box (its ink layer), never on another's ring or word, as little on its ink as they can
+        return (d.Sketch, JobMarks(d.Marks, new Box(0, 0, w, h), measure, textH, ring, d.Sketch.Inked, d.Routes));
+    }
+
+    /// <summary>
+    /// A job's whole map at a size (box pixels, w x h): its sketch (ArenaSketch.Whole), its marks (START, PICKUP, HOME...), its landmarks
+    /// and its routes, where they fall in the box: what the choice screen's page, the loading card and the map (M) letter.
+    /// </summary>
+    public static (I76.Formats.Mission.ArenaSketch Sketch, List<(string Label, float X, float Y)> Marks, List<(string Label, float X, float Y)> Landmarks, List<(float X, float Y)[]> Routes)?
+        Sketch(I76.Formats.Vfs.GameInstall install, RemixSpec spec, int w, int h)
     {
         if (install.FindMission(spec.Base) is not { } path || spec.Start?.At is not [var sx, var sz]) return null;
         var msn = new I76.Formats.Mission.MissionFile(path);
@@ -128,8 +160,10 @@ public static class RoguetripLayout
             || I76.Formats.Mission.ArenaSketch.Whole(msn, I76.Formats.Mission.TerrainTiles.Load(msn, ter), [.. marks.Points.Select(p => p.At)], [.. marks.Lines.Select(l => l.Points)], exits, w, h) is not { } sk)
             return null;
         var at = marks.Points.Select(p => { var u = sk.InBox(p.At); return (p.Label, u.X * w, u.Y * h); }).ToList();
-        // the words inside the sketch's box (its ink layer), never on another's ring or word, as little on its ink as they can
-        return (sk, JobMarks(at, new Box(0, 0, w, h), measure, textH, inked: sk.Inked));
+        // the job's routes (a convoy's road, an escort's) in the box's pixels: no word on them where it can be helped, no notepad ever
+        var routes = marks.Lines.Select(l => l.Points.Select(q => { var u = sk.InBox(q); return (u.X * w, u.Y * h); }).ToArray()).ToList();
+        var land = marks.Landmarks.Select(l => { var u = sk.InBox(l.At); return (l.Label, u.X * w, u.Y * h); }).ToList();
+        return (sk, at, land, routes);
     }
 
     /// <summary>
@@ -280,7 +314,8 @@ public static class RoguetripLayout
             int ink = 0;
             if (plan.Inked is { } inkedAt)
                 for (int y = (int)c.Y; y < (int)c.Bottom; y++) for (int x = (int)c.X; x < (int)c.Right; x++) if (inkedAt(x, y)) ink++;
-            int cost = small * 10000 + near * 150 + crossings * 100 + ink * 8 + i;
+            // (on a job map: as near its mark as the ink allows, a pixel of ink against a fifth of a step further out)
+            int cost = small * 10000 + near * 150 + (plan.Inked is null ? crossings * 100 + i : crossings * 2000 + ink * 2 + i * 10);
             if (cost < bestCost) { bestCost = cost; best = c; }
         }
         if (best is { } b) plan.Labels.Add(new Placed(text, b, kind));
@@ -376,16 +411,165 @@ public static class RoguetripLayout
         return o;
     }
 
+    // ---- the offer's page: its job's map over the right half, a notepad slip laid on it ----
+
+    /// <summary>The job map's marks at the size of the right half: a ring's radius, the printed words' capital height, cell and measure's scale.</summary>
+    public const float JobRing = 6, JobCell = 13, JobScale = 1.3f;
+    public const int JobCap = 9;
+    /// <summary>The notepad slip's lines: the title in the big hand (font 0x45), the rest in the small (0x44), tightly set.</summary>
+    public const int TitleFont = 0x45;
+    public const float TitleLine = 15, SlipLineH = 11.5f;
+    private const float SlipPadX = 9, SlipPadTop = 7, SlipPadFoot = 7;
+
+    /// <summary>A line on the slip: its text, top left, and whether it is in the big hand.</summary>
+    public readonly record struct SlipLine(string Text, float X, float Y, bool Big);
+
+    /// <summary>
+    /// The offer's page: the sketch's box on the sheet (the job's map as large as the right half allows), the slip's box and its lines,
+    /// the "1 of 3", and whether the map had to give the slip a band of its own (no free corner or edge on the map was big enough).
+    /// </summary>
+    public sealed record PagePlan(Box SketchBox, Box Slip, List<SlipLine> Lines, (string Text, float X, float Y) Count, bool Band, List<string> Overflow);
+
+    /// <summary>The slip's words for a width: the title (big), the offer's words, the objectives and notes, the run's line, the help.</summary>
+    public static (List<SlipLine> Lines, float H, (string Text, float X, float Y) Count) SlipText(float w, string title, string count, string words, IReadOnlyList<string> notes,
+        string run, string help, Func<string, float> big, Func<string, float> small)
+    {
+        var lines = new List<SlipLine>();
+        float inner = w - 2 * SlipPadX, cw = small(count), y = SlipPadTop;
+        var t = Wrap(title, inner - cw - 6, big);
+        foreach (var l in t) { lines.Add(new SlipLine(l, SlipPadX, y, true)); y += TitleLine; }
+        y += 1;
+        foreach (var l in Wrap(words, inner, small)) { lines.Add(new SlipLine(l, SlipPadX, y, false)); y += SlipLineH; }
+        if (notes.Count > 0) y += 3;
+        foreach (var n in notes) foreach (var l in Wrap(n, inner, small)) { lines.Add(new SlipLine(l, SlipPadX, y, false)); y += SlipLineH; }
+        y += 3;
+        foreach (var l in Wrap(run + " " + help, inner, small)) { lines.Add(new SlipLine(l, SlipPadX, y, false)); y += SlipLineH; }
+        return (lines, y + SlipPadFoot, (count, w - SlipPadX - cw, SlipPadTop + 2));
+    }
+
+    /// <summary>
+    /// Where the slip goes on the job's map: of the widths and the places tried (the four corners, the middle of each edge), the first
+    /// that covers no mark's ring or word nor any route (the map's marks and routes, sheet pixels) and stays inside the area, the one
+    /// covering the least of the sketch's ink; null when none does.
+    /// </summary>
+    public static (Box Slip, List<SlipLine> Lines, (string, float, float) Count)? PlaceSlip(Box area, IReadOnlyList<Box> keep, IReadOnlyList<Segment> routes, Func<Box, int> ink,
+        Func<float, (List<SlipLine> Lines, float H, (string, float, float) Count)> text, IReadOnlyList<float> widths)
+    {
+        (Box, List<SlipLine>, (string, float, float))? best = null;
+        int bestCost = int.MaxValue;
+        foreach (float w in widths)
+        {
+            var (lines, h, count) = text(w);
+            if (h > area.H) continue;
+            float l = area.X, r = area.Right - w, t = area.Y, b = area.Bottom - h, mx = area.X + (area.W - w) / 2, my = area.Y + (area.H - h) / 2;
+            // the corners and the edges' middles first, then every place on a 12 px grid
+            var places = new List<(float X, float Y)> { (l, t), (r, t), (l, b), (r, b), (mx, t), (mx, b), (l, my), (r, my) };
+            for (float y = t; y <= b; y += 12) for (float x = l; x <= r; x += 12) places.Add((x, y));
+            foreach (var (x, y) in places)
+            {
+                var c = new Box(x, y, w, h);
+                if (keep.Any(k => k.Intersects(c)) || routes.Any(sg => Crosses(sg, c))) continue;
+                // the least ink covered, then the widest (fewest lines), then the nearest an edge
+                float edge = Math.Min(Math.Min(x - l, r - x), Math.Min(y - t, b - y));
+                int cost = ink(c) * 4 + (int)(area.W - w) + (int)edge;
+                if (cost < bestCost) { bestCost = cost; best = (c, lines, count); }
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// The offer's page in the right half (<paramref name="area"/>): the job's map as large as the area, the slip on it where it covers
+    /// nothing that matters (<see cref="PlaceSlip"/>); where nothing is free, the map gives up a band at the foot for the slip
+    /// (<paramref name="beside"/>: always so, the alternative layout). <paramref name="map"/> makes the job's map at a size (null: none).
+    /// </summary>
+    public static PagePlan Page(Box area, Func<int, int, (I76.Formats.Mission.ArenaSketch Sketch, MarkPlan Marks)?> map, string title, string count, string words,
+        IReadOnlyList<string> notes, string run, string help, Func<string, float> big, Func<string, float> small, bool beside = false)
+    {
+        var overflow = new List<string>();
+        float[] widths = [area.W, area.W * 0.84f, area.W * 0.7f, area.W * 0.6f];
+        (List<SlipLine>, float, (string, float, float)) Text(float w) => SlipText(w, title, count, words, notes, run, help, big, small);
+        void Check(List<SlipLine> lines, float w)
+        {
+            foreach (var l in lines) if ((l.Big ? big(l.Text) : small(l.Text)) > w - 2 * SlipPadX + 0.01f) overflow.Add(l.Text);
+        }
+        if (!beside && map((int)area.W, (int)area.H) is { } full)
+        {
+            // the drawing where it is made (centred), else pushed to the foot, the top, the right or the left of the page (a wide map
+            // leaves room above or below it, a tall one beside it), so the slip finds a place
+            var (cx0, cy0, cx1, cy1) = Content(full.Sketch, full.Marks);
+            var offsets = new List<(float, float)> { (0, 0), (0, area.H - cy1), (0, -cy0), (area.W - cx1, 0), (-cx0, 0) };
+            foreach (var (dx, dy) in offsets)
+            {
+                var sk = new Box(area.X + dx, area.Y + dy, area.W, area.H);
+                var (keep, routes) = Obstacles(full.Marks, sk);
+                int Ink(Box c)
+                {
+                    int n = 0;
+                    for (int y = (int)c.Y; y < (int)c.Bottom; y += 2) for (int x = (int)c.X; x < (int)c.Right; x += 2) if (full.Sketch.Inked(x - (int)sk.X, y - (int)sk.Y)) n++;
+                    return n;
+                }
+                if (PlaceSlip(area, keep, routes, Ink, Text, widths) is { } p)
+                {
+                    var (lines, cnt) = (p.Lines, p.Count);
+                    Check(lines, p.Slip.W);
+                    return new PagePlan(sk, p.Slip, Shift(lines, p.Slip), Shift(cnt, p.Slip), false, overflow);
+                }
+            }
+        }
+        // the slip in a band of its own at the area's foot, as wide as the area; the map above it
+        var (bl, bh, bc) = Text(area.W);
+        Check(bl, area.W);
+        var slip = new Box(area.X, area.Bottom - bh, area.W, bh);
+        var skb = new Box(area.X, area.Y, area.W, Math.Max(0, slip.Y - 4 - area.Y));
+        if (skb.H < MinMapH) overflow.Add($"(the map: {skb.H:0} px high)");
+        return new PagePlan(skb, slip, Shift(bl, slip), Shift(bc, slip), true, overflow);
+    }
+
+    /// <summary>What the job's map draws, in its box's pixels: its ink, its rings and its marks' words.</summary>
+    public static (float X0, float Y0, float X1, float Y1) Content(I76.Formats.Mission.ArenaSketch sk, MarkPlan m)
+    {
+        var (ix0, iy0, ix1, iy1) = sk.InkBounds() ?? (0, 0, 0, 0);
+        float x0 = ix0, y0 = iy0, x1 = ix1 + 1, y1 = iy1 + 1;
+        foreach (var r in m.Rings) { x0 = Math.Min(x0, r.X - m.Ring - 2); y0 = Math.Min(y0, r.Y - m.Ring - 2); x1 = Math.Max(x1, r.X + m.Ring + 2); y1 = Math.Max(y1, r.Y + m.Ring + 2); }
+        foreach (var l in m.Labels) { x0 = Math.Min(x0, l.Rect.X); y0 = Math.Min(y0, l.Rect.Y); x1 = Math.Max(x1, l.Rect.Right); y1 = Math.Max(y1, l.Rect.Bottom); }
+        return (Math.Max(0, x0), Math.Max(0, y0), Math.Min(sk.BoxWidth, x1), Math.Min(sk.BoxHeight, y1));
+    }
+
+    /// <summary>The marks' rings and words (grown a little) and the routes, in sheet pixels, for a sketch box at <paramref name="at"/>.</summary>
+    public static (List<Box> Keep, List<Segment> Routes) Obstacles(MarkPlan m, Box at)
+    {
+        var keep = m.Rings.Select(r => new Box(at.X + r.X - m.Ring - 3, at.Y + r.Y - m.Ring - 3, 2 * m.Ring + 6, 2 * m.Ring + 6))
+            .Concat(m.Labels.Select(l => new Box(at.X + l.Rect.X, at.Y + l.Rect.Y, l.Rect.W, l.Rect.H).Grow(2))).ToList();
+        var routes = new List<Segment>();
+        foreach (var rt in m.Routes)
+            for (int i = 0; i + 1 < rt.Length; i++) routes.Add(new Segment(at.X + rt[i].X, at.Y + rt[i].Y, at.X + rt[i + 1].X, at.Y + rt[i + 1].Y, Ink.Approach));
+        return (keep, routes);
+    }
+
+    private static List<SlipLine> Shift(List<SlipLine> lines, Box at) => [.. lines.Select(l => l with { X = at.X + l.X, Y = at.Y + l.Y })];
+    private static (string, float, float) Shift((string T, float X, float Y) c, Box at) => (c.T, at.X + c.X, at.Y + c.Y);
+
     // ---- the chosen job's map ----
 
-    public sealed record MarkPlan(List<(float X, float Y, string Label)> Rings, List<Placed> Labels, List<string> Dropped);
+    public sealed record MarkPlan(List<(float X, float Y, string Label)> Rings, List<Placed> Labels, List<string> Dropped)
+    {
+        /// <summary>The landmarks (for bearings), box pixels: their square marks; their words are among Labels ("landmark").</summary>
+        public List<(float X, float Y, string Label)> Landmarks { get; init; } = [];
+        /// <summary>The job's routes, box pixels.</summary>
+        public List<(float X, float Y)[]> Routes { get; init; } = [];
+        /// <summary>The ring's radius the plan was made for.</summary>
+        public float Ring { get; init; } = 4;
+    }
 
     /// <summary>
     /// The job's marks on its small map (box pixels): marks within a ring's width of each other share one ring and one word ("CONVOY /
     /// EXIT"), each word beside its ring clear of the others' rings and words, inside <paramref name="bounds"/>.
     /// </summary>
-    public static MarkPlan JobMarks(IReadOnlyList<(string Label, float X, float Y)> marks, Box bounds, Func<string, float> measure, float textH, float ring = 4, Func<int, int, bool>? inked = null)
+    public static MarkPlan JobMarks(IReadOnlyList<(string Label, float X, float Y)> marks, Box bounds, Func<string, float> measure, float textH, float ring = 4, Func<int, int, bool>? inked = null,
+        IReadOnlyList<(float X, float Y)[]>? routes = null, IReadOnlyList<(string Label, float X, float Y)>? landmarks = null, Func<string, float>? landMeasure = null, float landH = 0)
     {
+        float JobTextH = textH;
         var rings = new List<(float X, float Y, List<string> Labels)>();
         foreach (var (label, x, y) in marks)
         {
@@ -395,7 +579,11 @@ public static class RoguetripLayout
             else rings.Add((x, y, [.. words]));
         }
         var plan = new RegionPlan { Inked = inked };
+        foreach (var rt in routes ?? [])
+            for (int i = 0; i + 1 < rt.Length; i++) plan.Segments.Add(new Segment(rt[i].X, rt[i].Y, rt[i + 1].X, rt[i + 1].Y, Ink.Approach));
         foreach (var r in rings) plan.Marks.Add(new Box(r.X - ring - 1, r.Y - ring - 1, 2 * ring + 2, 2 * ring + 2));
+        // the landmarks' squares are marks too (no word on one); their words come last and yield: placed where room is left, else left out
+        foreach (var (_, lx, ly) in landmarks ?? []) plan.Marks.Add(new Box(lx - 4, ly - 4, 8, 8));
         // the crowded ones first: they have the fewest places left
         var order = rings.Select((r, i) => (r, i, crowd: rings.Count(o => MathF.Abs(o.X - r.X) + MathF.Abs(o.Y - r.Y) < 40))).OrderByDescending(x => x.crowd).ThenBy(x => x.i);
         foreach (var (r, _, _) in order)
@@ -406,14 +594,21 @@ public static class RoguetripLayout
             if (r.Labels.Count > 1 && plan.Dropped.Remove(string.Join(" / ", r.Labels)))
                 foreach (var word in r.Labels) Place(r.X, r.Y, word);
         }
-        return new MarkPlan([.. rings.Select(r => (r.X, r.Y, string.Join(" / ", r.Labels)))], plan.Labels, plan.Dropped);
+        foreach (var (label, lx, ly) in landmarks ?? []) Place(lx, ly, label, "landmark", 4, landMeasure ?? measure, landH > 0 ? landH : textH);
+        return new MarkPlan([.. rings.Select(r => (r.X, r.Y, string.Join(" / ", r.Labels)))], plan.Labels, plan.Dropped)
+        {
+            Routes = [.. routes ?? []], Ring = ring, Landmarks = [.. (landmarks ?? []).Select(l => (l.X, l.Y, l.Label))],
+        };
 
-        void Place(float rx, float ry, string text)
+        // a word round its mark: beside it, above, below, then the corners, nearer first; further out a leader joins it to its mark
+        // (packed marks: their words fan out above and below)
+        void Place(float rx, float ry, string text, string kind = "mark", float rr = float.NaN, Func<string, float>? m = null, float th = 0)
         {
             var r = (X: rx, Y: ry);
-            float w = measure(text);
+            if (float.IsNaN(rr)) rr = ring;
+            float w = (m ?? measure)(text), textH = th > 0 ? th : JobTextH;
             var cands = new List<Box>();
-            foreach (float g in new[] { ring + 2, ring + 8, ring + 16 })
+            foreach (float g in new[] { rr + 2, rr + 8, rr + 16, rr + 26, rr + 38, rr + 52 })
             {
                 cands.Add(new Box(r.X + g, r.Y - textH / 2, w, textH));
                 cands.Add(new Box(r.X - g - w, r.Y - textH / 2, w, textH));
@@ -424,7 +619,9 @@ public static class RoguetripLayout
                 cands.Add(new Box(r.X - g * 0.7f - w, r.Y - g * 0.7f - textH, w, textH));
                 cands.Add(new Box(r.X - g * 0.7f - w, r.Y + g * 0.7f, w, textH));
             }
-            Choose(plan, bounds, text, "mark", cands, needClear: false);
+            int before = plan.Labels.Count;
+            Choose(plan, bounds, text, kind, cands, needClear: false);
+            if (plan.Labels.Count > before) plan.Labels[^1] = plan.Labels[^1] with { AX = rx, AY = ry };
         }
     }
 

@@ -17,20 +17,20 @@ public static class RemixMapPicture
     private static readonly Rect2I Box = new(40, 56, 560, 392);
     /// <summary>The sheet's paper and the frame's ink.</summary>
     public static readonly Color Paper = Color.Color8(232, 222, 196), Ink = Color.Color8(40, 30, 18);
-    private static readonly Dictionary<string, (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>, List<(Vector2, string)>)?> Made = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>, List<(Vector2, string)>, Func<int, int, bool>)?> Made = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// The picture, its marks (where on the 640 x 480 sheet, and the label), its title, its routes (sheet points) and its landmarks,
     /// or null when the mission is no remix or has no terrain.
     /// </summary>
-    public static (Texture2D Picture, List<(Vector2 At, string Label)> Marks, string? Title, List<Vector2[]> Lines, List<(Vector2 At, string Label)> Landmarks)? For(string? installRoot, string? mission, bool look1997)
+    public static (Texture2D Picture, List<(Vector2 At, string Label)> Marks, string? Title, List<Vector2[]> Lines, List<(Vector2 At, string Label)> Landmarks, Func<int, int, bool> Inked)? For(string? installRoot, string? mission, bool look1997)
     {
         if (installRoot is null || mission is null || RemixMarks.For(mission) is not { } marks) return null;
         // by the build's stamp too: RANDOM JOB rebuilds xjob for every roll, and a picture kept by the stem alone showed the first
         // job's map for every later one in the same run
         string key = $"{mission}:{look1997}:{RemixMarks.StampOf(mission)}";
         if (Made.TryGetValue(key, out var done)) return done;
-        (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>, List<(Vector2, string)>)? made = null;
+        (Texture2D, List<(Vector2, string)>, string?, List<Vector2[]>, List<(Vector2, string)>, Func<int, int, bool>)? made = null;
         try
         {
             var install = new GameInstall(installRoot);
@@ -61,7 +61,10 @@ public static class RemixMapPicture
                     Vector2 Sheet(System.Numerics.Vector2 wpt) { var u = sketch.InBox(wpt); return new(Box.Position.X + u.X * Box.Size.X, Box.Position.Y + u.Y * Box.Size.Y); }
                     var lines = marks.Lines.Select(l => l.Points.Select(Sheet).ToArray()).ToList();
                     var land = marks.Landmarks.Select(l => (Sheet(l.At), l.Label)).ToList();
-                    made = (ImageTexture.CreateFromImage(img), at, WorldSettings.ArenaName(msn)?.Trim().ToUpperInvariant(), lines, land);
+                    // where the sketch inks the sheet (sheet pixels), so the marks' words keep off the roads and the canyon walls where they can
+                    var sk2 = sketch;
+                    bool Inked(int x, int y) => sk2.Inked(x - Box.Position.X, y - Box.Position.Y);
+                    made = (ImageTexture.CreateFromImage(img), at, WorldSettings.ArenaName(msn)?.Trim().ToUpperInvariant(), lines, land, Inked);
                 }
             }
         }

@@ -485,14 +485,29 @@ for the mission detail map and notes/objectives".
   Kermit, Monahans, Midland, Van Horn, Kent, Toyah; I-20, I-10, NM 18, US 180, 82 west of Artesia, 90; quiet ones named only where clear).
   Offer rings have a 10 px radius (the shown one ringed again at 14), the trip's maps are small rings, the run's road and the way to
   the shown offer in red pencil.
-- **One offer at a time, on a scrap** laid over the map's east side (334-608 x 46-428), where no trip map lies, so it never covers a
-  ring or the route (the test holds that for every run and pick): the sheet's paper lightened, torn edges, turned a third of a degree or
-  so, a shadow (`ArenaSketches.DrawScrap`, kept whole under its words: `ShellFrame.Picture(keep)`). On it, in the form's hand: the run's
-  line and "1 of 3", the offer's title (number, map, job, challenge), its words, then the job's own map as big as the room left (106 px
-  high at the least over the test's runs, most much more; the whole map's sketch, its marks ringed in red with their words printed clear
-  of each other, its name under it), then the job's other objectives shown from the start and its notes, and the help line, every word
-  whole. Up and Down, Left and Right, 1-3, a click on a ring or the pad's focus on one change the offer shown; Enter or TAKE THE JOB
-  takes it. In co-op the guest's scrap follows the host's highlight and says the host chooses.
+- **One offer at a time, on a page** laid over the map's east side (334-608 x 46-428), where no trip map lies, so it never covers a
+  ring or the route (the test holds that for every run and pick). The owner: "The mission map can be bigger like the right half and the
+  notepad/details can go on the top of that stuff so you can see the important stuff". The page is a scrap of the sheet's paper (torn
+  edges, turned a third of a degree, a shadow: `ArenaSketches.DrawScrap`) carrying **the job's own map as large as the half allows**
+  (the whole map's sketch at 260 x 368 px; its marks ringed in red, 6 px, their words in printed capitals 9 px high, clear of each other,
+  of the rings and, where they can be, of the job's routes). On it lies a **notepad slip** (whiter paper in the modern look, ruled in
+  pale blue with a red margin, as the notepad the objectives are read on; `RoguetripLayout.Page`): the title and challenge in the form's
+  big hand with "1 of 3" in red, the offer's words, the job's other objectives shown from the start and its notes, then the run's line and
+  the help in the small hand, tightly set, every word whole. The slip goes where the map carries nothing that matters: of four widths
+  and every place on the page (the corners and edges first, then a 12 px grid), one that covers no ring, no mark's word and no route,
+  covering the least of the sketch's ink; the map is first tried where it is drawn, then pushed to the page's foot, top, right or left
+  (a wide map leaves room above or below it, a tall one beside it). Only where nothing is free does the map give up a band at the
+  page's foot for the slip (22 of 157 rolled offers). Up and Down, Left and Right, 1-3, a click on a ring or the pad's focus on one
+  change the offer shown; Enter or TAKE THE JOB takes it. In co-op the guest's page follows the host's highlight and says the host
+  chooses. `I76_ROGUE_NOTEPAD=beside` lays every page out the other way (the slip always in its band under a smaller map), for comparing.
+- **The job's map, lettered once for all three views** (the page above, the loading card and the map, M): one routine places its words
+  (`RoguetripLayout.JobMarks`; `MissionPicture.LabelPlan` for the card and the map). Marks within a ring's width of each other share
+  one ring ("START / HOME"; a long set of words each on its own round it); each word goes beside its ring (right, left, above, below,
+  the corners, nearer first), on no other word, ring or landmark's square and off the route between the marks (a crossing costs more
+  than any distance), as little on the roads and canyon walls as it can; set further out it gets a short leader to its ring. The
+  landmarks' names come last and yield (one with no room left is left out). On the card and the map every word has a halo of the
+  paper, so the route and the roads run under the lettering. The owner's screenshot (run 11, job 2: a T02 convoy hit packed into a few
+  hundred metres, EXIT, START / HOME and CONVOY in a row on the route) was the case: its words piled over each other and the next ring.
 - **Words placed, none on another.** Each town's name, highway number and state name is printed beside its mark as the stock forms print
   their labels (Arial Bold capitals, 7 px high, in the small sans's cell): the four sides of the dot, then the corners, then further out,
   the first place that lies inside the sheet, off the scrap, on no word or ring, at least 2.5 px from other words and as far as it can

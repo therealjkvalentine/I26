@@ -437,6 +437,8 @@ public sealed class ShellFrame
         /// <summary>The part of the box still the glyph's: the bounds of the pixels it has left (a pop-up over half a word cuts its glyphs).</summary>
         public Rect2I Shown;
         internal int Id;
+        /// <summary>When it was set down: the text layer draws in that order (a reused slot must not put a later picture under an earlier one).</summary>
+        internal long Seq;
         /// <summary>Shown while most of its cell is left as it was.</summary>
         public bool Visible => Keep ? Live > 0 : Live * 2 > Cells;
     }
@@ -446,6 +448,7 @@ public sealed class ShellFrame
     private readonly int[] _owner = new int[W * H];
     private readonly List<HdGlyph?> _glyphs = [];
     private readonly Stack<int> _free = new();
+    private long _seq;
     /// <summary>Bumped whenever a glyph comes or goes, for the text layer to redraw.</summary>
     public int TextVersion { get; private set; }
 
@@ -454,10 +457,9 @@ public sealed class ShellFrame
     {
         get
         {
-            foreach (var g in _glyphs)
+            foreach (var g in _glyphs.Where(g => g is { Visible: true }).OrderBy(g => g!.Seq))
             {
-                if (g is not { Visible: true }) continue;
-                g.Shown = g.Live == g.Cells ? g.Box : Owned(g);
+                g!.Shown = g.Live == g.Cells ? g.Box : Owned(g);
                 yield return g;
             }
         }
@@ -551,6 +553,7 @@ public sealed class ShellFrame
         if (id == _glyphs.Count) _glyphs.Add(null);
         _glyphs[id] = g;
         g.Id = id;
+        g.Seq = ++_seq;
         g.Cells = g.Live = w * h;
         for (int r = 0; r < h; r++)
         {
