@@ -1270,23 +1270,42 @@ public sealed class TripState
     {
         var t = new TripState();
         var c = new ConfigFile();
-        if (c.Load(Path) == Error.Ok)
-        {
-            t.Mission = (int)c.GetValue("trip", "mission", 1);
-            t.Highest = (int)c.GetValue("trip", "highest", 1);
-            t.Plus = TripPlusSave.Read((s, k) => c.HasSectionKey(s, k) ? c.GetValue(s, k).Obj : null);
-        }
+        if (c.Load(Path) == Error.Ok) t.ReadFrom(SettingsFile.From(c));
         if (t.Plus.Hooked(NewGamePlus.Env("I76_NEW_GAME_PLUS", "I76_TRIP_PLUS")) is { } hooked) t.Plus = hooked;   // docs/dev-hooks.md (the older spelling too)
         return t;
+    }
+
+    /// <summary>trip.cfg's keys into this trip (engine-free: <see cref="Load"/>'s reading, and the keys <see cref="File"/> knows).</summary>
+    public void ReadFrom(SettingsFile c)
+    {
+        Mission = (int)c.GetValue("trip", "mission", 1);
+        Highest = (int)c.GetValue("trip", "highest", 1);
+        Plus = TripPlusSave.Read((s, k) => c.HasSectionKey(s, k) ? c.GetValue(s, k).Obj : null);
+    }
+
+    /// <summary>
+    /// The trip.cfg <see cref="Save"/> writes over <paramref name="disk"/> (null: none): this trip's keys, and every key this build does not
+    /// read kept as the file has it (an older or newer build shares the user folder; the Trip+ section is this build's whole). Engine-free.
+    /// </summary>
+    public SettingsFile File(SettingsFile? disk)
+    {
+        var c = new SettingsFile();
+        c.SetValue("trip", "mission", Mission);
+        c.SetValue("trip", "highest", Highest);
+        foreach (var (s, k, v) in Plus.Entries()) c.SetValue(s, k, v switch { bool b => b, int i => (long)i, _ => v.ToString() ?? "" });
+        if (disk is null) return c;
+        var probe = disk.Copy().Track();
+        new TripState().ReadFrom(probe);
+        foreach (var (s, k, v) in disk.Entries)
+            if (s != TripPlusSave.Section && !probe.Asked!.Contains((s, k)) && !c.TryGet(s, k, out _)) c.SetValue(s, k, v);
+        return c;
     }
 
     public void Save()
     {
         DirAccess.MakeDirRecursiveAbsolute("user://saves");
-        var c = new ConfigFile();
-        c.SetValue("trip", "mission", Mission);
-        c.SetValue("trip", "highest", Highest);
-        foreach (var (s, k, v) in Plus.Entries()) c.SetValue(s, k, v switch { bool b => b, int i => i, _ => v.ToString() ?? "" });
+        var old = new ConfigFile();
+        var c = File(old.Load(Path) == Error.Ok ? SettingsFile.From(old) : null).ToConfig();
         c.Save(Path);
         if (_inventory is null) return;
         using var f = Godot.FileAccess.Open(InventoryPath, Godot.FileAccess.ModeFlags.Write);
@@ -2272,7 +2291,8 @@ public sealed class ShellSettings
         s.SmokeLighting = (bool)c.GetValue("port", "smoke_lighting", false);
         s.SmokeHaze = (bool)c.GetValue("port", "smoke_haze", false);
         s.RoadDetail = (bool)c.GetValue("port", "road_detail", false);
-        s.RoadDetailStrong = s.RoadDetail && (bool)c.GetValue("port", "road_detail_strong", false);
+        // (the key asked about whatever road_detail says: a save keeps only keys a build does not ask about, SaveFile)
+        s.RoadDetailStrong = (bool)c.GetValue("port", "road_detail_strong", false) && s.RoadDetail;
         s.HeatShimmer = HeatShimmerRow.FromFile(c.HasSectionKey("port", "heat_shimmer") ? c.GetValue("port", "heat_shimmer").ToString() : null);
         // no version step: a file without the key (before the row) has Medium, the strength it had
         s.HeatStrength = HeatStrengthRow.FromFile(c.HasSectionKey("port", "heat_strength") ? c.GetValue("port", "heat_strength").ToString() : null);
@@ -2494,8 +2514,63 @@ public sealed class ShellSettings
     {
         if (Overrides.Count > 0) return;   // I76_SETTINGS: a capture's keys, never the file's
         var old = new ConfigFile();
-        Write(old.Load(Path) == Error.Ok ? SettingsFile.From(old) : null, I76.Game.Assets.HdTextures.PacksFound).ToConfig().Save(Path);
+        SaveFile(old.Load(Path) == Error.Ok ? SettingsFile.From(old) : null, I76.Game.Assets.HdTextures.PacksFound).ToConfig().Save(Path);
         I76.Game.Boot.StartupSettings.Write(LogFile, Renderer, MicNames.OpensInput(CbMic), LowLatencyAudio);
+    }
+
+    /// <summary>
+    /// Keys this build reads only to carry them into a key it writes (an older name, an older form) and drops at a save, and keys of
+    /// withdrawn settings it drops: never kept as a key it does not know. The round-trip test fails while a key Read asks about and
+    /// Write never writes is missing here.
+    /// </summary>
+    public static readonly IReadOnlySet<(string Section, string Key)> Migrated = new HashSet<(string, string)>
+    {
+        ("port", "hd_textures"), ("port", "hd_dash_size"), ("port", "hd_car_size"), ("port", "hd_texture_size"), ("port", "tactile"),
+        ("port", "keyboard_steering"), ("port", "hood_finish"), ("port", "hood_matte"), ("port", "look_colour_match"),
+        ("port", "cabins_behind_glass"), ("port", "trip_plus_unlocked"), ("port", "developer_tools"),
+        ("port", "map_edge"), ("port", "load_progress"),
+    };
+
+    /// <summary>Keys that are always this build's own word: the packs found now (the version steps take the larger number, <see cref="SaveFile"/>).</summary>
+    private static readonly (string, string)[] OwnWord = [("port", "texture_packs")];
+    private static readonly (string, string)[] StepCounts = [("shell", "version"), ("port", "fork_version")];
+
+    /// <summary>
+    /// The file <see cref="Save"/> writes over <paramref name="disk"/>, the file as it is now (null: none). An older or newer build may
+    /// share the user folder (a family build, upstream's), so a save changes only what this run changed and keeps the rest as the file has it:
+    /// a key whose value this run did not change (it writes it as it writes the file read untouched) keeps the file's own text (a word a newer build added to
+    /// the row, a value this build clamps); a key this build does not know, and a section, is kept as it is, after this build's keys. A key
+    /// this run changed is written as <see cref="Write"/> writes it, left out when that is the default. A file that has not had this build's version
+    /// steps (an older build's or upstream's) takes them: its known keys as <see cref="Write"/> writes them, its unknown ones kept.
+    /// <see cref="Migrated"/> keys are dropped. Engine-free, for the tests.
+    /// </summary>
+    public SettingsFile SaveFile(SettingsFile? disk, (int[] Sizes, bool Plain)? packs = null)
+    {
+        var mine = Write(disk, packs);
+        if (disk is null) return mine;
+        var probe = disk.Copy().Track();
+        var untouched = Read(probe, null, packs).Write(disk, packs);
+        int shellVersion = disk.TryGet("shell", "version", out var sv) ? (int)new SettingsValue(sv) : 1;
+        int? forkVersion = disk.TryGet("port", "fork_version", out var fv) ? (int)new SettingsValue(fv) : null;
+        bool migrate = StepsDone(shellVersion, forkVersion) < ForkVersion;
+        var o = new SettingsFile();
+        foreach (var (s, k, v) in mine.Entries)
+        {
+            bool onDisk = disk.TryGet(s, k, out var d);
+            if (Array.IndexOf(StepCounts, (s, k)) >= 0)
+                o.SetValue(s, k, onDisk && d is long dl && v is long ml && dl > ml ? d : v);   // a newer build's steps stay done
+            else if (onDisk && !migrate && Array.IndexOf(OwnWord, (s, k)) < 0 && untouched.TryGet(s, k, out var u) && SettingsFile.Same(u, v))
+                o.SetValue(s, k, d);   // not changed in this run: the file's own text
+            else o.SetValue(s, k, v);
+        }
+        foreach (var (s, k, d) in disk.Entries)
+        {
+            if (mine.TryGet(s, k, out _) || Migrated.Contains((s, k))) continue;
+            if (untouched.TryGet(s, k, out _)) continue;                      // this run set it to what is left out (its default)
+            if (migrate && probe.Asked!.Contains((s, k))) continue;           // a known key of an older file: as Write writes it
+            o.SetValue(s, k, d);                                              // a key or section this build does not know, or does not write now
+        }
+        return o;
     }
 
     /// <summary>
