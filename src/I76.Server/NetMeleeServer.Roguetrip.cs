@@ -41,6 +41,8 @@ public sealed partial class NetMeleeServer
         if (o.Roguetrip is not { } run) return o;
         // a run kept at its debrief (the game closed on it) goes on to its next choice
         if (run.Run.Phase == "debrief") run.Debriefed();
+        // a run kept in its salvage (the game closed on it): the field went with the game; on to the choice
+        if (run.Run.Phase == "salvage") run.SalvageDone();
         var offers = run.Offers();
         var job = run.Playing ?? (offers.Count > 0 ? run.Job(offers[Math.Clamp(run.Selected, 0, offers.Count - 1)], 1) : null);
         if (job is not null) Generate(o.Install, job);
@@ -115,6 +117,7 @@ public sealed partial class NetMeleeServer
             if (run.Run.Phase != "debrief") return "no debrief now";
             run.Debriefed();
             _rtOffers = null;
+            RoguetripSalvageStart();
             Log?.Invoke($"roguetrip: on from the debrief: {run.Run.Phase}");
             TellRoguetrip();
             return null;
@@ -150,7 +153,8 @@ public sealed partial class NetMeleeServer
     private string? RoguetripStarting()
     {
         if (Roguetrip is not { } run) return null;
-        if (run.Run.Phase == "debrief") { run.Debriefed(); _rtOffers = null; }
+        if (run.Run.Phase == "debrief") { run.Debriefed(); _rtOffers = null; RoguetripSalvageStart(); TellRoguetrip(); }
+        if (run.Run.Phase == "salvage") return "the crew's salvage and garages come first";
         if (run.Run.Over) return "the run is over (DONE on its summary starts a new one)";
         if (run.Run.Phase != "choose") return $"the run is at {run.Run.Phase}";
         _rtOffers ??= run.Offers();
@@ -182,6 +186,7 @@ public sealed partial class NetMeleeServer
         Host.Log -= _hostLog;
         Host = built;
         built.Log += _hostLog;
+        RoguetripWatchWrecks(built, job.Map);
         Log?.Invoke($"roguetrip: {job} built ({Convert.ToHexString(hash)[..12]}): the job starts");
         return null;
     }
@@ -191,7 +196,8 @@ public sealed partial class NetMeleeServer
     {
         if (Roguetrip is not { } run || run.Run.Phase != "playing") return;
         foreach (var s in seats)
-            if (s.Actor is CoopActor a && run.CarryFor(s.Name, a.CarFile) is { } carry)
+            if (s.Actor is CoopActor ga && RoguetripGarageSeat(s, ga)) continue;
+            else if (s.Actor is CoopActor a && run.CarryFor(s.Name, a.CarFile) is { } carry)
             {
                 RunCarry.Apply(carry, a.Car);
                 Log?.Invoke($"roguetrip: {s.Name}'s {a.CarFile} carries armour {carry.ArmourLeft}%, chassis {carry.ChassisLeft}%");
@@ -222,6 +228,7 @@ public sealed partial class NetMeleeServer
             if ((flags[i] & Objectives.Hidden) == 0)
                 objectives.Add(new CoopObjective { Text = text.Objectives[i].Text, Done = (flags[i] & Objectives.Succeeded) != 0, Failed = (flags[i] & Objectives.Failed) != 0 });
         run.Finish(outcome, kills, seats.Select(s => (s.Name, ((CoopActor)s.Actor).CarFile, (RunCar?)RunCarry.Capture(s.Actor.Car), s.Actor.Destroyed)), why, objectives);
+        RoguetripGaragesAfter(seats, outcome == RemixRun.Outcome.Won, _rtJob);
         Log?.Invoke($"roguetrip: job {run.Run.Legs.Count} {outcome.ToString().ToLowerInvariant()} ({(why.Length > 0 ? why : "done")}), {kills} kills; "
             + string.Join(", ", run.Crew.Select(c => $"{c.Name} {(c.Out ? "killed" : $"armour {c.State?.ArmourLeft ?? 100}%")}")));
         _rtJob = null;

@@ -105,6 +105,7 @@ public class RoguetripCoopTests(ITestOutputHelper output)
                 run.Run.Take(offers[0]);
                 run.Finish(RemixRun.Outcome.Won, 0, [], "", []);
                 run.Debriefed();
+                run.SalvageDone();
             }
         }
         output.WriteLine($"{checkedJobs} jobs built twice alike");
@@ -179,17 +180,64 @@ public class RoguetripCoopTests(ITestOutputHelper output)
         Assert.True(g.WaitDriving(() => g.Tick > tick + 5, [hal, ann]), "the job did not start");
         int[] max = g.Server.Invoke(h => h.Seats.First(x => x.Name == "Ann").Actor.Car.Health!.ArmourMax.ToArray());
         g.Server.Invoke(h => { var d = h.Seats.First(x => x.Name == "Ann").Actor.Car.Health!; d.Armour[0] = max[0] / 10; d.Armour[1] = max[1] / 10; });
+        // three of the job's cars wrecked (the damage model's own death: their wrecks are the salvage), then the job won
+        int wrecks = g.Server.Invoke(h =>
+        {
+            var cars = h.Setup.Entities.Where(e => e.Vehicle is { } v && !h.Setup.World.IsHuman(v) && !v.IsHeli && !v.IsEmplacement).Take(3).ToList();
+            foreach (var e in cars) h.Setup.Damage.Die(e.Vehicle!, true);
+            return cars.Count;
+        });
+        Assert.True(wrecks > 0, "no cars to wreck");
         g.Server.Invoke(h => h.Setup.Script!.Host.EndMission(true, 0, -2));
         Assert.True(g.WaitDriving(() => ann.State == ClientState.InLobby && ann.Roguetrip?.Phase == "debrief", [hal, ann], 15000), $"no debrief: {ann.State} {ann.Roguetrip?.Phase}");
         var crew = ann.Roguetrip!.Crew.Single(c => c.Name == "Ann");
         Assert.True(crew.Armour < 100 && !crew.Out, $"Ann's armour {crew.Armour}%");
-        var carried = run.Of("Ann")!.State!;
-        // patched after the win: more than the 10 % left on two sides, less than full
-        Assert.True(carried.Armour[0] >= max[0] / 10 && carried.ArmourLeft < 100, string.Join(",", carried.Armour));
+        var hurt = run.Of("Ann")!.State!;
+        Assert.Equal(max[0] / 10, hurt.Armour[0]);   // no plate at the debrief: it comes from the salvage's scrap
         Assert.Equal("won", run.Run.Legs[0].Outcome);
+        Assert.NotNull(run.Of("Ann")!.Inventory);   // each player's garage kept by the host
+        // past the debrief: the salvage draft, the same field on both machines after every move
         Assert.Null(g.Server.RoguetripContinue());
-        Assert.True(g.Wait(() => ann.Roguetrip is { Phase: "choose" }), "no next choice");
+        Assert.True(g.Wait(() => ann.Salvage is not null && hal.Salvage is not null), "no salvage draft");
+        Assert.Equal("salvage", ann.Roguetrip!.Phase);
+        var field = ann.Salvage!.Items;
+        output.WriteLine($"the field: {field.Count} parts ({string.Join(", ", field.Select(i => $"{i.Stem} {i.Health}"))})");
+        Assert.NotEmpty(field);
+        Assert.Equal("Hal", ann.Salvage.Turn);   // the host picks first
+        var picks = new List<(string Who, string Stem)>();
+        for (int k = 0; k < 3 && ann.Salvage!.Turn.Length > 0 && ann.Salvage.Items.Any(i => i.Taker.Length == 0); k++)
+        {
+            string who = ann.Salvage.Turn;
+            var picker = who == "Hal" ? hal : ann;
+            var item = ann.Salvage.Items.First(i => i.Taker.Length == 0);
+            int before = ann.SalvageChanges;
+            picker.SendPick(PickKind.Take, item.Id);
+            Assert.True(g.Wait(() => ann.Salvage!.Items.Single(i => i.Id == item.Id).Taker == who && hal.Salvage!.Items.Single(i => i.Id == item.Id).Taker == who), $"{who}'s pick of {item.Stem} not seen");
+            var server = g.Server.Draft!.Items.ToList();
+            Assert.Equal(server, ann.Salvage!.Items);
+            Assert.Equal(server, hal.Salvage!.Items);
+            // a pick out of turn is refused
+            (who == "Hal" ? hal : ann).SendPick(PickKind.Take, ann.Salvage.Items.FirstOrDefault(i => i.Taker.Length == 0)?.Id ?? 0);
+            picks.Add((who, item.Stem));
+        }
+        g.Wait(() => false, 300);
+        Assert.Equal(picks.Count, g.Server.Draft!.Items.Count(i => i.Taker.Length > 0));
+        Assert.Equal(picks.Select(p => p.Who).Take(2), new[] { "Hal", "Ann" }.Take(picks.Count));   // turns round the crew
+        hal.SendPick(PickKind.Done);
+        ann.SendPick(PickKind.Done);
+        Assert.True(g.Wait(() => ann.Salvage is { Garage: true } && hal.Salvage is { Garage: true }), "no garages");
+        // Ann's pick is in her garage (the van), as the host keeps it and as her screen gets it
+        foreach (var p in picks.Where(p => p.Who == "Ann")) Assert.Contains(p.Stem, ann.Salvage!.Mine, StringComparison.OrdinalIgnoreCase);
+        int left = g.Server.Draft!.Left.Count();
+        hal.SendGarage(hal.Salvage!.Mine);
+        ann.SendGarage(ann.Salvage!.Mine);
+        Assert.True(g.Wait(() => ann.Roguetrip is { Phase: "choose" } && ann.Salvage is null), "no next choice");
         Assert.Single(ann.Roguetrip!.Legs);
+        var carried = run.Of("Ann")!.State!;
+        // the plate: the scrap of what nobody took, shared out (a tenth of the full armour a part, the weakest side first)
+        output.WriteLine($"{left} parts left: {left / 2} each; Ann's armour {string.Join(",", hurt.Armour)} -> {string.Join(",", carried.Armour)}");
+        if (left >= 2) Assert.True(carried.Armour.Sum() > hurt.Armour.Sum(), "no plate");
+        else Assert.Equal(hurt.Armour, carried.Armour);
         // the next job: Ann's car starts it as it was carried
         Assert.Null(g.Server.StartLobby(force: true));
         Assert.True(g.Wait(() => ann.State == ClientState.Joined && ann.Roguetrip?.Job?.Job == 2), $"no second job: {ann.State}");
@@ -198,6 +246,196 @@ public class RoguetripCoopTests(ITestOutputHelper output)
         int[] hals = g.Server.Invoke(h => h.Seats.First(x => x.Name == "Hal").Actor.Car.Health!.Armour.ToArray());
         int[] halMax = g.Server.Invoke(h => h.Seats.First(x => x.Name == "Hal").Actor.Car.Health!.ArmourMax.ToArray());
         Assert.Equal(halMax, hals);
+    }
+
+    /// <summary>
+    /// A won job's salvage and garage kept through a restart: Ann takes an engine from the field and fits it, Hal takes nothing; the run
+    /// saved and hosted again, both come back in their garage's cars (configurations served by content), Ann's with her engine, and both
+    /// garages as they were.
+    /// </summary>
+    [Fact]
+    public void ARunResumesWithTheCrewsGarages()
+    {
+        if (Install is not { } inst) return;
+        using var s = new Scratch();
+        var run = CoopRun.Start(4242);
+        int engine;
+        string engineStem;
+        using (var g = Host(inst, run))
+        {
+            var hal = g.Join("Hal");
+            var ann = g.Join("Ann");
+            Assert.True(g.Wait(() => ann.Roguetrip is { Phase: "choose", Offers.Count: > 1 }), "no route map");
+            Assert.Null(g.Server.RoguetripSelect(1));
+            g.Start();
+            uint tick = g.Tick;
+            Assert.True(g.WaitDriving(() => g.Tick > tick + 5, [hal, ann]), "the job did not start");
+            g.Server.Invoke(h =>
+            {
+                foreach (var e in h.Setup.Entities.Where(e => e.Vehicle is { } v && !h.Setup.World.IsHuman(v) && !v.IsHeli && !v.IsEmplacement).Take(4).ToList())
+                    h.Setup.Damage.Die(e.Vehicle!, true);
+                return 0;
+            });
+            g.Server.Invoke(h => h.Setup.Script!.Host.EndMission(true, 0, -2));
+            Assert.True(g.WaitDriving(() => ann.State == ClientState.InLobby && ann.Roguetrip?.Phase == "debrief", [hal, ann], 15000), "no debrief");
+            Assert.Null(g.Server.RoguetripContinue());
+            Assert.True(g.Wait(() => ann.Salvage is { Turn: "Hal" }), "no draft");
+            hal.SendPick(PickKind.Done);
+            Assert.True(g.Wait(() => ann.Salvage is { Turn: "Ann" }), "not Ann's pick");
+            var vfs = g.Server.Invoke(h => h.Vfs);
+            var db = I76.Sim.Trip.PartsDatabase.Build(vfs);
+            string own = I76.Sim.Trip.TripInventory.Load(ann.Salvage!.Mine, db, vfs)!.Nodes.First(n => n.State == I76.Sim.Trip.PartState.Car && n.Part.Type == 2).Part.Stem;
+            var item = ann.Salvage!.Items.FirstOrDefault(i => i.Stem.StartsWith("eng", StringComparison.OrdinalIgnoreCase) && !i.Stem.Equals(own, StringComparison.OrdinalIgnoreCase));
+            Assert.NotNull(item);
+            engineStem = item.Stem;
+            ann.SendPick(PickKind.Take, item.Id);
+            Assert.True(g.Wait(() => ann.Salvage!.Items.Single(i => i.Id == item.Id).Taker == "Ann"), "no pick");
+            ann.SendPick(PickKind.Done);
+            Assert.True(g.Wait(() => ann.Salvage is { Garage: true } && hal.Salvage is { Garage: true }), "no garages");
+            // Ann's garage: the engine from her van into the car (her own was )
+            output.WriteLine($"Ann fits {engineStem} in place of {own}");
+            var inv = I76.Sim.Trip.TripInventory.Load(ann.Salvage!.Mine, db, vfs)!;
+            var node = inv.Nodes.First(n => n.State == I76.Sim.Trip.PartState.Van && n.Part.Stem == engineStem);
+            inv.Install(inv.Slots.FindIndex(sl => sl.Type == 2), node);
+            Assert.Null(inv.Validate());
+            engine = node.Part.Ordinal;
+            ann.SendGarage(inv.Save());
+            hal.SendGarage(hal.Salvage!.Mine);
+            Assert.True(g.Wait(() => ann.Roguetrip is { Phase: "choose" }), "no next choice");
+            run.Save(s.Dir);
+        }
+        var back = CoopRun.Load(s.Dir)!;
+        Assert.Contains(engineStem, back.Of("Ann")!.Inventory!, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(back.Of("Hal")!.Inventory);
+        Assert.Equal("vppirna1.vcf", back.Of("Ann")!.Model);
+        using var g2 = Host(inst, back);
+        var hal2 = g2.Join("Hal");
+        var ann2 = g2.Join("Ann");
+        g2.Start();
+        Assert.Equal(2, ann2.Roguetrip!.Job!.Job);
+        var cars = g2.Server.Invoke(h => h.Seats.ToDictionary(x => x.Name, x => ((CoopActor)x.Actor).CarFile));
+        var vfs2 = g2.Server.Invoke(h => h.Vfs);
+        foreach (var (name, file) in cars)
+        {
+            Assert.StartsWith("n", file);   // the garage's car, served by its content
+            var car = I76.Sim.Trip.TripCar.FromVcf(vfs2.TryRead(file)!, n => I76.Sim.Vehicles.VehicleFactory.EngineCompId(vfs2, n));
+            var kept = I76.Sim.Trip.TripInventory.Load(back.Of(name)!.Inventory!, I76.Sim.Trip.PartsDatabase.Build(vfs2), vfs2)!.ToCar();
+            Assert.Equal(kept.ToVcf(), car.ToVcf());
+            if (name == "Ann") Assert.Equal(engine, car.Engine);
+        }
+        Assert.NotEqual(cars["Hal"], cars["Ann"]);
+    }
+
+    /// <summary>
+    /// Four players draft one field: the turns go round all four in the lobby's order, every client's field equals the host's after every
+    /// pick, and everyone's garage done ends it in the route map.
+    /// </summary>
+    [Fact]
+    public void FourPlayersDraftOneField()
+    {
+        if (Install is not { } inst) return;
+        using var s = new Scratch();
+        var run = CoopRun.Start(4242);
+        using var g = Host(inst, run);
+        string[] names = ["Hal", "Ann", "Bob", "Cat"];
+        var crew = names.Select(n => g.Join(n)).ToList();
+        Assert.True(g.Wait(() => crew[3].Roguetrip is { Phase: "choose" }), "no route map");
+        g.Start();
+        uint tick = g.Tick;
+        Assert.True(g.WaitDriving(() => g.Tick > tick + 5, crew), "the job did not start");
+        g.Server.Invoke(h =>
+        {
+            foreach (var e in h.Setup.Entities.Where(e => e.Vehicle is { } v && !h.Setup.World.IsHuman(v) && !v.IsHeli && !v.IsEmplacement).Take(4).ToList())
+                h.Setup.Damage.Die(e.Vehicle!, true);
+            return 0;
+        });
+        g.Server.Invoke(h => h.Setup.Script!.Host.EndMission(true, 0, -2));
+        Assert.True(g.WaitDriving(() => crew.All(c => c.State == ClientState.InLobby && c.Roguetrip?.Phase == "debrief"), crew, 20000), "no debrief");
+        Assert.Null(g.Server.RoguetripContinue());
+        Assert.True(g.Wait(() => crew.All(c => c.Salvage is not null)), "no draft");
+        var order = new List<string>();
+        for (int k = 0; k < 8; k++)
+        {
+            var st = crew[0].Salvage!;
+            if (st.Turn.Length == 0 || !st.Items.Any(i => i.Taker.Length == 0)) break;
+            string who = st.Turn;
+            order.Add(who);
+            var item = st.Items.First(i => i.Taker.Length == 0);
+            crew[Array.IndexOf(names, who)].SendPick(PickKind.Take, item.Id);
+            Assert.True(g.Wait(() => crew.All(c => c.Salvage!.Items.Single(i => i.Id == item.Id).Taker == who)), $"{who}'s pick not seen by all");
+            var server = g.Server.Draft!.Items.ToList();
+            foreach (var c in crew) Assert.Equal(server, c.Salvage!.Items);
+        }
+        output.WriteLine($"turns: {string.Join(" ", order)}");
+        Assert.Equal(names.Concat(names).Take(order.Count), order);
+        foreach (var c in crew) c.SendPick(PickKind.Done);
+        Assert.True(g.Wait(() => crew.All(c => c.Salvage is { Garage: true })), "no garages");
+        foreach (var c in crew) c.SendGarage(c.Salvage!.Mine);
+        Assert.True(g.Wait(() => crew.All(c => c.Roguetrip is { Phase: "choose" } && c.Salvage is null)), "no next choice");
+        foreach (var n in names) Assert.NotNull(g.Server.Roguetrip!.Of(n)!.Inventory);
+    }
+
+    /// <summary>The draft's turns: the fewest turns had first, the host on a tie; a pass and a timeout count as a turn; READY is out for good; a leaver is out.</summary>
+    [Fact]
+    public void TheDraftGoesRoundTheCrew()
+    {
+        var d = new RoguetripDraft([("a", 1), ("b", 2), ("c", 3), ("d", 4), ("e", 5), ("f", 6), ("g", 7)], ["Hal", "Ann", "Bob"]);
+        Assert.Equal("Hal", d.Turn);
+        Assert.NotNull(d.Pick("Ann", 1));          // not her pick
+        Assert.Null(d.Pick("Hal", 1));
+        Assert.NotNull(d.Pick("Ann", 1));          // gone
+        Assert.Null(d.Pick("Ann", 2));
+        Assert.Equal("Bob", d.Turn);
+        d.Tick(RoguetripDraft.PickSeconds + 0.1);  // Bob lets it run out: a pass
+        Assert.Equal("Hal", d.Turn);
+        Assert.Equal(1, d.Crew[2].Turns);
+        d.Done("Hal");                              // Hal is done picking
+        Assert.Equal("Ann", d.Turn);
+        Assert.Null(d.Pick("Ann", 3));
+        Assert.Equal("Bob", d.Turn);
+        d.Leave("Bob");
+        Assert.Equal("Ann", d.Turn);               // only Ann now, until she is done or the field is empty
+        Assert.Null(d.Pick("Ann", 4));
+        Assert.Equal("Ann", d.Turn);
+        d.Done("Ann");
+        Assert.True(d.DraftOver);
+        Assert.True(d.Garage);
+        Assert.Equal(3, d.Left.Count());
+        Assert.Equal(1, d.ScrapShare);
+        Assert.False(d.Over);
+        d.GarageDone("Hal");
+        Assert.False(d.Over);
+        d.GarageDone("Ann");
+        Assert.True(d.Over);                        // Bob left: counted ready
+        Assert.Equal(["a"], d.TakenBy("Hal").Select(i => i.Stem));
+        Assert.Equal(["b", "c", "d"], d.TakenBy("Ann").Select(i => i.Stem));
+        // an empty field goes straight to the garages; their clock ends them
+        var e = new RoguetripDraft([], ["Hal", "Ann"]);
+        Assert.True(e.Garage);
+        e.Tick(RoguetripDraft.GarageSeconds + 1);
+        Assert.True(e.Over);
+    }
+
+    [Fact]
+    public void TheSalvageTravelsOnTheWire()
+    {
+        var d = new RoguetripDraft([("eng6", 1500), ("brk3", 90)], ["Hal", "Ann"]);
+        d.Pick("Hal", 2);
+        var w = new NetWriter();
+        RoguetripSalvage.Of(d, "{\"nodes\":[]}").Write(w);
+        var r = new NetReader(w.ToArray());
+        Assert.Equal(MsgType.RoguetripSalvage, (MsgType)r.U8());
+        var back = RoguetripSalvage.Read(ref r);
+        Assert.Equal(d.Items, back.Items);
+        Assert.Equal(d.Crew, back.Crew);
+        Assert.Equal("Ann", back.Turn);
+        Assert.Equal("{\"nodes\":[]}", back.Mine);
+        Assert.Equal(0, r.Remaining);
+        w.Clear();
+        RoguetripMoves.Pick(w, PickKind.Take, 7);
+        r = new NetReader(w.ToArray());
+        Assert.Equal(MsgType.RoguetripPick, (MsgType)r.U8());
+        Assert.Equal((PickKind.Take, 7), RoguetripMoves.ReadPick(ref r));
     }
 
     /// <summary>The whole crew killed at once ends the run (the debrief, then the run's end); one leaving mid-job does not end it.</summary>

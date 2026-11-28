@@ -80,6 +80,10 @@ public sealed class CrewCar
     public RunCar? State { get; set; }
     /// <summary>Killed in the last job: out of it, back for the next with the car repaired to the floor (<see cref="CoopRun.Floor"/>).</summary>
     public bool Out { get; set; }
+    /// <summary>The player's garage (the trip's inventory, TripInventory.Save: the car's parts, the van's stock, the repair order), null before their first won job.</summary>
+    public string? Inventory { get; set; }
+    /// <summary>The install's car the garage was made from (vppirna1.vcf): what the player's garage car is asked as (a configuration of that model).</summary>
+    public string? Model { get; set; }
 }
 
 /// <summary>An objective of the last job as it stood at its end (the debrief page's).</summary>
@@ -98,7 +102,7 @@ public sealed class CoopObjective
 public sealed class CoopRun
 {
     public const string FileName = "coop-run.yaml";
-    /// <summary>Of a full armour side's plate patched back onto each surviving car after a won job (the trip's salvage left out in co-op).</summary>
+    /// <summary>Of a full armour side's plate each surviving car gets at least after a won job's salvage (when the scrap of the field gives less).</summary>
     public const double WinPatch = 0.3;
     /// <summary>What a car killed in a job comes back with: each armour and chassis side at least this share of full.</summary>
     public const double FloorShare = 0.5;
@@ -145,11 +149,11 @@ public sealed class CoopRun
         return c;
     }
 
-    /// <summary>A surviving car after a won job: <see cref="WinPatch"/> of its full armour patched on (the weakest side first, RemixRun.Patch's way) and the guns reloaded.</summary>
-    public static RunCar AfterWin(RunCar car)
+    /// <summary>A surviving car after a won job: <see cref="WinPatch"/> of its full armour patched on (the weakest side first, RemixRun.Patch's way; none when not <paramref name="plate"/>) and the guns reloaded.</summary>
+    public static RunCar AfterWin(RunCar car, bool plate = true)
     {
         // (Patch with nothing scrapped is a copy of the car; the plate is laid on that)
-        var c = car is { ArmourMax.Length: 4, ChassisMax.Length: 4 }
+        var c = plate && car is { ArmourMax.Length: 4, ChassisMax.Length: 4 }
             ? PatchPlate(RemixRun.Patch(car, car.ArmourMax, car.ChassisMax, 0), (int)Math.Round(car.ArmourMax.Sum() * WinPatch)) : car;
         return new RunCar
         {
@@ -191,7 +195,7 @@ public sealed class CoopRun
 
     /// <summary>
     /// The job's end for the crew: each player's car as it ended (null: as built), killed or not. A survivor carries its damage (a won job
-    /// patches it, <see cref="AfterWin"/>); a car killed comes back for the next at the floor (<see cref="Floor"/>). Then the run's own
+    /// is plated after its salvage, <see cref="Plate"/>); a car killed comes back for the next at the floor (<see cref="Floor"/>). Then the run's own
     /// <see cref="RemixRun.Finish(RemixRun.Outcome, int, RunCar?, string)"/>: the run ends only when the whole crew is dead (the outcome says).
     /// </summary>
     public void Finish(RemixRun.Outcome outcome, int kills, IEnumerable<(string Name, string Car, RunCar? State, bool Dead)> crew, string why, IEnumerable<CoopObjective> objectives)
@@ -202,18 +206,37 @@ public sealed class CoopRun
             if (c is null) Crew.Add(c = new CrewCar { Name = name });
             c.Car = car;
             c.Out = dead;
-            c.State = state is null ? null : dead ? Floor(state) : outcome == RemixRun.Outcome.Won ? AfterWin(state) : state;
+            // (a won job's plate is laid on after the salvage: Plate)
+            c.State = state is null ? null : dead ? Floor(state) : state;
         }
         LastObjectives = [.. objectives];
         Run.Finish(outcome, kills, null, why);
     }
 
-    /// <summary>Past the debrief: a won job's salvage is the patch above (done at the end), so a won job goes straight on to the next choice.</summary>
+    /// <summary>
+    /// Past the debrief: a bust to the next choice (or the run's end); a won job to its salvage (phase salvage: the crew's draft from the
+    /// wrecks, then each player's garage, then <see cref="SalvageDone"/>), or the run done after the last.
+    /// </summary>
     public void Debriefed()
     {
         Run.Debriefed();
-        if (Run.Phase == "salvage") Run.Salvaged(null, null);
         Selected = 0;
+    }
+
+    /// <summary>The crew's salvage and garages over: the next choice.</summary>
+    public void SalvageDone() => Run.Salvaged(null, null);
+    /// <summary>
+    /// The plate a player's car gets after a won job's salvage: the scrap of the parts nobody took, a share each (RemixRun.Patch's way, the
+    /// single player's rule: a tenth of the car's full armour a part, the weakest side first, then the chassis), with the guns reloaded; at
+    /// least <see cref="AfterWin"/>'s patch (a field with little in it, or none).
+    /// </summary>
+    public static RunCar? Plate(RunCar? car, int scrapped)
+    {
+        if (car is null) return null;
+        var least = AfterWin(car);
+        if (scrapped <= 0 || car is not { ArmourMax.Length: 4, ChassisMax.Length: 4 }) return least;
+        var scrap = AfterWin(RemixRun.Patch(car, car.ArmourMax, car.ChassisMax, scrapped), plate: false);
+        return scrap.Armour.Sum() + scrap.Chassis.Sum() >= least.Armour.Sum() + least.Chassis.Sum() ? scrap : least;
     }
 
     public string ToYaml() =>

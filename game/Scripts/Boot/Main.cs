@@ -5483,7 +5483,7 @@ public partial class Main : Node3D
 		if (_net is not null && _launch is null or { Kind: I76.Game.Shell.GameKind.Multiplayer } && !_ended) { NetWatch(); NetReconfigureAnswers(); }
 		// the game ended (back to the shell, the next round): ReloadCurrentScene took this scene out of the tree at once
 		if (!IsInsideTree()) return;
-		if (_net?.Server is not null) NetHurt();
+		if (_net?.Server is not null) { NetHurt(); RoguetripWreck(); }
 		// a melee ends by itself (state 1) five seconds after the player is destroyed
 		if (_script?.Melee is { Over: true }) EndMission(true);
 		// the script's end: a win goes on (the outro, the shell); a failure, or a win with cheats, gets the end menu

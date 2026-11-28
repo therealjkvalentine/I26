@@ -13,7 +13,7 @@ namespace I76.Game.Shell;
 /// 0x45), the highlighter strokes of banks 0x21–0x23 (one random shape per
 /// colour per screen build) and the blueprint's damage index.
 /// </summary>
-public abstract class GarageBase : TripScreen
+public abstract partial class GarageBase : TripScreen
 {
     protected const int P = 17;
     protected ShellFont F45 = null!, F47 = null!;
@@ -27,6 +27,8 @@ public abstract class GarageBase : TripScreen
     /// </summary>
     public TripInventory? Own { get; init; }
     public Action<TripInventory, int>? Finished { get; init; }
+    /// <summary>A co-op roguetrip's salvage draft and garage (GarageScreens.Coop.cs): the shared field, the turns, the way back to the lobby; null otherwise.</summary>
+    public CoopSalvage? Coop { get; init; }
     protected bool Roguetrip => Own is not null;
 
     protected void Setup(TripInventory? inv = null)
@@ -97,7 +99,7 @@ public abstract class GarageBase : TripScreen
 /// click moves a part to its twin list (the inventory takes only as many as
 /// it has rows), ACCEPT SALVAGE goes to the garage.
 /// </summary>
-public sealed class FieldSalvageScreen : GarageBase
+public sealed partial class FieldSalvageScreen : GarageBase
 {
     private sealed record Region(int Rows, int X0, int X1, int Y0, int Y1, (int, int, int, int)? Up = null, (int, int, int, int)? Down = null)
     {
@@ -140,6 +142,7 @@ public sealed class FieldSalvageScreen : GarageBase
     {
         Frame.LoadBackground(Shell.Db, !Roguetrip && Shell.Trip.Mission == 5 ? 30 : 3);
         for (int i = 0; i < 12; i++) Draw(i);
+        CoopStatus();
     }
 
     /// <summary>The part ring sorted into the twelve lists.</summary>
@@ -294,6 +297,7 @@ public sealed class FieldSalvageScreen : GarageBase
 
     public override void Tick()
     {
+        if (CoopTick()) return;
         int held = _hold.Id;
         for (int n = _hold.Update(Shell.MouseHeld, ArrowAt(Shell.Mouse), Shell.Delta); n > 0; n--) ArrowStep(held);
         if (Shell.Wheel != 0)
@@ -338,6 +342,7 @@ public sealed class FieldSalvageScreen : GarageBase
     /// </summary>
     private void Move(int from, int k)
     {
+        if (CoopMove(from, k)) return;   // a co-op draft: a pick goes to the host, the screen follows its answer
         int to = Twin[from];
         if (!Regions[to].Salvage && _lists[to].Count >= Regions[to].Rows) return;
         var n = _lists[from][k];
@@ -355,6 +360,7 @@ public sealed class FieldSalvageScreen : GarageBase
     /// <summary>ACCEPT SALVAGE: after T01 with nothing taken the "Leave without taking salvage?" question; after T02 the bookmark reminder; then the garage.</summary>
     private void AcceptSalvage()
     {
+        if (Coop is not null) { CoopDone(); return; }
         Shell.StopVoice();
         bool firstAfterT01 = !Roguetrip && Shell.Trip.Mission == 2 && !Shell.Trip.FromBookmark && !Shell.Trip.GarageVisited;
         if (firstAfterT01 && !_moved)
@@ -377,7 +383,7 @@ public sealed class FieldSalvageScreen : GarageBase
 
     private void ToGarage()
     {
-        if (Roguetrip) { Shell.Go(new GarageScreen { Own = Inv, Finished = Finished }); return; }
+        if (Roguetrip) { Shell.Go(new GarageScreen { Own = Inv, Finished = Finished, Coop = Coop }); return; }
         if (Shell.Trip.Mission == 3 && !Shell.Trip.GarageVisited) Notice(32, () => Shell.Go(new GarageScreen()));     // REMEMBER, USE THE "SAVE BOOKMARK" BUTTON…
         else Shell.Go(new GarageScreen());
     }
@@ -390,7 +396,7 @@ public sealed class FieldSalvageScreen : GarageBase
 /// DEFENSE, the weight; the pickers and the CAR/VAN INVENTORY pop-up; DONE
 /// launches the next mission.
 /// </summary>
-public sealed class GarageScreen : GarageBase, IChassisForm
+public sealed partial class GarageScreen : GarageBase, IChassisForm
 {
     /// <summary>Opened from a melee form's CONFIGURE CHASSIS: the CHASSIS CONFIGURATION FORM for that model and variant.</summary>
     public MeleeChassis? Melee { get; init; }
@@ -627,6 +633,9 @@ public sealed class GarageScreen : GarageBase, IChassisForm
 
     public override void Tick()
     {
+        if (Coop is { } co && co.Over()) { co.Close(); return; }
+        if (Coop is { } ca && Finished is { } fin && ca.AutoGarage(Inv)) { fin(Inv, 0); return; }
+        CoopClock();
         // DEFENSE ± and the repair list's arrows repeat while held (HoldRepeat): 0 the defense button, 1 and 2 the arrows
         int held = _hold.Id, hit = In(Shell.Mouse, DefenseR) ? 0 : In(Shell.Mouse, (450, 468, 48, 64)) ? 1 : In(Shell.Mouse, (450, 468, 235, 264)) ? 2 : -1;
         for (int n = _hold.Update(Shell.MouseHeld, hit, Shell.Delta); n > 0; n--)

@@ -85,6 +85,7 @@ public sealed partial class NetMeleeServer
         if (name.Length == 0) name = $"Player {_lobby.Count + 1}";
         int id = Enumerable.Range(0, 255).First(k => _lobby.All(m => m.Id != k));
         _lobby.Add(new LobbyPeer((byte)id, peer, j with { Name = name }));
+        RoguetripLobbyCar(_lobby[^1]);   // a co-op roguetrip's player back: their garage's car
         Log?.Invoke($"lobby: {name} comes in ({_lobby.Count} of {Options.MaxPlayers}), {j.Car}");
         SendLobby();
         if (BuildId.Differs(j.Build, BuildId.Current)) LobbySay("Server", BuildId.JoinNotice(name, j.Build, BuildId.Current));
@@ -117,6 +118,7 @@ public sealed partial class NetMeleeServer
     private void LobbyLeft(LobbyPeer m, string why)
     {
         if (!_lobby.Remove(m)) return;
+        _rtDraft?.Leave(m.Request.Name);
         Log?.Invoke($"lobby: {m.Request.Name} leaves ({why})");
         if (m.Peer.Id == _hostPeer)
         {
@@ -186,6 +188,9 @@ public sealed partial class NetMeleeServer
                 if (TryStartLobby(q.Force) is { } no) Log?.Invoke($"lobby: {m.Request.Name} cannot start: {no}");
                 break;
             }
+            case MsgType.RoguetripPick or MsgType.RoguetripGarage when (Options.Features & m.Request.Features & PeerFeatures.Roguetrip) != 0:
+                ReceiveRoguetripMove(m, (MsgType)data[0], ref r);
+                break;
             case MsgType.Leave:
                 LobbyLeft(m, "left");
                 _net.DisconnectPeer(m.Peer);

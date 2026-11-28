@@ -297,6 +297,7 @@ public partial class Main
                 },
                 Roguetrip = () => c.Roguetrip,
                 RouteMap = RoguetripView,
+                SalvageFlow = () => RoguetripSalvageFlow(c),
                 Chat = c.SendChat,
                 Boot = who => _net.Server?.Kick(who),
                 Quit = () => { _lobbyLeft = true; c.Leave(); },

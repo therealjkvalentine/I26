@@ -78,8 +78,10 @@ machine from the host's numbers; the enemies grow with the crew (two players abo
 car's damage carries from job to job as long as you keep the same car. Killed in a job, you are out of it (no respawn: the death card
 says so) and back for the next with your car patched to half armour; the run ends only when the whole crew is killed. A failed job
 otherwise is a bust (the next a step harder). After each job everyone is back in the lobby on the debrief; the host's CONTINUE (or
-Enter) goes on to the next choice: there is no field salvage or garage in co-op, a won job patches 30 % armour onto each car still
-running and reloads its guns. The gangs' cars match the crew's average car. The host keeps the run (user://remix/coop-run.yaml): host ROGUETRIP again and the run goes on, with the
+Enter) goes on. After a won job comes the salvage: everyone sees the same parts from the wrecks and takes them in turns (20 s a
+turn; the line under the lists says whose pick it is; ACCEPT SALVAGE when you have had enough), then fits their own car in the GARAGE
+(150 s for everyone) and DONE; what nobody took is scrapped into armour plate shared out (at least 30 % armour) for each car still
+running, guns reloaded. Your garage (parts, van, repairs) is kept by the host under your name. The gangs' cars match the crew's average car. The host keeps the run (user://remix/coop-run.yaml): host ROGUETRIP again and the run goes on, with the
 same or fewer players. Players who leave mid-job do not end it; new players can join between jobs in the lobby.
 
 The install is looked for in this order: `--install DIR`, the `I76_INSTALL` environment variable, the executable's
