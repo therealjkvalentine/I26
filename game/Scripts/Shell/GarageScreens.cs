@@ -167,11 +167,19 @@ public sealed class FieldSalvageScreen : GarageBase
         }
     }
 
-    /// <summary>Salvage by number then health; inventory weapons by class, number, health.</summary>
+    /// <summary>
+    /// Salvage by number then health; inventory weapons by class, number, health. A roguetrip's salvage (the port's; docs/remix-missions.md
+    /// "Rosters and salvage") best first: by the part's trip level, then its condition, so what is worth taking shows without scrolling.
+    /// </summary>
     private void SortIn(int list, PartNode n)
     {
         int Cmp(PartNode a, PartNode b)
         {
+            if (Roguetrip && list >= 6)
+            {
+                int lv = I76.Formats.Remix.PartTiers.Level(b.Part.Stem).CompareTo(I76.Formats.Remix.PartTiers.Level(a.Part.Stem));
+                return lv != 0 ? lv : Condition(b).CompareTo(Condition(a));
+            }
             int c = list == 2 || list == 7 ? WeaponClass(a.Part).CompareTo(WeaponClass(b.Part)) : 0;
             if (c == 0) c = CodeNumber(a.Part).CompareTo(CodeNumber(b.Part));
             return c != 0 ? c : a.Health.CompareTo(b.Health);
@@ -196,8 +204,26 @@ public sealed class FieldSalvageScreen : GarageBase
                 var n = l[_scroll[id] + i];
                 int y = r.Y0 + 1 + (i + 1) * P;
                 Stroke(n, x, y);
-                Text(F45, x, y, n.Part.Id);
+                // a roguetrip's: "*" before a part that beats what the car has fitted for it (the form's own hand; the bands stay condition)
+                Text(F45, x, y, (Roguetrip && Beats(n) ? "* " : "") + n.Part.Id);
             }
+    }
+
+    /// <summary>A part's condition, as a share of its hit points (0..1000).</summary>
+    private static int Condition(PartNode n) => n.Part.MaxHp <= 0 ? 1000 : (int)System.Math.Clamp(n.Health * 1000L / n.Part.MaxHp, 0, 1000);
+
+    /// <summary>
+    /// Whether a salvaged part beats what the car has fitted for it: an engine, suspension, brakes or tyre over the car's (its best tyre's)
+    /// trip level; a gun or dropper over the weakest of the car's of the same kind (turret or not); nothing for a special.
+    /// </summary>
+    private bool Beats(PartNode n)
+    {
+        int lv = I76.Formats.Remix.PartTiers.Level(n.Part.Stem);
+        if (lv <= 0 || n.Part.Type is not (2 or 3 or 4 or 5 or 7 or 8)) return false;
+        var fitted = Inv.Nodes.Where(f => f.State == PartState.Car && f.Part.Type == n.Part.Type && (n.Part.Type is not (7 or 8) || f.Part.IsTurret == n.Part.IsTurret))
+            .Select(f => I76.Formats.Remix.PartTiers.Level(f.Part.Stem)).ToList();
+        if (fitted.Count == 0) return false;
+        return lv > (n.Part.Type is 7 or 8 ? fitted.Min() : fitted.Max());
     }
 
     private bool ScrollList(int id, int by)

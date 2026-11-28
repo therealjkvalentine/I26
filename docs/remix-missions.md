@@ -494,6 +494,11 @@ parts of 13 wrecks into ten groups that the trip's thinning cut to about 21 item
   .fsi), in the stock random condition except the quarter (full 5 %, three quarters 25 %, half 70 %): never in the red. It is the
   lead's own part; a job under 1.0 has none. Over 60 played jobs for each of three cars, every won job at 1.0 or over had a usable part
   at or above the player's gear in some slot.
+- **The field's order.** The trip's FIELD SALVAGE lists each kind of part by its number then its health, the weakest first (the
+  original's order, kept for the trip). A roguetrip's lists best first instead (by the part's trip level, then its condition), so the
+  parts worth taking are the rows on show without scrolling, and a part that beats what the car has fitted for it (an engine,
+  suspension, brakes or tyre over the car's; a gun or dropper over the car's weakest of the same kind, turret or not) has a "*" in
+  the form's own hand before its name; the colour bands stay the part's condition.
 - **Busts** give no salvage (as before). **Repairs**: the garage's repair order runs in a run as in the trip (finished after the next won
   job: the owner's run queued the 30cal turret at 99 of 200 after job 2 and had it at 200 after job 3). Parts left in the field are still
   scrapped for armour plate.
