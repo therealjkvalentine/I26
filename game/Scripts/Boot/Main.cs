@@ -696,8 +696,21 @@ public partial class Main : Node3D
 	/// </summary>
 	private void RemixOpening()
 	{
-		if (_sim?.Session is not { } session || ReferenceEquals(_remixOpened, session) || _script is null || _net is not null) return;
+		if (_sim?.Session is not { } session || ReferenceEquals(_remixOpened, session) || _script is null) return;
 		if (!I76.Formats.Remix.RemixMarks.IsRemix(_opt.Mission)) { _remixOpened = session; return; }
+		// a co-op roguetrip (every machine built the job, its lines with it): the spoken lines lettered as they go on the air; the
+		// notepad and the objectives' lettering stay single player's
+		if (_net is not null)
+		{
+			if (_loading) return;
+			_remixOpened = session;
+			var netLayer = new CanvasLayer { Layer = 30, Name = "RemixRadio" };
+			var netLine = new I76.Game.Ui.RemixRadioLine { Lee = LeeFont() };
+			netLayer.AddChild(netLine);
+			_sim.AddChild(netLayer);
+			RemixSpoken(netLine);
+			return;
+		}
 		if (_loading || _inMenu || _menu is not null || _picture is not null || CameraHeld || _script.Host.Now < 0.5) return;
 		_remixOpened = session;
 		var layer = new CanvasLayer { Layer = 30, Name = "RemixRadio" };
@@ -726,7 +739,21 @@ public partial class Main : Node3D
 		}
 		ob.Sound += _ => SayOpen();
 		SayOpen();
-		// a spoken line on the air: its words lettered under the objective's, with who says it, whether or not its audio was built
+		RemixSpoken(line);
+		foreach (var hook in RemixSayHook()) _script.Host.CbSay(hook.Sound, hook.PlayerSpeaks ? _script.Host.Player : null, 3);
+		// a radio clip the install lacks: its words lettered instead (the description's radio.words)
+		var words = I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Words;
+		_script.Host.Cb.Missing += name =>
+		{
+			if (words is not null && words.TryGetValue(System.IO.Path.GetFileNameWithoutExtension(name), out var w) && GodotObject.IsInstanceValid(line)) line.Say(w);
+		};
+		// (a capture of the spoken lines runs on without the notepad's key)
+		if (System.Environment.GetEnvironmentVariable("I76_REMIX_VOICE_SHOTS") is not { Length: > 0 }) OpenPicture(MissionPicture.Kind.Notepad);
+	}
+
+	/// <summary>A spoken line on the air (docs/remix-missions.md "Spoken lines"): its words lettered under the objective's, with who says it, whether or not its audio was built.</summary>
+	private void RemixSpoken(I76.Game.Ui.RemixRadioLine line)
+	{
 		void Spoken(I76.Sim.Missions.CbRadio.Line l)
 		{
 			if (I76.Formats.Remix.RemixVoice.Of(l.Name) is not { } v || !GodotObject.IsInstanceValid(line)) return;
@@ -744,17 +771,18 @@ public partial class Main : Node3D
 				};
 			}
 		}
-		_script.Host.Cb.Started += Spoken;
+		_script!.Host.Cb.Started += Spoken;
 		if (_script.Host.Cb.Current is { } now) Spoken(now);
-		foreach (var hook in RemixSayHook()) _script.Host.CbSay(hook.Sound, hook.PlayerSpeaks ? _script.Host.Player : null, 3);
-		// a radio clip the install lacks: its words lettered instead (the description's radio.words)
-		var words = I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Words;
-		_script.Host.Cb.Missing += name =>
-		{
-			if (words is not null && words.TryGetValue(System.IO.Path.GetFileNameWithoutExtension(name), out var w) && GodotObject.IsInstanceValid(line)) line.Say(w);
-		};
-		// (a capture of the spoken lines runs on without the notepad's key)
-		if (System.Environment.GetEnvironmentVariable("I76_REMIX_VOICE_SHOTS") is not { Length: > 0 }) OpenPicture(MissionPicture.Kind.Notepad);
+	}
+
+	/// <summary>Starts building a generated job's spoken lines (RemixVoiceBank) as it loads: single player's and a co-op roguetrip's alike.</summary>
+	private void PrepareRemixVoices()
+	{
+		if (!I76.Formats.Remix.RemixMarks.IsRemix(_opt.Mission) || _builder is null) return;
+		I76.Game.Assets.RemixVoiceBank.FindNitro = NitroVisit.FindNitro;
+		var said = (I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Words.Keys ?? Enumerable.Empty<string>()).ToList();
+		if (_net is null) said.AddRange(RemixSayHook().Select(h => h.Sound));
+		I76.Game.Assets.RemixVoiceBank.Prepare(_builder.Vfs, said);
 	}
 
 	private static int _voiceShots;
@@ -1436,13 +1464,7 @@ public partial class Main : Node3D
 		var audio = new I76.Game.Assets.AudioBank(_builder.Vfs);
 		I76.Game.World.BrushImpacts.Audio = audio;
 		// a generated job's spoken lines (docs/remix-missions.md "Spoken lines"): rebuilt from the clips on a worker as it loads
-		if (I76.Formats.Remix.RemixMarks.IsRemix(_opt.Mission) && _net is null)
-		{
-			I76.Game.Assets.RemixVoiceBank.FindNitro = NitroVisit.FindNitro;
-			var said = (I76.Formats.Remix.RemixMarks.For(_opt.Mission!)?.Words.Keys ?? Enumerable.Empty<string>()).ToList();
-			said.AddRange(RemixSayHook().Select(h => h.Sound));
-			I76.Game.Assets.RemixVoiceBank.Prepare(_builder.Vfs, said);
-		}
+		if (_net is null) PrepareRemixVoices();
 		_script = setup.Script;
 		// Voice Level 0 or 1: the original queues no CB line, so scripts do not wait on silent ones (a network game keeps its radio on)
 		if (_script is not null && _net is null) _script.Host.Cb.Enabled = () => VoiceLevel >= 2;

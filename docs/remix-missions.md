@@ -632,7 +632,9 @@ the plain line sample for sample, the radio within 1.5 dB in every 50 ms (its hi
 stream).
 
 **The simulation** sees a line only by its name and its length, the table's (both bursts and their pads counted, whatever this
-machine built), so a job plays the same with or without the audio. Network and co-op games never run generated jobs.
+machine built), so a job plays the same with or without the audio. In a co-op roguetrip every machine builds the job, and with it the same line plan
+(the job seed's): each builds and letters the lines itself as the server's radio starts them, with nothing new on the wire; a machine
+without the clips letters them only. (The notepad and the objectives' lettering stay single player's.)
 
 **On screen**: as a line goes on the air, its speaker and words are lettered under the objective's line at the top of the screen
 ("Taurus: Get over to the oil field.") for its length and two seconds more; Groove's own lines are said from the player's car, so the
