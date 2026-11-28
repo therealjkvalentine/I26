@@ -377,7 +377,12 @@ public sealed partial class SimSession
             s.Keys = (byte)(((uint)i.Buttons / (uint)CarButtons.Hardpoint1) & 0x1f);
             s.Armed = a;
         }
-        if (CutsceneOf(p) || (p.Flags & VehicleFlags.Dead) != 0) return;
+        if (CutsceneOf(p) || (p.Flags & VehicleFlags.Dead) != 0)
+        {
+            // co-op: a teammate the cut-scene does not drive stands on its brakes until the keys are back
+            if (Script?.Host.HeldInScene(p) == true) { p.Throttle = -1; p.Steer = 0; }
+            return;
+        }
         if (World.External?.Invoke(p) == true)
         {
             // another model drives this car (Modern Physics): it reads the keys at every one of its own steps and ramps

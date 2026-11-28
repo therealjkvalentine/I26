@@ -113,6 +113,16 @@ public sealed partial class ScriptHost : IFsmHost
     public bool ScriptDrove(Vehicle car) => Coop is null && _playerDrivenTick == FsmTick - 1 && Player?.Vehicle == car;
 
     /// <summary>
+    /// Co-op: a teammate (a living human other than the lead, whom the scene drives as the original's one player) that the
+    /// cut-scene under way does not drive (no order, no driveControl entries), whose keys it holds: the car is held on its
+    /// brakes. Formed up on a slope beside the lead it would roll, backwards down the hill, for the length of the scene: off
+    /// the map's edge in the Nitro Pack's long intros (P04, P14).
+    /// </summary>
+    public bool HeldInScene(Vehicle car) =>
+        Coop is { } c && View.Active && Of(car) is { Dead: false, Order: null, ScriptDriven: false } e && e.Controls.Count == 0
+        && c.SeatOf(e) is { } seat && seat.Index != c.LeadSeat;
+
+    /// <summary>
     /// The car follows one of the script's paths: its order is a goto, evade or race (the orders that take a path), whatever
     /// state the AI has pushed on top of it (an avoidance or escape detour keeps the order). A human's car only while the
     /// script drives it (<paramref name="scriptDrives"/>: a cut-scene, or an order outside one), since its order stays set
